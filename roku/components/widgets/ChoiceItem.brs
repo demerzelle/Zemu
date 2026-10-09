@@ -47,6 +47,6 @@ end sub
 ' Focus amount, but 0 when the containing list/grid doesn't have focus.
 function effFocus() as Float
     t = m.top
-    if t.rowListHasFocus or t.gridHasFocus or t.listHasFocus then return t.focusPercent
+    if t.rowListHasFocus or t.gridHasFocus or t.listHasFocus or t.itemHasFocus then return t.focusPercent
     return 0
 end function

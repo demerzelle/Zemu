@@ -7,6 +7,7 @@
     <field id="rowListHasFocus" type="boolean" onChange="onFocusPercent" />
     <field id="gridHasFocus" type="boolean" onChange="onFocusPercent" />
     <field id="listHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="itemHasFocus" type="boolean" onChange="onFocusPercent" />
   </interface>
   <script type="text/brightscript" uri="EpisodeItem.brs" />
   <children>

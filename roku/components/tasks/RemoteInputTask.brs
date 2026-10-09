@@ -90,6 +90,7 @@ sub handle(s as Object, data as String)
     firstLine = substringBefore(data, Chr(13))
     body = substringAfter(data, Chr(13) + Chr(10) + Chr(13) + Chr(10), "")
     msg = ""
+    if m.top.reply <> "" then msg = "Last result: " + m.top.reply
     if startsWith(firstLine, "POST")
         text = ""
         for each pair in body.Split("&")
@@ -99,13 +100,7 @@ sub handle(s as Object, data as String)
         if text <> ""
             m.top.reply = ""
             m.top.received = text
-            ' wait briefly for the TV to report the install result
-            t = CreateObject("roTimespan")
-            while m.top.reply = "" and t.TotalMilliseconds() < 20000
-                Sleep(200)
-            end while
-            msg = m.top.reply
-            if msg = "" then msg = "Sent to the TV."
+            msg = "Sent to your TV. Installing… the TV shows the result (reload this page to see it here)."
         else
             msg = "Paste a URL first."
         end if

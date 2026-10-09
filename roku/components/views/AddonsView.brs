@@ -152,6 +152,7 @@ sub onUrlKeyboard(e as Object)
     btn = dlg.buttonSelected
     text = dlg.text
     closeKeyboard(dlg)
+    m.actions.setFocus(true)
     if btn = 0 and text.Trim() <> "" then install(text, false)
 end sub
 
@@ -164,6 +165,7 @@ sub onSearchKeyboard(e as Object)
     closeKeyboard(dlg)
     buildActions()
     render()
+    m.actions.setFocus(true)
 end sub
 
 sub loadCatalog(s as Object)

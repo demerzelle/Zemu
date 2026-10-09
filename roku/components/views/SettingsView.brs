@@ -107,6 +107,10 @@ sub build()
         n.on = it.on
     end for
     idx = m.list.itemFocused
+    if m.global.hasField("settingsFocus") and m.global.settingsFocus > 0
+        idx = m.global.settingsFocus
+        m.global.settingsFocus = 0
+    end if
     m.list.content = content
     if idx > 0 then m.list.jumpToItem = idx else m.list.jumpToItem = 1
 end sub
@@ -120,6 +124,13 @@ sub setSetting(key as String, value as Dynamic)
     s = m.global.settings
     s[key] = value
     m.top.getScene().callFunc("applySettings", { settings: s })
+    if key = "theme" or key = "customAccent" or key = "customBackground"
+        ' list items cache colors: rebuild this page in the new theme, keeping the position
+        if not m.global.hasField("settingsFocus") then m.global.addFields({ settingsFocus: 0 })
+        m.global.settingsFocus = m.list.itemFocused
+        m.top.navigateTo = { to: "settings" }
+        return
+    end if
     build()
 end sub
 
@@ -246,6 +257,7 @@ sub onNameKeyboard(e as Object)
     btn = dlg.buttonSelected
     name = dlg.text.Trim()
     closeKeyboard(dlg)
+    m.list.setFocus(true)
     if btn <> 0 then return
     profiles = m.global.profiles
     if m.kbMode = "add"

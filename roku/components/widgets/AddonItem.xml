@@ -6,6 +6,7 @@
     <field id="rowListHasFocus" type="boolean" onChange="restyle" />
     <field id="gridHasFocus" type="boolean" onChange="restyle" />
     <field id="listHasFocus" type="boolean" onChange="restyle" />
+    <field id="itemHasFocus" type="boolean" onChange="restyle" />
   </interface>
   <script type="text/brightscript" uri="AddonItem.brs" />
   <children>

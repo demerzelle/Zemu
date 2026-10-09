@@ -312,14 +312,28 @@ end sub
 ' ---- dialogs ----
 
 function pushDialog(dlg as Object) as Object
-    m.focusBefore.Push(m.top.focusedChild)
-    focused = findFocused(m.top)
-    m.focusBefore[m.focusBefore.Count() - 1] = focused
+    ' remember the whole focus path: the focused chip may be rebuilt while the dialog is open
+    chain = []
+    n = findFocused(m.top)
+    while n <> invalid and not n.isSameNode(m.top)
+        chain.Push(n)
+        n = n.getParent()
+    end while
+    m.focusBefore.Push(chain)
     m.dialogs.Push(dlg)
     m.overlay.appendChild(dlg)
     dlg.observeField("closed", "onDialogClosed")
     dlg.setFocus(true)
     return invalid
+end function
+
+function isAttached(node as Object) as Boolean
+    n = node
+    while n <> invalid
+        if n.isSameNode(m.top) then return true
+        n = n.getParent()
+    end while
+    return false
 end function
 
 function findFocused(node as Object) as Dynamic
@@ -343,9 +357,15 @@ function closeDialog(params as Object) as Object
     if idx < 0 then return invalid
     m.overlay.removeChild(dlg)
     m.dialogs.Delete(idx)
-    prev = m.focusBefore[idx]
+    chain = m.focusBefore[idx]
     m.focusBefore.Delete(idx)
-    if prev <> invalid then prev.setFocus(true) else if m.current <> invalid then m.current.setFocus(true)
+    for each n in chain
+        if n.focusable and n.visible and isAttached(n)
+            n.setFocus(true)
+            return invalid
+        end if
+    end for
+    if m.current <> invalid then m.current.setFocus(true)
     return invalid
 end function
 
@@ -439,3 +459,4 @@ end sub
 sub onExitChosen(e as Object)
     if e.getData() = "exit" then m.top.exitApp = true
 end sub
+

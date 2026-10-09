@@ -7,6 +7,7 @@
     <field id="rowListHasFocus" type="boolean" onChange="restyle" />
     <field id="gridHasFocus" type="boolean" onChange="restyle" />
     <field id="listHasFocus" type="boolean" onChange="restyle" />
+    <field id="itemHasFocus" type="boolean" onChange="restyle" />
     <field id="width" type="float" />
     <field id="height" type="float" />
   </interface>

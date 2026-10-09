@@ -95,10 +95,17 @@ end sub
 
 function install(input as String, current as Object) as Object
     url = normalizeTransportUrl(input)
-    man = fetchManifests([url])[0]
+    m.lastHttpError = invalid
+    body = httpGetMany([url], 20000)[0]
+    man = invalid
+    if body <> "" then man = compactManifest(ParseJson(body), url)
     if man = invalid
-        return { action: "install", ok: false, message: "Couldn't install: the manifest at that address didn't load. Check the URL and that the addon is online." }
+        why = "it isn't a Stremio addon manifest"
+        if body = "" then why = tostr(m.lastHttpError)
+        if why = "" then why = "it didn't load"
+        return { action: "install", ok: false, message: "Couldn't install: " + why + ". Check the URL (" + Left(url, 60) + "…) and that the addon is online." }
     end if
+    writeJsonFile(cachePath(url), man)
     updated = []
     for each a in current
         if a.id <> man.id and a.transportUrl <> url then updated.Push(a)

@@ -5,7 +5,7 @@
     <field id="spacing" type="float" value="16" />
     <!-- 0 = no clipping/scrolling -->
     <field id="maxWidth" type="float" value="0" />
-    <field id="focusIndex" type="integer" value="0" />
+    <field id="focusIndex" type="integer" value="0" onChange="onFocusIndex" />
     <field id="relayout" type="boolean" alwaysNotify="true" onChange="doLayout" />
     <field id="height" type="float" />
     <function name="addItem" />

@@ -2,6 +2,8 @@ sub init()
     m.items = m.top.findNode("items")
     m.clip = m.top.findNode("clip")
     m.top.focusable = true
+    m.parker = m.top.createChild("Group")
+    m.parker.focusable = true
     m.top.observeField("focusedChild", "onFocus")
     m.offset = 0
 end sub
@@ -11,10 +13,16 @@ function addItem(node as Object) as Object
     m.items.appendChild(node)
     node.observeField("width", "onChildResized")
     doLayout()
+    ' the row kept focus while it was rebuilt: hand it to the item at the remembered position
+    if (m.top.hasFocus() or m.parker.hasFocus()) and m.items.getChildCount() - 1 = m.top.focusIndex and node.focusable then node.setFocus(true)
     return node
 end function
 
 function clearItems(_ = invalid as Dynamic) as Object
+    ' Removing the focused child would leave focus nowhere (the remote stops responding),
+    ' so park it on the row itself until items are added again.
+    ' (setFocus on the row itself is a no-op while a child has focus, so use a hidden sibling)
+    if m.top.isInFocusChain() then m.parker.setFocus(true)
     m.items.removeChildrenIndex(m.items.getChildCount(), 0)
     m.top.focusIndex = 0
     m.offset = 0
@@ -55,6 +63,17 @@ sub doLayout()
         m.clip.clippingRect = [-20, -20, m.top.maxWidth + 40, h + 40]
     end if
     scrollToFocus()
+end sub
+
+sub onFocusIndex()
+    i = m.top.focusIndex
+    if m.top.isInFocusChain() and i >= 0 and i < m.items.getChildCount()
+        c = m.items.getChild(i)
+        if c.focusable and c.visible and not c.hasFocus()
+            c.setFocus(true)
+            scrollToFocus()
+        end if
+    end if
 end sub
 
 sub onFocus()

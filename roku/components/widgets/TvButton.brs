@@ -95,8 +95,19 @@ end sub
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if press and key = "OK"
-        m.top.pressed = true
+        ' Report the press after this key event finishes: handlers often rebuild the row this
+        ' button lives in, and removing the focused node inside its own key handler loses focus.
+        if m.pressTimer = invalid
+            m.pressTimer = CreateObject("roSGNode", "Timer")
+            m.pressTimer.duration = 0.01
+            m.pressTimer.observeField("fire", "firePressed")
+        end if
+        m.pressTimer.control = "start"
         return true
     end if
     return false
 end function
+
+sub firePressed()
+    m.top.pressed = true
+end sub

@@ -284,9 +284,30 @@ end function
 
 ' ---- HTTP (Task threads only: these block) ----
 
+' Percent-encodes characters roUrlTransfer rejects. Configured addons put them in the path,
+' e.g. Torrentio "providers=yts,eztv|realdebrid=KEY" or AIOStreams base64 with spaces/quotes.
+function safeUrl(url as String) as String
+    out = ""
+    n = Len(url)
+    for i = 1 to n
+        ch = Mid(url, i, 1)
+        c = Asc(ch)
+        if c <= 32 or c >= 127 or ch = "|" or ch = Chr(34) or ch = "<" or ch = ">" or ch = "{" or ch = "}" or ch = "^" or ch = "`" or ch = "\"
+            ba = CreateObject("roByteArray")
+            ba.FromAsciiString(ch)
+            for each b in ba
+                out = out + "%" + UCase(Right("0" + StrI(b, 16), 2))
+            end for
+        else
+            out = out + ch
+        end if
+    end for
+    return out
+end function
+
 function newXfer(url as String) as Object
     x = CreateObject("roUrlTransfer")
-    x.SetUrl(url)
+    x.SetUrl(safeUrl(url))
     if startsWith(LCase(url), "https")
         x.SetCertificatesFile("common:/certs/ca-bundle.crt")
         x.InitClientCertificates()
@@ -328,10 +349,12 @@ function httpGetMany(urls as Object, timeoutMs = 20000 as Integer, maxParallel =
                     results[a.i] = msg.GetString()
                 else
                     print "[zemu] http "; msg.GetResponseCode(); " "; msg.GetFailureReason(); " "; urls[a.i]
+                    m.lastHttpError = httpErrorText(msg.GetResponseCode(), msg.GetFailureReason())
                 end if
             else if a.t.TotalMilliseconds() > timeoutMs
                 a.x.AsyncCancel()
                 print "[zemu] http timeout "; urls[a.i]
+                m.lastHttpError = "the server didn't answer in time"
             else
                 still.Push(a)
             end if
@@ -358,4 +381,11 @@ function httpGetJsonMany(urls as Object, timeoutMs = 20000 as Integer) as Object
         if body = "" then out.Push(invalid) else out.Push(ParseJson(body))
     end for
     return out
+end function
+
+function httpErrorText(code as Integer, reason as String) as String
+    if code > 0 then return "the server answered HTTP " + tostr(code)
+    r = reason.Trim()
+    if r = "" then r = "network error " + tostr(code)
+    return r
 end function
