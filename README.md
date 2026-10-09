@@ -49,7 +49,7 @@ with a Netflix-style interface and **cached-only** debrid streams.
 1. Install and open Zemu. Cinemeta (catalogs, metadata, ratings) and OpenSubtitles are installed automatically.
 2. Open **Addons** in the side menu and install a stream addon configured with your debrid account (Real-Debrid, AllDebrid, Premiumize, TorBox, Debrid-Link…). AIOStreams, Comet, MediaFusion and Torrentio all work.
    - Use **Configure** to set it up on the TV, or paste the manifest URL you already have (e.g. your AIOStreams instance's URL).
-   - To avoid typing with the remote, open the address shown on the Addons screen (e.g. `http://192.168.1.20:8765`) on your phone and paste the URL there. This phone page only works while the Addons screen is open on the TV.
+   - To avoid typing with the remote, open the address shown on the Addons screen (e.g. `http://192.168.x.xx:8765`) on your phone and paste the URL there. This phone page only works while the Addons screen is open on the TV.
 3. Set your preferred audio and subtitle languages in **Settings → Languages**.
 
 ## How "cached" is decided
