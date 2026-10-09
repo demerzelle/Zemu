@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>Zemu</string>
+    <key>CFBundleDisplayName</key><string>Zemu</string>
+    <key>CFBundleIdentifier</key><string>com.zemu.mac</string>
+    <key>CFBundleExecutable</key><string>Zemu</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+    <key>NSHumanReadableCopyright</key><string>Zemu doesn't host or index any content. It only plays what the addons you install return.</string>
+    <!-- Community addons and some debrid links are plain HTTP. -->
+    <key>NSAppTransportSecurity</key>
+    <dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+    <!-- stremio:// install links from addon websites, and zemu://details/{type}/{id} links. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>Stremio addon</string>
+            <key>CFBundleURLSchemes</key><array><string>stremio</string></array>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+        </dict>
+        <dict>
+            <key>CFBundleURLName</key><string>Zemu link</string>
+            <key>CFBundleURLSchemes</key><array><string>zemu</string></array>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+        </dict>
+    </array>
+</dict>
+</plist>
