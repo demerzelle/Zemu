@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Content node for a title card. meta holds the slim meta (see slimMeta in Stremio.brs). -->
+<component name="MetaNode" extends="ContentNode">
+  <interface>
+    <field id="meta" type="assocarray" />
+    <!-- "poster" | "landscape" -->
+    <field id="style" type="string" value="poster" />
+    <field id="badge" type="string" />
+    <field id="subtitle" type="string" />
+    <field id="progress" type="float" value="0" />
+    <field id="watched" type="boolean" value="false" />
+  </interface>
+</component>

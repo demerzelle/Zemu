@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="SearchView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" />
+    <field id="navigateTo" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Rows.brs" />
+  <script type="text/brightscript" uri="SearchView.brs" />
+  <children>
+    <Label text="Search" translation="[64,34]" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="40" />
+    </Label>
+    <MiniKeyboard id="keyboard" translation="[48,100]" />
+    <Label id="status" translation="[64,560]" width="400" wrap="true" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+    <RowList id="results" translation="[440,60]" numRows="2" />
+    <Label id="hint" translation="[500,120]" width="620" wrap="true" color="0x80808CFF" text="Type with the keyboard, or hold the microphone button on your Roku remote and say a title.">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <Timer id="debounce" duration="0.45" />
+  </children>
+</component>

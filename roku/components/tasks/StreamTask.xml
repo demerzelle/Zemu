@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of StreamRepository + DetailsViewModel stream logic. Persistent: send { action: "load" | "filter" } via request. -->
+<component name="StreamTask" extends="Task">
+  <interface>
+    <field id="request" type="assocarray" />
+    <field id="result" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Languages.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamParser.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamFilter.brs" />
+  <script type="text/brightscript" uri="StreamTask.brs" />
+</component>

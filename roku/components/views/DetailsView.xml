@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="DetailsView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" onChange="onActive" />
+    <field id="dispose" type="boolean" onChange="onDispose" />
+    <field id="navigateTo" type="assocarray" />
+    <field id="meta" type="assocarray" onChange="onMetaParam" />
+    <field id="section" type="string" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Languages.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamParser.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamFilter.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Rows.brs" />
+  <script type="text/brightscript" uri="DetailsView.brs" />
+  <children>
+    <Hero id="hero" mode="backdrop" backdropHeight="693" areaWidth="1280" />
+    <Group id="page">
+      <Group id="header" translation="[64,64]">
+        <Poster id="logo" loadDisplayMode="scaleToFit" width="560" height="160" />
+        <Label id="titleText" width="900" wrap="true" maxLines="2" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="48" />
+        </Label>
+        <MetaLine id="metaLine" />
+        <Label id="genres" color="0xB8B8C2FF">
+          <Font role="font" uri="font:SystemFontFile" size="19" />
+        </Label>
+        <Label id="episodeLabel" width="900" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="21" />
+        </Label>
+        <Label id="episodeSyn" width="794" wrap="true" maxLines="2" color="0xE6E6EAFF">
+          <Font role="font" uri="font:SystemFontFile" size="18" />
+        </Label>
+        <Label id="desc" width="794" wrap="true" maxLines="4" lineSpacing="2" color="0xE6E6EAFF">
+          <Font role="font" uri="font:SystemFontFile" size="20" />
+        </Label>
+        <Label id="people" width="900" wrap="true" maxLines="3" color="0x80808CFF">
+          <Font role="font" uri="font:SystemFontFile" size="17" />
+        </Label>
+        <FocusRow id="buttons" spacing="16" />
+        <Label id="bestLine" color="0xB8B8C2FF">
+          <Font role="font" uri="font:SystemFontFile" size="17" />
+        </Label>
+      </Group>
+      <Group id="episodesSection" visible="false">
+        <Label text="Episodes" translation="[64,0]" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="28" />
+        </Label>
+        <FocusRow id="seasons" translation="[64,48]" spacing="13" maxWidth="1152" />
+        <RowList id="episodes" translation="[0,104]" numRows="1" itemComponentName="EpisodeItem" itemSize="[1280,240]" rowItemSize="[[307,173]]" rowItemSpacing="[[19,0]]" focusXOffset="[64]" rowFocusAnimationStyle="floatingFocus" drawFocusFeedback="false" showRowLabel="[false]" />
+        <Label id="epSummaryTitle" translation="[64,350]" width="960" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="20" />
+        </Label>
+        <Label id="epSummary" translation="[64,378]" width="960" wrap="true" maxLines="3" color="0xB8B8C2FF">
+          <Font role="font" uri="font:SystemFontFile" size="18" />
+        </Label>
+      </Group>
+      <Group id="streamsSection">
+        <Label id="streamsTitle" text="Cached streams" translation="[64,0]" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="28" />
+        </Label>
+        <Label id="streamsSummary" translation="[290,6]" width="930" color="0x80808CFF">
+          <Font role="font" uri="font:SystemFontFile" size="18" />
+        </Label>
+        <FocusRow id="filterBar" translation="[64,50]" spacing="13" maxWidth="1152" />
+        <Label id="extSubs" translation="[64,104]" width="1152" color="0x80808CFF">
+          <Font role="font" uri="font:SystemFontFile" size="17" />
+        </Label>
+        <Label id="streamsHint" translation="[64,134]" width="1152" wrap="true" maxLines="2" color="0xB8B8C2FF">
+          <Font role="font" uri="font:SystemFontFile" size="20" />
+        </Label>
+        <TvButton id="hintButton" translation="[64,190]" visible="false" />
+        <MarkupList id="streamList" translation="[64,134]" itemComponentName="StreamItem" itemSize="[1152,100]" itemSpacing="[0,10]" numRows="4" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" visible="false" />
+      </Group>
+      <RowList id="similar" numRows="2" />
+    </Group>
+    <Label id="loading" text="Loading…" translation="[0,340]" width="1280" horizAlign="center" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="22" />
+    </Label>
+    <Animation id="scrollAnim" duration="0.25" easeFunction="outCubic">
+      <Vector2DFieldInterpolator id="scrollInterp" key="[0,1]" fieldToInterp="page.translation" />
+    </Animation>
+  </children>
+</component>

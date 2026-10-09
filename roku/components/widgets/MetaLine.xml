@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of MetaLine: "% Match · year · runtime · [SERIES] · IMDb 7.8" -->
+<component name="MetaLine" extends="Group">
+  <interface>
+    <field id="meta" type="assocarray" onChange="render" />
+    <field id="match" type="integer" value="0" onChange="render" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="MetaLine.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <children>
+    <Label id="matchL" height="26" vertAlign="center" color="0x46D369FF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="20" />
+    </Label>
+    <Label id="year" height="26" vertAlign="center" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <Label id="runtime" height="26" vertAlign="center" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <Group id="tag">
+      <Poster id="tagBox" uri="pkg:/images/ring4.9.png" height="24" translation="[0,1]" blendColor="0xB8B8C2B3" />
+      <Label id="tagText" translation="[8,1]" height="24" vertAlign="center" color="0xB8B8C2FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="15" />
+      </Label>
+    </Group>
+    <Group id="imdb" visible="false">
+      <Poster id="imdbBox" uri="pkg:/images/rr4.9.png" width="46" height="22" translation="[0,2]" blendColor="0xF5C518FF" />
+      <Label text="IMDb" translation="[5,2]" height="22" vertAlign="center" color="0x000000FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="15" />
+      </Label>
+      <Label id="imdbText" translation="[54,0]" height="26" vertAlign="center" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="19" />
+      </Label>
+    </Group>
+  </children>
+</component>

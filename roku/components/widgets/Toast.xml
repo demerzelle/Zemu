@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="Toast" extends="Group">
+  <interface>
+    <field id="text" type="string" onChange="show" />
+  </interface>
+  <script type="text/brightscript" uri="Toast.brs" />
+  <children>
+    <Poster id="bg" uri="pkg:/images/rr12.9.png" height="52" />
+    <Label id="label" translation="[24,0]" height="52" vertAlign="center" horizAlign="center" color="0xFFFFFFFF">
+      <Font role="font" uri="font:SystemFontFile" size="19" />
+    </Label>
+    <Timer id="timer" duration="2.8" />
+  </children>
+</component>

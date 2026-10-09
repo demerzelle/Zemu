@@ -1,0 +1,4 @@
+out/
+tools/node_modules/
+.roku-deploy.env
+screenshots/

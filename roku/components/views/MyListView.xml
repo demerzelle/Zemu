@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="MyListView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" onChange="render" />
+    <field id="navigateTo" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="MyListView.brs" />
+  <children>
+    <Label text="My List" translation="[64,34]" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="40" />
+    </Label>
+    <Label id="empty" translation="[64,110]" width="1000" wrap="true" color="0xB8B8C2FF" text="Nothing here yet. Press * on any title, or use the My List button on a title page, to save it here.">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <MarkupGrid id="grid" translation="[64,110]" itemComponentName="PosterItem" numColumns="6" numRows="3" itemSize="[155,232]" itemSpacing="[24,30]" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+  </children>
+</component>

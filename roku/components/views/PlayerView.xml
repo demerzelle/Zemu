@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="PlayerView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" onChange="onActive" />
+    <field id="dispose" type="boolean" onChange="onDispose" />
+    <field id="navigateTo" type="assocarray" />
+    <field id="params" type="assocarray" onChange="onParams" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Languages.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="PlayerView.brs" />
+  <children>
+    <Rectangle width="1280" height="720" color="0x000000FF" />
+    <Video id="video" width="1280" height="720" enableUI="false" />
+    <Label id="buffering" text="Loading…" width="1280" height="720" horizAlign="center" vertAlign="center" color="0xFFFFFFCC">
+      <Font role="font" uri="font:SystemFontFile" size="22" />
+    </Label>
+    <Group id="scrub" visible="false">
+      <Poster uri="pkg:/images/grad_down.png" width="1280" height="160" translation="[0,560]" blendColor="0x000000D9" />
+      <SeekBar id="scrubBar" translation="[64,640]" />
+    </Group>
+    <Group id="menu" visible="false">
+      <Poster uri="pkg:/images/grad_up.png" width="1280" height="200" blendColor="0x000000CC" />
+      <Label id="title" translation="[64,37]" width="1152" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="35" />
+      </Label>
+      <Label id="label" translation="[64,82]" width="1152" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="21" />
+      </Label>
+      <Label id="streamLabel" translation="[64,110]" width="1152" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Poster uri="pkg:/images/grad_down.png" width="1280" height="300" translation="[0,420]" blendColor="0x000000E6" />
+      <Group id="seek" translation="[64,560]" focusable="true">
+        <SeekBar id="seekBar" />
+      </Group>
+      <Label id="hint" translation="[64,606]" width="1152" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <FocusRow id="bar" translation="[64,634]" spacing="16" />
+    </Group>
+    <TvButton id="skipBtn" visible="false" text="Skip intro" />
+    <Group id="nextCard" visible="false">
+      <Poster id="nextBg" uri="pkg:/images/rr12.9.png" width="460" height="168" blendColor="0x16161CF2" />
+      <Label id="nextHeading" translation="[24,18]" width="412" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Label id="nextTitle" translation="[24,44]" width="412" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="21" />
+      </Label>
+      <FocusRow id="nextButtons" translation="[24,96]" spacing="13" />
+    </Group>
+    <Timer id="tick" duration="1" repeat="true" />
+    <Timer id="hideTimer" duration="5" />
+    <Timer id="seekTimer" duration="0.6" />
+  </children>
+</component>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="StreamNode" extends="ContentNode">
+  <interface>
+    <field id="res" type="string" />
+    <field id="hdr" type="string" />
+    <!-- "best" | "warn" | "" -->
+    <field id="badge" type="string" />
+    <field id="name" type="string" />
+    <field id="specs" type="string" />
+    <field id="audioLangs" type="string" />
+    <field id="subLangs" type="string" />
+    <field id="size" type="string" />
+    <field id="service" type="string" />
+    <field id="addon" type="string" />
+    <field id="stream" type="assocarray" />
+  </interface>
+</component>

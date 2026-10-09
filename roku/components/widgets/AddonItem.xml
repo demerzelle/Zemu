@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="AddonItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="restyle" />
+    <field id="rowListHasFocus" type="boolean" onChange="restyle" />
+    <field id="gridHasFocus" type="boolean" onChange="restyle" />
+    <field id="listHasFocus" type="boolean" onChange="restyle" />
+  </interface>
+  <script type="text/brightscript" uri="AddonItem.brs" />
+  <children>
+    <Group id="card" scaleRotateCenter="[525,52]">
+      <Poster id="bg" uri="pkg:/images/rr12.9.png" width="1050" height="104" />
+      <Poster id="ring" uri="pkg:/images/ring12.9.png" width="1050" height="104" opacity="0" />
+      <Poster id="logoBg" uri="pkg:/images/rr8.9.png" width="72" height="72" translation="[16,16]" />
+      <Poster id="logo" width="64" height="64" translation="[20,20]" loadWidth="64" loadHeight="64" loadDisplayMode="scaleToFit" />
+      <Label id="name" translation="[104,14]" width="760" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="21" />
+      </Label>
+      <Label id="desc" translation="[104,44]" width="780" wrap="true" maxLines="2" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+      <Label id="types" translation="[810,16]" width="220" horizAlign="right" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+      <Label id="status" translation="[810,60]" width="220" horizAlign="right">
+        <Font role="font" uri="font:BoldSystemFontFile" size="17" />
+      </Label>
+    </Group>
+  </children>
+</component>

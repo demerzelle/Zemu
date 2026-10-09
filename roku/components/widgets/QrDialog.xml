@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shows a QR code + URL so a phone can open a page (addon configure pages, the phone input page). -->
+<component name="QrDialog" extends="Group">
+  <interface>
+    <field id="title" type="string" />
+    <field id="url" type="string" onChange="render" />
+    <field id="message" type="string" />
+    <field id="closed" type="boolean" alwaysNotify="true" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="QrDialog.brs" />
+  <children>
+    <Rectangle width="1280" height="720" color="0x000000B0" />
+    <Group translation="[190,110]">
+      <Poster id="bg" uri="pkg:/images/rr12.9.png" width="900" height="500" />
+      <Label id="titleLabel" translation="[36,30]" width="830">
+        <Font role="font" uri="font:BoldSystemFontFile" size="28" />
+      </Label>
+      <Poster uri="pkg:/images/rr8.9.png" width="300" height="300" translation="[36,90]" blendColor="0xFFFFFFFF" />
+      <Poster id="qr" width="280" height="280" translation="[46,100]" />
+      <Label id="msg" translation="[370,90]" width="494" wrap="true" maxLines="8" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="19" />
+      </Label>
+      <Label id="urlLabel" translation="[36,410]" width="830" wrap="true" maxLines="2" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="18" />
+      </Label>
+      <Label text="Press OK or Back to close" translation="[36,462]" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+    </Group>
+  </children>
+</component>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fetches catalogs in parallel and builds RowList content (MetaNode cards) on the task thread. -->
+<component name="CatalogTask" extends="Task">
+  <interface>
+    <!-- [{ key, title, priority, style, base, type, id, extra: [[k,v]], limit }] -->
+    <field id="requests" type="array" />
+    <field id="watched" type="assocarray" />
+    <field id="rows" type="array" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="CatalogTask.brs" />
+</component>

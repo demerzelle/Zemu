@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of ChoiceDialog (Controls.kt): modal list of options, single- or multi-select. -->
+<component name="ChoiceDialog" extends="Group">
+  <interface>
+    <field id="title" type="string" />
+    <field id="message" type="string" />
+    <!-- [{ id, label, trailing, checked }] -->
+    <field id="options" type="array" onChange="build" />
+    <field id="multiSelect" type="boolean" value="false" />
+    <field id="showClear" type="boolean" value="false" />
+    <field id="focusId" type="string" />
+    <field id="tag" type="string" />
+    <field id="chosen" type="string" alwaysNotify="true" />
+    <field id="cleared" type="boolean" alwaysNotify="true" />
+    <field id="closed" type="boolean" alwaysNotify="true" />
+    <function name="setChecked" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="ChoiceDialog.brs" />
+  <children>
+    <Rectangle id="dim" width="1280" height="720" color="0x000000B0" />
+    <Group id="panel">
+      <Poster id="panelBg" uri="pkg:/images/rr12.9.png" />
+      <Label id="titleLabel" translation="[32,26]" width="560">
+        <Font role="font" uri="font:BoldSystemFontFile" size="28" />
+      </Label>
+      <Label id="messageLabel" translation="[32,70]" width="560" wrap="true" maxLines="4" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="19" />
+      </Label>
+      <MarkupList id="list" itemComponentName="ChoiceItem" itemSize="[560,52]" itemSpacing="[0,4]" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+      <Label id="hint" width="560" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+    </Group>
+  </children>
+</component>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of ToggleRow / ValueRow (SettingsScreen.kt). -->
+<component name="SettingItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="restyle" />
+    <field id="rowListHasFocus" type="boolean" onChange="restyle" />
+    <field id="gridHasFocus" type="boolean" onChange="restyle" />
+    <field id="listHasFocus" type="boolean" onChange="restyle" />
+  </interface>
+  <script type="text/brightscript" uri="SettingItem.brs" />
+  <children>
+    <Poster id="bg" uri="pkg:/images/rr12.9.png" width="1050" height="72" />
+    <Label id="header" translation="[4,24]" width="1040" visible="false" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="26" />
+    </Label>
+    <Label id="label" translation="[22,10]" width="740" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="20" />
+    </Label>
+    <Label id="desc" translation="[22,38]" width="760" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="16" />
+    </Label>
+    <Label id="value" translation="[700,0]" width="326" height="72" vertAlign="center" horizAlign="right" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="19" />
+    </Label>
+    <Group id="toggle" translation="[958,22]">
+      <Poster id="track" uri="pkg:/images/pill.9.png" width="68" height="30" />
+      <Poster id="knob" uri="pkg:/images/circle.png" width="24" height="24" translation="[3,3]" />
+    </Group>
+  </children>
+</component>

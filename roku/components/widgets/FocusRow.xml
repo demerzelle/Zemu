@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Horizontal row of focusable children with Left/Right navigation and scrolling (like a LazyRow of buttons/chips). -->
+<component name="FocusRow" extends="Group">
+  <interface>
+    <field id="spacing" type="float" value="16" />
+    <!-- 0 = no clipping/scrolling -->
+    <field id="maxWidth" type="float" value="0" />
+    <field id="focusIndex" type="integer" value="0" />
+    <field id="relayout" type="boolean" alwaysNotify="true" onChange="doLayout" />
+    <field id="height" type="float" />
+    <function name="addItem" />
+    <function name="clearItems" />
+    <function name="itemCount" />
+    <function name="getItem" />
+  </interface>
+  <script type="text/brightscript" uri="FocusRow.brs" />
+  <children>
+    <Group id="clip">
+      <Group id="items" />
+    </Group>
+  </children>
+</component>

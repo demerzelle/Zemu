@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Loads full metadata for a title from the preferred meta provider, falling back through the others. -->
+<component name="MetaTask" extends="Task">
+  <interface>
+    <field id="type" type="string" />
+    <field id="metaId" type="string" />
+    <field id="addons" type="array" />
+    <field id="preferred" type="string" />
+    <field id="meta" type="assocarray" />
+    <field id="failed" type="boolean" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="MetaTask.brs" />
+</component>

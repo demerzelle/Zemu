@@ -1,0 +1,16 @@
+# Gradle / Android Studio
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+
+# macOS
+.DS_Store
+
+# Roku
+roku/node_modules
+roku/tools/node_modules/
+roku/out/

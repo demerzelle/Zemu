@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="ChoiceItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="restyle" />
+    <field id="rowListHasFocus" type="boolean" onChange="restyle" />
+    <field id="gridHasFocus" type="boolean" onChange="restyle" />
+    <field id="listHasFocus" type="boolean" onChange="restyle" />
+    <field id="itemHasFocus" type="boolean" onChange="restyle" />
+  </interface>
+  <script type="text/brightscript" uri="ChoiceItem.brs" />
+  <children>
+    <Poster id="bg" uri="pkg:/images/rr8.9.png" width="560" height="52" />
+    <Poster id="box" uri="pkg:/images/ring4.9.png" width="26" height="26" translation="[16,13]" />
+    <Poster id="check" uri="pkg:/images/ic_check.png" width="26" height="26" translation="[16,13]" visible="false" />
+    <Label id="label" translation="[56,0]" width="380" height="52" vertAlign="center">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <Label id="trailing" translation="[380,0]" width="160" height="52" vertAlign="center" horizAlign="right">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+  </children>
+</component>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="AddonsView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" onChange="onActive" />
+    <field id="navigateTo" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Keyboard.brs" />
+  <script type="text/brightscript" uri="AddonsView.brs" />
+  <children>
+    <Label text="Addons" translation="[64,34]" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="40" />
+    </Label>
+    <Poster id="phoneIcon" uri="pkg:/images/ic_phone.png" translation="[64,99]" width="22" height="22" />
+    <Label id="phoneHint" translation="[94,96]" width="1000" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+    <FocusRow id="tabs" translation="[64,140]" spacing="13" maxWidth="1050" />
+    <FocusRow id="actions" translation="[64,196]" spacing="13" maxWidth="1050" />
+    <Label id="message" translation="[64,254]" width="1050" color="0xFFFFFFFF">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+    <Label id="empty" translation="[64,300]" width="1050" wrap="true" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <MarkupList id="list" translation="[64,288]" itemComponentName="AddonItem" itemSize="[1050,104]" itemSpacing="[0,12]" numRows="4" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+  </children>
+</component>

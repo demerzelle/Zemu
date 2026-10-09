@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of StreamRow (StreamComponents.kt). -->
+<component name="StreamItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="restyle" />
+    <field id="rowListHasFocus" type="boolean" onChange="restyle" />
+    <field id="gridHasFocus" type="boolean" onChange="restyle" />
+    <field id="listHasFocus" type="boolean" onChange="restyle" />
+    <field id="width" type="float" />
+    <field id="height" type="float" />
+  </interface>
+  <script type="text/brightscript" uri="StreamItem.brs" />
+  <children>
+    <Group id="card" scaleRotateCenter="[576,50]">
+      <Poster id="bg" uri="pkg:/images/rr12.9.png" width="1152" height="100" />
+      <Poster id="ring" uri="pkg:/images/ring12.9.png" width="1152" height="100" opacity="0" />
+      <Label id="res" translation="[24,18]" width="120" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="29" />
+      </Label>
+      <Label id="hdr" translation="[24,56]" width="120" color="0xF5C518FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="16" />
+      </Label>
+      <Group id="tag" translation="[152,14]">
+        <Poster id="tagBg" uri="pkg:/images/rr4.9.png" height="24" />
+        <Label id="tagText" translation="[8,0]" height="24" vertAlign="center">
+          <Font role="font" uri="font:BoldSystemFontFile" size="15" />
+        </Label>
+      </Group>
+      <Label id="name" translation="[152,12]" width="700" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="20" />
+      </Label>
+      <Label id="specs" translation="[152,40]" width="760" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Poster id="audioIcon" uri="pkg:/images/ic_audio.png" translation="[152,68]" width="18" height="18" blendColor="0xB8B8C2FF" />
+      <Label id="audio" translation="[176,64]" width="360" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Poster id="subIcon" uri="pkg:/images/ic_chat.png" translation="[548,69]" width="17" height="17" blendColor="0xB8B8C2FF" />
+      <Label id="subs" translation="[572,64]" width="330" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Label id="size" translation="[912,12]" width="216" horizAlign="right" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="21" />
+      </Label>
+      <Group id="svc">
+        <Poster id="bolt" uri="pkg:/images/ic_bolt.png" width="17" height="17" blendColor="0xFFC94DFF" />
+        <Label id="service" translation="[19,-3]" color="0xFFC94DFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="17" />
+        </Label>
+      </Group>
+      <Label id="addon" translation="[880,66]" width="248" horizAlign="right" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+    </Group>
+  </children>
+</component>

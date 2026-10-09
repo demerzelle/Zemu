@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="AddonNode" extends="ContentNode">
+  <interface>
+    <field id="addon" type="assocarray" />
+    <field id="installed" type="boolean" />
+    <field id="installedUrl" type="string" />
+  </interface>
+</component>

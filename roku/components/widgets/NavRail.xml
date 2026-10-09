@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of NavRail (AppShell.kt): collapsed icon rail that expands with labels while focused. -->
+<component name="NavRail" extends="Group">
+  <interface>
+    <field id="current" type="string" onChange="restyle" />
+    <field id="chosen" type="string" alwaysNotify="true" />
+    <field id="expanded" type="boolean" value="false" />
+    <field id="applyTheme" type="boolean" alwaysNotify="true" onChange="onTheme" />
+  </interface>
+  <script type="text/brightscript" uri="NavRail.brs" />
+  <children>
+    <Rectangle id="bg" width="101" height="720" />
+    <Poster id="logo" translation="[27,29]" width="48" height="43" loadDisplayMode="scaleToFit" uri="pkg:/images/logo_mark.png" />
+    <Poster id="wordmark" translation="[27,31]" width="168" height="40" loadDisplayMode="scaleToFit" uri="pkg:/images/logo_wordmark.png" visible="false" />
+    <Group id="list" translation="[16,0]" />
+  </children>
+</component>

@@ -1,0 +1,184 @@
+package com.zemu.tv.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
+import com.zemu.tv.data.AppSettings
+import com.zemu.tv.ui.components.FocusSurface
+import com.zemu.tv.ui.theme.Palette
+import com.zemu.tv.ui.theme.ThemeColors
+import com.zemu.tv.ui.theme.ThemePreset
+import com.zemu.tv.ui.theme.themeColors
+import com.zemu.tv.ui.theme.toArgbLong
+
+private data class Hsv(val h: Float, val s: Float, val v: Float) {
+    fun color(): Color = Color.hsv(h.coerceIn(0f, 360f), s.coerceIn(0f, 1f), v.coerceIn(0f, 1f))
+
+    companion object {
+        fun of(c: Color): Hsv {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(android.graphics.Color.argb(255, (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt()), hsv)
+            return Hsv(hsv[0], hsv[1], hsv[2])
+        }
+    }
+}
+
+/** Preset theme swatches plus a custom accent/background picker. */
+@Composable
+fun ThemePicker(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    val current = settings.themeColors()
+    LazyRow(
+        contentPadding = PaddingValues(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(ThemePreset.entries.toList(), key = { it.name }) { p ->
+            ThemeSwatch(p.label, p.colors, selected = settings.theme == p.name) { update { it.copy(theme = p.name) } }
+        }
+        item(key = "custom") {
+            ThemeSwatch(
+                "Custom",
+                ThemeColors(Color(settings.customAccent.toInt()), Color(settings.customBackground.toInt())),
+                selected = settings.theme == ThemePreset.CUSTOM,
+            ) {
+                // Start the custom theme from whatever is showing now.
+                update {
+                    if (it.theme == ThemePreset.CUSTOM) it
+                    else it.copy(theme = ThemePreset.CUSTOM, customAccent = current.accent.toArgbLong(), customBackground = current.background.toArgbLong())
+                }
+            }
+        }
+    }
+    if (settings.theme == ThemePreset.CUSTOM) {
+        val accent = Hsv.of(Color(settings.customAccent.toInt()))
+        val bg = Hsv.of(Color(settings.customBackground.toInt()))
+        fun setAccent(h: Hsv) = update { it.copy(customAccent = h.color().toArgbLong()) }
+        fun setBg(h: Hsv) = update { it.copy(customBackground = h.color().toArgbLong()) }
+        val hueBrush = Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) })
+
+        Text("Custom colors  ·  use Left / Right to adjust", color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+        TvSlider("Accent hue", accent.h / 360f, 1f / 72, hueBrush) { setAccent(accent.copy(h = it * 360f)) }
+        TvSlider("Accent saturation", accent.s, 0.05f, Brush.horizontalGradient(listOf(accent.copy(s = 0f).color(), accent.copy(s = 1f).color()))) { setAccent(accent.copy(s = it)) }
+        TvSlider("Accent brightness", accent.v, 0.05f, Brush.horizontalGradient(listOf(Color.Black, accent.copy(v = 1f).color()))) { setAccent(accent.copy(v = it)) }
+        TvSlider("Background tint", bg.h / 360f, 1f / 72, hueBrush) { setBg(bg.copy(h = it * 360f, s = bg.s.coerceAtLeast(0.2f))) }
+        TvSlider("Background tint strength", bg.s, 0.05f, Brush.horizontalGradient(listOf(Color(0xFF151515), bg.copy(s = 1f, v = 0.25f).color()))) { setBg(bg.copy(s = it)) }
+        // Backgrounds stay dark so white text is always readable.
+        TvSlider("Background brightness", bg.v / 0.22f, 0.05f, Brush.horizontalGradient(listOf(Color.Black, bg.copy(v = 0.22f).color()))) { setBg(bg.copy(v = it * 0.22f)) }
+    }
+}
+
+@Composable
+private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, onClick: () -> Unit) {
+    FocusSurface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        containerColor = colors.background,
+        focusedContainerColor = colors.surfaceHigh,
+        focusedContentColor = Color.White,
+        focusedBorder = Color.White,
+        focusedScale = 1.06f,
+    ) {
+        Column(
+            Modifier
+                .width(132.dp)
+                .border(2.dp, if (selected) colors.accent else Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                .padding(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(22.dp).background(colors.accent, CircleShape))
+                Box(Modifier.size(22.dp).background(colors.surfaceHigh, CircleShape))
+                Box(Modifier.size(22.dp).background(colors.surface, CircleShape))
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(6.dp).background(colors.accent, RoundedCornerShape(3.dp)))
+            Spacer(Modifier.height(8.dp))
+            Text((if (selected) "✓ " else "") + label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+/** A D-pad slider: focus it, then Left/Right change the value (holding repeats). */
+@Composable
+fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: String? = null, onChange: (Float) -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    var widthPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionLeft -> { onChange((value - step).coerceIn(0f, 1f)); true }
+                    Key.DirectionRight -> { onChange((value + step).coerceIn(0f, 1f)); true }
+                    else -> false
+                }
+            }
+            .focusable()
+            .background(if (focused) Palette.SurfaceHigh else Palette.Surface, RoundedCornerShape(10.dp))
+            .border(2.dp, if (focused) Color.White else Color.Transparent, RoundedCornerShape(10.dp))
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(230.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(14.dp)
+                .onSizeChanged { widthPx = it.width }
+                .pointerInput(Unit) { detectTapGestures { o -> onChange((o.x / size.width).coerceIn(0f, 1f)) } }
+                .background(track, RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            val knobX = with(density) { (widthPx * value.coerceIn(0f, 1f)).toDp() } - 9.dp
+            Box(
+                Modifier
+                    .offset(x = knobX)
+                    .size(18.dp)
+                    .background(Color.White, CircleShape)
+                    .border(2.dp, Color.Black.copy(alpha = 0.5f), CircleShape),
+            )
+        }
+        Text(valueText ?: "${(value * 100).toInt()}%", fontSize = 13.sp, color = Palette.TextSecondary, modifier = Modifier.width(64.dp).padding(start = 12.dp))
+    }
+}

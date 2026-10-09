@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="MainScene" extends="Scene">
+  <interface>
+    <field id="deepLink" type="assocarray" onChange="onDeepLink" />
+    <field id="exitApp" type="boolean" />
+    <function name="navigate" />
+    <function name="pushDialog" />
+    <function name="closeDialog" />
+    <function name="cardMenu" />
+    <function name="applySettings" />
+    <function name="switchProfile" />
+    <function name="setAddons" />
+    <function name="recommend" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="MainScene.brs" />
+  <children>
+    <Rectangle id="bg" width="1280" height="720" color="0x07090AFF" />
+    <Group id="views" />
+    <NavRail id="rail" visible="false" />
+    <Group id="overlay" />
+    <Toast id="toast" />
+  </children>
+</component>

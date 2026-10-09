@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="SettingNode" extends="ContentNode">
+  <interface>
+    <field id="key" type="string" />
+    <!-- "header" | "toggle" | "value" | "action" | "info" -->
+    <field id="kind" type="string" />
+    <field id="label" type="string" />
+    <field id="desc" type="string" />
+    <field id="value" type="string" />
+    <field id="on" type="boolean" />
+  </interface>
+</component>

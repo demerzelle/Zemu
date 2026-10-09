@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Addon management off the render thread: boot (cached manifests first, then refresh), install, remove, browse addon catalogs. -->
+<component name="AddonTask" extends="Task">
+  <interface>
+    <!-- { action: "boot"|"install"|"remove"|"browse"|"ensureKitsu"|"move", ... } -->
+    <field id="request" type="assocarray" />
+    <field id="addons" type="array" />
+    <field id="result" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="AddonTask.brs" />
+</component>

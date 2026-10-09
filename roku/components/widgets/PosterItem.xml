@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of PosterCard / ContinueCard (Cards.kt). One component for both styles so a RowList can mix them. -->
+<component name="PosterItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="onFocusPercent" />
+    <field id="rowListHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="gridHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="listHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="width" type="float" onChange="sizeChanged" />
+    <field id="height" type="float" onChange="sizeChanged" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="PosterItem.brs" />
+  <children>
+    <Group id="card">
+      <Poster id="bg" uri="pkg:/images/rr8.9.png" />
+      <Label id="fallback" horizAlign="center" vertAlign="center" wrap="true" maxLines="4" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="17" />
+      </Label>
+      <Poster id="image" loadDisplayMode="scaleToZoom" />
+      <Poster id="shade" uri="pkg:/images/grad_card.png" blendColor="0x000000FF" visible="false" />
+      <Group id="landInfo" visible="false">
+        <Label id="landTitle" color="0xFFFFFFFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="19" />
+        </Label>
+        <Label id="landSub" color="0xB8B8C2FF">
+          <Font role="font" uri="font:SystemFontFile" size="16" />
+        </Label>
+        <Rectangle id="progressTrack" height="4" color="0xFFFFFF4D" />
+        <Rectangle id="progressBar" height="4" />
+      </Group>
+      <Group id="rating" visible="false">
+        <Poster id="ratingBg" uri="pkg:/images/rr4.9.png" blendColor="0x000000BF" height="22" />
+        <Poster uri="pkg:/images/ic_star.png" width="14" height="14" translation="[6,4]" blendColor="0xF5C518FF" />
+        <Label id="ratingText" translation="[23,0]" height="22" vertAlign="center" color="0xF5C518FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="15" />
+        </Label>
+      </Group>
+      <Group id="watchedBadge" visible="false">
+        <Poster id="watchedBg" uri="pkg:/images/rr4.9.png" height="22" />
+        <Label id="watchedText" translation="[7,0]" height="22" vertAlign="center" text="Watched">
+          <Font role="font" uri="font:BoldSystemFontFile" size="14" />
+        </Label>
+      </Group>
+      <Group id="matchBadge" visible="false">
+        <Poster id="matchBg" uri="pkg:/images/rr4.9.png" blendColor="0x000000BF" height="22" />
+        <Label id="matchText" translation="[7,0]" height="22" vertAlign="center" color="0x46D369FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="15" />
+        </Label>
+      </Group>
+      <Poster id="ring" uri="pkg:/images/ring8.9.png" opacity="0" />
+    </Group>
+  </children>
+</component>

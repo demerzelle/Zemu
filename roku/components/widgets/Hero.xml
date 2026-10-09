@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of Backdrop + HeroInfo + TitleLogo + MetaLine (Hero.kt). -->
+<component name="Hero" extends="Group">
+  <interface>
+    <field id="meta" type="assocarray" onChange="onMeta" />
+    <field id="match" type="integer" value="0" onChange="renderInfo" />
+    <!-- "home" (info + backdrop) | "backdrop" (backdrop only) -->
+    <field id="mode" type="string" value="home" onChange="layout" />
+    <field id="backdropHeight" type="float" value="446" onChange="layout" />
+    <field id="hint" type="string" value="Press * for options" onChange="renderInfo" />
+    <field id="showInfo" type="boolean" value="true" onChange="layout" />
+    <field id="areaWidth" type="float" value="1179" onChange="layout" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Rows.brs" />
+    <script type="text/brightscript" uri="Hero.brs" />
+  <children>
+    <Group id="backdrop">
+      <Poster id="imgA" loadDisplayMode="scaleToZoom" />
+      <Poster id="imgB" loadDisplayMode="scaleToZoom" opacity="0" />
+      <Poster id="gradLeft" uri="pkg:/images/grad_left.png" />
+      <Poster id="gradBottom" uri="pkg:/images/grad_bottom.png" />
+    </Group>
+    <Group id="info" translation="[64,27]" visible="false">
+      <Poster id="logo" loadDisplayMode="scaleToFit" />
+      <Label id="titleText" width="720" wrap="true" maxLines="2" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="44" />
+      </Label>
+      <MetaLine id="metaLine" />
+      <Label id="genres" color="0xB8B8C2FF">
+        <Font role="font" uri="font:SystemFontFile" size="18" />
+      </Label>
+      <Label id="hintLabel" color="0x80808CFF">
+        <Font role="font" uri="font:SystemFontFile" size="16" />
+      </Label>
+      <Label id="desc" width="746" wrap="true" maxLines="2" lineSpacing="2" color="0xE6E6EAFF">
+        <Font role="font" uri="font:SystemFontFile" size="19" />
+      </Label>
+    </Group>
+    <Animation id="fade" duration="0.45" easeFunction="linear">
+      <FloatFieldInterpolator id="fadeIn" key="[0,1]" keyValue="[0,1]" />
+    </Animation>
+  </children>
+</component>

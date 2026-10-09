@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of EpisodeCard (DetailsScreen.kt). -->
+<component name="EpisodeItem" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="render" />
+    <field id="focusPercent" type="float" onChange="onFocusPercent" />
+    <field id="rowListHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="gridHasFocus" type="boolean" onChange="onFocusPercent" />
+    <field id="listHasFocus" type="boolean" onChange="onFocusPercent" />
+  </interface>
+  <script type="text/brightscript" uri="EpisodeItem.brs" />
+  <children>
+    <Group id="card" scaleRotateCenter="[153,86]">
+      <Poster id="bg" uri="pkg:/images/rr8.9.png" width="307" height="173" />
+      <Poster id="thumb" width="307" height="173" loadWidth="307" loadHeight="173" loadDisplayMode="scaleToZoom" />
+      <Poster uri="pkg:/images/grad_card.png" width="307" height="173" blendColor="0x000000FF" />
+      <Label id="num" translation="[11,135]" width="285" color="0xFFFFFFFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="17" />
+      </Label>
+      <Group id="watchedBadge" visible="false" translation="[8,8]">
+        <Poster id="watchedBg" uri="pkg:/images/rr4.9.png" width="76" height="22" />
+        <Label id="watchedText" translation="[7,0]" height="22" vertAlign="center" text="Watched">
+          <Font role="font" uri="font:BoldSystemFontFile" size="14" />
+        </Label>
+      </Group>
+      <Poster id="selRing" uri="pkg:/images/ring8.9.png" width="311" height="177" translation="[-2,-2]" visible="false" />
+      <Poster id="ring" uri="pkg:/images/ring8.9.png" width="315" height="181" translation="[-4,-4]" opacity="0" />
+    </Group>
+    <Label id="title" translation="[0,182]" width="307" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="19" />
+    </Label>
+    <Label id="date" translation="[0,208]" width="307" color="0x80808CFF">
+      <Font role="font" uri="font:SystemFontFile" size="16" />
+    </Label>
+  </children>
+</component>

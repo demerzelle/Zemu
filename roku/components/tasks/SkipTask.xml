@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Port of SkipSegments.kt: TheIntroDB (shows + movies) and AniSkip (anime, via Kitsu → MAL). -->
+<component name="SkipTask" extends="Task">
+  <interface>
+    <field id="params" type="assocarray" />
+    <field id="segments" type="array" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="SkipTask.brs" />
+</component>

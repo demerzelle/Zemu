@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="HomeView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" onChange="onActive" />
+    <field id="navigateTo" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Rows.brs" />
+  <script type="text/brightscript" uri="HomeView.brs" />
+  <children>
+    <Hero id="hero" />
+    <Group id="notice" translation="[64,292]" visible="false">
+      <Label id="noticeText" width="830" height="46" vertAlign="center" wrap="true" maxLines="2" text="No stream addon installed yet. Add a debrid-enabled addon (AIOStreams, Torrentio, Comet, MediaFusion, …) in Addons to watch.">
+        <Font role="font" uri="font:SystemFontFile" size="19" />
+      </Label>
+      <TvButton id="noticeButton" text="Add addon" translation="[850,0]" />
+    </Group>
+    <Label id="status" translation="[64,300]" width="1000" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="20" />
+    </Label>
+    <RowList id="rows" translation="[0,288]" numRows="3" />
+    <Timer id="heroTimer" duration="0.22" />
+  </children>
+</component>

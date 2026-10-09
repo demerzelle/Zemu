@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="SeekBar" extends="Group">
+  <interface>
+    <field id="position" type="float" onChange="render" />
+    <field id="duration" type="float" onChange="render" />
+    <field id="highlight" type="boolean" onChange="render" />
+    <field id="barWidth" type="float" value="1152" onChange="render" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="SeekBar.brs" />
+  <children>
+    <Rectangle id="track" translation="[0,0]" height="6" color="0xFFFFFF4D" />
+    <Rectangle id="fill" translation="[0,0]" height="6" />
+    <Poster id="thumb" uri="pkg:/images/circle.png" width="22" height="22" blendColor="0xFFFFFFFF" />
+    <Label id="elapsed" translation="[0,16]" color="0xFFFFFFFF">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+    <Label id="total" translation="[0,16]" horizAlign="right" color="0xB8B8C2FF">
+      <Font role="font" uri="font:SystemFontFile" size="18" />
+    </Label>
+  </children>
+</component>

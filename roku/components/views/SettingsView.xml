@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="SettingsView" extends="Group">
+  <interface>
+    <field id="active" type="boolean" />
+    <field id="navigateTo" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Stremio.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Store.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Theme.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Languages.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamParser.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/StreamFilter.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/UserData.brs" />
+  <script type="text/brightscript" uri="pkg:/components/lib/Keyboard.brs" />
+  <script type="text/brightscript" uri="SettingsView.brs" />
+  <children>
+    <Label id="heading" text="Settings" translation="[64,34]" color="0xFFFFFFFF">
+      <Font role="font" uri="font:BoldSystemFontFile" size="40" />
+    </Label>
+    <MarkupList id="list" translation="[64,100]" itemComponentName="SettingItem" itemSize="[1050,72]" itemSpacing="[0,8]" numRows="7" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+  </children>
+</component>
