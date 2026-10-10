@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.details
 
+import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.components.SheetAction
 import com.zemu.tv.ui.components.ActionSheet
 import com.zemu.tv.data.title
@@ -395,7 +396,9 @@ fun DetailsScreen(
                 if (resume != null && best != null) add(SheetAction("Start over") {
                     Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), best.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream }, fromStart = true)
                 })
-                m.trailerId?.let { yt -> add(SheetAction("Watch trailer") { TrailerActivity.start(context, yt) }) }
+                m.officialTrailers.takeIf { it.isNotEmpty() }?.let { list ->
+                    add(SheetAction(if (list.size > 1) "Watch trailers" else "Watch trailer", if (list.size > 1) "${list.size}" else null) { TrailerActivity.start(context, list) })
+                }
                 add(SheetAction(if (rating > 0) "Remove like" else "Like", if (rating > 0) "👍 Liked" else null) { vm.rate(if (rating > 0) 0 else 1) })
                 add(SheetAction(if (rating < 0) "Remove dislike" else "Not for me", if (rating < 0) "👎" else null) { vm.rate(if (rating < 0) 0 else -1) })
                 if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) add(SheetAction(if (showCast) "Hide cast" else "View cast") { showCastRow() })

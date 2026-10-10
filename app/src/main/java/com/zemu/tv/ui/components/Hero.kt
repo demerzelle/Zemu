@@ -1,5 +1,8 @@
 package com.zemu.tv.ui.components
 
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import com.zemu.tv.data.officialTrailers
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.Crossfade
@@ -64,6 +67,13 @@ import kotlinx.coroutines.delay
 object HeroTrailerState {
     var playingId by mutableStateOf<String?>(null)
     var seconds = 0f
+    /** All official trailers of the title playing, for the fullscreen selector. */
+    var playlist: List<com.zemu.tv.data.TrailerRef> = emptyList()
+
+    fun openFullscreen(context: android.content.Context) {
+        val id = playingId ?: return
+        TrailerActivity.start(context, playlist.ifEmpty { listOf(com.zemu.tv.data.TrailerRef(id, "Trailer")) }, startId = id, startSeconds = seconds.toInt())
+    }
 }
 
 /**
@@ -78,7 +88,7 @@ fun Modifier.heroTrailerKeys(): Modifier {
         if (id == null || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (e.key) {
             Key.MediaPlayPause, Key.MediaPlay -> {
-                TrailerActivity.start(context, id, HeroTrailerState.seconds.toInt())
+                HeroTrailerState.openFullscreen(context)
                 true
             }
             else -> false
@@ -95,7 +105,7 @@ fun Modifier.heroTrailerTap(): Modifier {
     val context = LocalContext.current
     return pointerInput(Unit) {
         detectTapGestures {
-            HeroTrailerState.playingId?.let { id -> TrailerActivity.start(context, id, HeroTrailerState.seconds.toInt()) }
+            HeroTrailerState.openFullscreen(context)
         }
     }
 }
@@ -132,7 +142,10 @@ fun HeroTrailer(videoId: String, sound: Boolean, modifier: Modifier = Modifier, 
 @Composable
 fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? = null, trailerSound: Boolean = false) {
     var showTrailer by remember(meta?.id) { mutableStateOf(false) }
-    val trailer = meta?.trailerId
+    // Several official trailers play one after another; otherwise the single one.
+    val playlist = remember(meta?.id) { meta?.officialTrailers.orEmpty() }
+    var index by remember(meta?.id) { mutableIntStateOf(0) }
+    val trailer = playlist.getOrNull(index)?.id
     LaunchedEffect(meta?.id, trailerAfterMs) {
         showTrailer = false
         if (trailerAfterMs != null && trailer != null) {
@@ -147,12 +160,15 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
             }
         }
         if (showTrailer && trailer != null) {
-            HeroTrailer(
-                trailer,
-                sound = trailerSound,
-                modifier = Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd),
-                onFinished = { showTrailer = false },
-            )
+            HeroTrailerState.playlist = playlist
+            key(trailer) {
+                HeroTrailer(
+                    trailer,
+                    sound = trailerSound,
+                    modifier = Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd),
+                    onFinished = { if (index + 1 < playlist.size) index++ else showTrailer = false },
+                )
+            }
         }
         Box(
             Modifier.fillMaxSize().background(

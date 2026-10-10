@@ -26,6 +26,28 @@ fun Meta.logoUrl(): String? =
 /** Small copy for persistence (history / My List) without the episode list. */
 fun Meta.slim(): Meta = copy(videos = emptyList(), trailers = trailers.take(1), trailerStreams = trailerStreams.take(1), cast = cast.take(6))
 
+/** A YouTube trailer with a display name. */
+data class TrailerRef(val id: String, val title: String)
+
+/**
+ * The title's official trailers, in the addon's order: named "trailer" (not teasers, clips or
+ * featurettes) or typed as one. Falls back to whatever single trailer the addon gives.
+ */
+val Meta.officialTrailers: List<TrailerRef>
+    get() {
+        val named = trailerStreams.mapNotNull { t ->
+            val id = t.ytId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val title = t.title.orEmpty()
+            if (title.isBlank() || ("trailer" in title.lowercase() && "teaser" !in title.lowercase())) TrailerRef(id, title) else null
+        }
+        val typed = trailers.mapNotNull { t ->
+            val id = t.source?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (t.type == null || t.type.equals("Trailer", ignoreCase = true)) TrailerRef(id, "") else null
+        }
+        val all = (named + typed).distinctBy { it.id }.ifEmpty { trailerId?.let { listOf(TrailerRef(it, "")) }.orEmpty() }
+        return all.mapIndexed { i, t -> t.copy(title = t.title.ifBlank { if (all.size > 1) "Trailer ${i + 1}" else "Trailer" }) }
+    }
+
 /** YouTube id of the first trailer, if any. */
 val Meta.trailerId: String?
     get() = trailers.firstOrNull { !it.source.isNullOrBlank() }?.source

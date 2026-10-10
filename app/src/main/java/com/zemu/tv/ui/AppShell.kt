@@ -1,5 +1,6 @@
 package com.zemu.tv.ui
 
+import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.theme.appBackground
 import android.net.Uri
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -207,7 +208,7 @@ fun AppShell() {
                 when (a) {
                     CardAction.DETAILS -> nav.navigate(detailsRoute(m))
                     CardAction.EPISODES -> nav.navigate(detailsRoute(m, "episodes"))
-                    CardAction.TRAILER -> m.trailerId?.let { TrailerActivity.start(context, it) }
+                    CardAction.TRAILER -> m.officialTrailers.takeIf { it.isNotEmpty() }?.let { TrailerActivity.start(context, it) }
                     CardAction.MY_LIST_ADD, CardAction.MY_LIST_REMOVE -> scope.launch { c.userStore.toggleMyList(m) }
                     CardAction.MARK_WATCHED -> scope.launch { c.userStore.setWatched(m, true) }
                     CardAction.MARK_UNWATCHED -> scope.launch { c.userStore.setWatched(m, false) }
