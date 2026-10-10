@@ -49,6 +49,11 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
     val tmdb = Tmdb(http, json) { userStore.settings.value.tmdbApiKey }
     val skipSegments = SkipSegments(http, json)
     val freeCast = com.zemu.tv.data.FreeCast(http, json)
+    val screensaverImages = com.zemu.tv.data.ScreensaverImages(context, http, json, tmdb) { userStore.settings.value.fanartApiKey }
+
+    /** Titles for the screensaver: My List plus watch history. */
+    fun libraryTitles(): List<com.zemu.tv.data.Meta> =
+        (userStore.myList.value + userStore.history.value.map { it.meta }).distinctBy { it.id }
     val debridAuth = com.zemu.tv.data.DebridAuth(http, json)
     /** Shows you've watched that have episodes out since you last watched them. */
     val newEpisodes = com.zemu.tv.data.NewEpisodes(addons, userStore, appScope)

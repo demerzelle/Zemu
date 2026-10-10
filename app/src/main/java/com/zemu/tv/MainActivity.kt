@@ -1,5 +1,6 @@
 package com.zemu.tv
 
+import androidx.compose.runtime.LaunchedEffect
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -46,6 +47,52 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         appColors?.let { com.zemu.tv.ui.theme.Palette.colors = it }
+        resumed = true
+        lastInput = android.os.SystemClock.uptimeMillis()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        resumed = false
+        screensaverOn = false
+    }
+
+    // ---- Library screensaver: idle tracking ----
+    private var resumed by mutableStateOf(false)
+    private var lastInput by androidx.compose.runtime.mutableLongStateOf(0L)
+    private var screensaverOn by mutableStateOf(false)
+
+    private var swallowTouch = false
+    private var swallowKey = -1
+
+    /**
+     * Any key or touch counts as activity. While the screensaver shows, the input only dismisses
+     * it: the waking key (through its key-up) and touch never reach the app underneath.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        lastInput = android.os.SystemClock.uptimeMillis()
+        if (screensaverOn) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) { screensaverOn = false; swallowKey = event.keyCode }
+            return true
+        }
+        if (event.keyCode == swallowKey) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) swallowKey = -1
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        lastInput = android.os.SystemClock.uptimeMillis()
+        if (screensaverOn && ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+            screensaverOn = false
+            swallowTouch = true
+        }
+        if (swallowTouch) {
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_UP || ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) swallowTouch = false
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -95,6 +142,25 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         DynamicThemeLayer(dynamic, onAccent = { rgbAccent = it })
+                        // Library screensaver: an overlay, so the app underneath stays as it was.
+                        var saverImages by remember { mutableStateOf<List<String>>(emptyList()) }
+                        LaunchedEffect(settings.screensaver, resumed) {
+                            if (!settings.screensaver || !resumed) return@LaunchedEffect
+                            runCatching { c.screensaverImages.refresh(c.libraryTitles()) }
+                            while (true) {
+                                kotlinx.coroutines.delay(1_000)
+                                val idle = android.os.SystemClock.uptimeMillis() - lastInput
+                                if (!screensaverOn && idle >= settings.screensaverIdleSec * 1000L) {
+                                    // Skip when the library is empty or nothing has been cached yet.
+                                    val images = c.screensaverImages.cached(c.libraryTitles())
+                                    if (images.isNotEmpty()) { saverImages = images; screensaverOn = true }
+                                    else lastInput = android.os.SystemClock.uptimeMillis()
+                                }
+                            }
+                        }
+                        if (screensaverOn && saverImages.isNotEmpty()) {
+                            com.zemu.tv.ui.LibraryScreensaver(saverImages, settings.screensaverImageSec)
+                        }
                     }
                 }
             }

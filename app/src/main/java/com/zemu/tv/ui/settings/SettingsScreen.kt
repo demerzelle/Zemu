@@ -114,7 +114,7 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
-    APPEARANCE("Appearance", "Light mode, glass style, color themes, vibration and trailers."),
+    APPEARANCE("Appearance", "Light mode, glass style, color themes, screensaver, vibration and trailers."),
     DEVICE("This device", "What this TV can play, used for \"Best for this TV\"."),
 }
 
@@ -379,6 +379,33 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("feedback", "Touch screens") {
         ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {
             vm.update { it.copy(vibration = !it.vibration) }
+        }
+    }
+    group(
+        "screensaver", "Library screensaver",
+        "A full-screen slideshow of backdrops from My List and your watch history after Zemu sits idle. Any button or touch returns to where you were.",
+    ) {
+        ToggleRow("Library Screensaver", "Off by default. Needs a TMDB or fanart.tv key below to find backdrops.", settings.screensaver) {
+            vm.update { it.copy(screensaver = !it.screensaver) }
+        }
+        // Idle timeout: 15 s to 10 min in 15 s steps. Image duration: 3–60 s.
+        TvSlider(
+            "Idle timeout (s)", (settings.screensaverIdleSec - 15) / 585f, 15f / 585f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverIdleSec}s",
+        ) { v -> vm.update { it.copy(screensaverIdleSec = (15 + Math.round(v * 585 / 15f) * 15).coerceIn(15, 600)) } }
+        TvSlider(
+            "Image duration (s)", (settings.screensaverImageSec - 3) / 57f, 1f / 57f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverImageSec}s",
+        ) { v -> vm.update { it.copy(screensaverImageSec = (3 + Math.round(v * 57)).coerceIn(3, 60)) } }
+        var tmdbKey by remember { mutableStateOf("") }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(tmdbKey, { tmdbKey = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API Key" else "TMDB key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
+            TvButton("Save", onClick = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
+        }
+        var fanartKey by remember { mutableStateOf("") }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(fanartKey, { fanartKey = it }, if (settings.fanartApiKey.isBlank()) "fanart.tv API Key" else "fanart.tv key saved (••••${settings.fanartApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
+            TvButton("Save", onClick = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
         }
     }
     group("trailers", "Trailers") {

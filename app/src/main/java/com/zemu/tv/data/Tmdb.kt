@@ -1,5 +1,10 @@
 package com.zemu.tv.data
 
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -147,6 +152,28 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         val imdb = meta.imdbId.takeIf { it.startsWith("tt") } ?: return null
         val found = json.decodeFromString(TmdbFind.serializer(), get("/find/$imdb", "external_source=imdb_id"))
         return (if (meta.type == "series") found.tv.firstOrNull() ?: found.movies.firstOrNull() else found.movies.firstOrNull() ?: found.tv.firstOrNull())?.id
+    }
+
+    /** 16:9 backdrop image URLs for a title (text-free ones first), for the screensaver. */
+    suspend fun backdrops(meta: Meta): List<String> {
+        if (!enabled) return emptyList()
+        val id = tmdbIdFor(meta) ?: return emptyList()
+        val raw = get(if (meta.type == "series") "/tv/$id/images" else "/movie/$id/images")
+        val list = json.parseToJsonElement(raw).jsonObject["backdrops"]?.jsonArray.orEmpty().mapNotNull { e ->
+            val o = e.jsonObject
+            val path = o["file_path"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val lang = o["iso_639_1"]?.jsonPrimitive?.contentOrNull
+            Triple(path, lang == null, o["vote_average"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
+        }
+        return list.sortedWith(compareByDescending<Triple<String, Boolean, Double>> { it.second }.thenByDescending { it.third })
+            .take(6).map { "https://image.tmdb.org/t/p/w1280${it.first}" }
+    }
+
+    /** TheTVDB id of a series (fanart.tv indexes shows by it). */
+    suspend fun tvdbId(meta: Meta): String? {
+        if (!enabled || meta.type != "series") return null
+        val id = tmdbIdFor(meta) ?: return null
+        return json.parseToJsonElement(get("/tv/$id/external_ids")).jsonObject["tvdb_id"]?.jsonPrimitive?.contentOrNull
     }
 
     suspend fun extras(meta: Meta): TitleExtras? {

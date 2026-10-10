@@ -128,6 +128,12 @@ data class AppSettings(
     val customBackground: Long = 0xFF0A0A0E,
     /** A [com.zemu.tv.ui.theme.DynamicTheme] name. */
     val dynamicTheme: String = "NONE",
+    /** Full-screen slideshow of library backdrops after the app sits idle. */
+    val screensaver: Boolean = false,
+    val screensaverIdleSec: Int = 60,
+    val screensaverImageSec: Int = 10,
+    /** fanart.tv personal API key, for screensaver backdrops. */
+    val fanartApiKey: String = "",
     /** Light background with dark text. */
     val lightMode: Boolean = false,
     /** Translucent "frosted glass" panels and buttons. */
