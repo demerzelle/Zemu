@@ -156,7 +156,8 @@ fun ContinueCard(
         onLongClick = { menu(meta) },
         modifier = modifier
             .touchClick(onClick) { menu(meta) }
-            .width(250.dp)
+            // Same height as a poster (132 × 3/2), so every row is the same height.
+            .height(198.dp)
             .aspectRatio(16f / 9f)
             .onFocusChanged { if (it.isFocused) onFocused(meta) },
         shape = ClickableSurfaceDefaults.shape(shape = shape),

@@ -31,3 +31,21 @@ fun FocusScrollMargins(content: @Composable () -> Unit) {
     }
     CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides spec, content = content)
 }
+
+/**
+ * For a vertical list of rows: the focused row always settles at the same spot ([anchor] from the
+ * top), so the row above scrolls fully out of view instead of being cut in half. Rows inside keep
+ * the normal horizontal behavior.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun PinnedRows(anchor: androidx.compose.ui.unit.Dp, content: @Composable (rowScope: @Composable (@Composable () -> Unit) -> Unit) -> Unit) {
+    val outer = androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current
+    val anchorPx = with(LocalDensity.current) { anchor.toPx() }
+    val spec = object : BringIntoViewSpec {
+        override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - anchorPx
+    }
+    CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides spec) {
+        content { row -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides outer, content = row) }
+    }
+}

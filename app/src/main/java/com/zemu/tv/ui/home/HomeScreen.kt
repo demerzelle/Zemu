@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.home
 
+import com.zemu.tv.ui.components.PinnedRows
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -113,10 +114,12 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                 state.rows.isEmpty() && state.error != null ->
                     CenteredMessage("Nothing to show", state.error, action = { TvButton("Retry", onClick = vm::retry, primary = true) })
             }
+            PinnedRows(anchor = 52.dp) { pinRow ->
             LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
-                contentPadding = PaddingValues(bottom = 48.dp),
+                // Room below the last row so it can settle at the same spot as the others.
+                contentPadding = PaddingValues(bottom = 420.dp),
             ) {
                 if (state.noStreamAddons) {
                     item(key = "no-streams") {
@@ -140,6 +143,7 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                         focused = m
                         savedFocus = "${row.key}|${m.id}"
                     }
+                    pinRow {
                     MediaRow(
                         title = row.title,
                         items = row.items,
@@ -151,7 +155,9 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                             RowStyle.POSTER -> PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
                         }
                     }
+                    }
                 }
+            }
             }
         }
     }
