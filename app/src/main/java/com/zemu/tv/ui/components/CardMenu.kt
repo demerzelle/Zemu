@@ -43,8 +43,11 @@ import com.zemu.tv.data.title
 import com.zemu.tv.data.trailerId
 import com.zemu.tv.ui.theme.Palette
 
-/** Opens the long-press menu for a title. Provided by the app shell. */
-val LocalCardMenu = staticCompositionLocalOf<(Meta) -> Unit> { {} }
+/** Opens the long-press menu for a title (plus row options when the card sits in a movable row). Provided by the app shell. */
+val LocalCardMenu = staticCompositionLocalOf<(Meta, (() -> Unit)?) -> Unit> { { _, _ -> } }
+
+/** Set by screens with movable rows: opens the move/favorite popup for the row a card is in. */
+val LocalRowOptions = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /** Ids of titles marked watched, for the ✓ badge on cards. */
 val LocalWatched = compositionLocalOf<Set<String>> { emptySet() }
@@ -58,15 +61,17 @@ enum class CardAction(val label: String) {
     MARK_WATCHED("Mark as watched"),
     MARK_UNWATCHED("Mark as unwatched"),
     REMOVE_HISTORY("Remove from history"),
+    ROW_OPTIONS("Move or favorite this row"),
 }
 
-fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Boolean): List<CardAction> = buildList {
+fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Boolean, rowOptions: Boolean = false): List<CardAction> = buildList {
     add(CardAction.DETAILS)
     if (meta.type == "series") add(CardAction.EPISODES)
     if (meta.trailerId != null) add(CardAction.TRAILER)
     add(if (inMyList) CardAction.MY_LIST_REMOVE else CardAction.MY_LIST_ADD)
     add(if (watched) CardAction.MARK_UNWATCHED else CardAction.MARK_WATCHED)
     if (inHistory) add(CardAction.REMOVE_HISTORY)
+    if (rowOptions) add(CardAction.ROW_OPTIONS)
 }
 
 @Composable

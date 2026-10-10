@@ -45,6 +45,7 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
         val debrid = stringPreferencesKey("debrid")
         val lastStreams = stringPreferencesKey("last_streams")
         val recentSearches = stringPreferencesKey("recent_searches")
+        val homeRows = stringPreferencesKey("home_rows")
     }
 
     private val ratingSer = MapSerializer(String.serializer(), Int.serializer())
@@ -173,6 +174,15 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
             val next = linkedMapOf(metaId to stream).apply { putAll(cur.filterKeys { it != metaId }.entries.take(199).associate { it.toPair() }) }
             p[Keys.lastStreams] = json.encodeToString(lastStreamSer, next)
         }
+    }
+
+    /** Home's row order and favorite rows. */
+    val homeRows: StateFlow<RowPrefs> = ds.data
+        .map { it.decode(Keys.homeRows, RowPrefs.serializer()) ?: RowPrefs() }
+        .stateIn(scope, SharingStarted.Eagerly, RowPrefs())
+
+    suspend fun saveHomeRows(prefs: RowPrefs) {
+        ds.edit { it[Keys.homeRows] = json.encodeToString(RowPrefs.serializer(), prefs) }
     }
 
     /** Searches that led to opening a title, newest first. */

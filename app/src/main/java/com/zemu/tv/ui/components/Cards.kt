@@ -1,5 +1,9 @@
 package com.zemu.tv.ui.components
 
+import androidx.compose.foundation.layout.size
+import androidx.tv.material3.Icon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +83,9 @@ fun PosterCard(
     onLongClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(6.dp)
-    val menu = LocalCardMenu.current
+    val cardMenu = LocalCardMenu.current
+    val rowOptions = LocalRowOptions.current
+    val menu: (Meta) -> Unit = { cardMenu(it, rowOptions) }
     val watched = meta.id in LocalWatched.current
     Surface(
         onClick = onClick,
@@ -150,7 +156,9 @@ fun ContinueCard(
     onFocused: (Meta) -> Unit = {},
 ) {
     val shape = RoundedCornerShape(6.dp)
-    val menu = LocalCardMenu.current
+    val cardMenu = LocalCardMenu.current
+    val rowOptions = LocalRowOptions.current
+    val menu: (Meta) -> Unit = { cardMenu(it, rowOptions) }
     Surface(
         onClick = onClick,
         onLongClick = { menu(meta) },
@@ -193,10 +201,16 @@ fun <T> MediaRow(
     requesters: Map<String, FocusRequester> = emptyMap(),
     contentPadding: PaddingValues = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
     trailingTitle: String? = null,
+    /** Favorite rows show a heart before the title. */
+    favorite: Boolean = false,
+    /** Touch: long-press the title (e.g. to move or favorite the row). */
+    onTitleLongPress: (() -> Unit)? = null,
     itemContent: @Composable (index: Int, item: T, itemModifier: Modifier) -> Unit,
 ) {
     Column(modifier) {
-        Row(Modifier.padding(start = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        val titleTouch = if (onTitleLongPress == null) Modifier else Modifier.pointerInput(onTitleLongPress) { detectTapGestures(onLongPress = { onTitleLongPress() }) }
+        Row(Modifier.padding(start = 48.dp).then(titleTouch), verticalAlignment = Alignment.CenterVertically) {
+            if (favorite) Icon(AppIcons.Heart, contentDescription = "Favorite", tint = Palette.Accent, modifier = Modifier.padding(end = 8.dp).size(18.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (trailingTitle != null) {
                 Text("  ·  $trailingTitle", color = Palette.TextMuted, fontSize = 13.sp)

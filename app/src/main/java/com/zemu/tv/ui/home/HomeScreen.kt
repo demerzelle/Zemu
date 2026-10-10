@@ -1,5 +1,10 @@
 package com.zemu.tv.ui.home
 
+import androidx.compose.ui.focus.focusRequester
+import com.zemu.tv.ui.theme.glassPanel
+import com.zemu.tv.ui.components.AppIcons
+import androidx.compose.runtime.CompositionLocalProvider
+import com.zemu.tv.ui.components.LocalRowOptions
 import com.zemu.tv.ui.components.PinnedRows
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableLongStateOf
@@ -84,6 +89,8 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var lastBack by remember { mutableLongStateOf(0L) }
+    // Row being moved or favorited (popup with heart / up / down).
+    var editingRow by remember { mutableStateOf<String?>(null) }
     BackHandler {
         val now = System.currentTimeMillis()
         when {
@@ -144,11 +151,14 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                         savedFocus = "${row.key}|${m.id}"
                     }
                     pinRow {
+                    CompositionLocalProvider(LocalRowOptions provides { editingRow = row.key }) {
                     MediaRow(
                         title = row.title,
                         items = row.items,
                         key = { it.id },
                         requesters = requesters,
+                        favorite = row.favorite,
+                        onTitleLongPress = { editingRow = row.key },
                     ) { _, m, mod ->
                         when (row.style) {
                             RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus)
@@ -156,10 +166,54 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                         }
                     }
                     }
+                    }
                 }
             }
             }
         }
+    }
+    editingRow?.let { key ->
+        val row = state.rows.firstOrNull { it.key == key }
+        if (row == null) editingRow = null
+        else RowEditor(
+            favorite = row.favorite,
+            onFavorite = { vm.toggleFavoriteRow(key) },
+            onUp = { vm.moveRow(key, -1) },
+            onDown = { vm.moveRow(key, 1) },
+            onDismiss = { editingRow = null },
+        )
+    }
+}
+
+/** Heart (favorite), up and down: the only controls, per the row's long-press. Stays open for repeated moves. */
+@Composable
+private fun RowEditor(favorite: Boolean, onFavorite: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onDismiss: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(60); runCatching { first.requestFocus() } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        com.zemu.tv.ui.theme.DialogBackdropBlur()
+        androidx.compose.foundation.layout.Row(
+            Modifier.glassPanel(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).padding(12.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            RowEditorButton(if (favorite) AppIcons.Heart else AppIcons.HeartOutline, if (favorite) "Remove from favorites" else "Add to favorites", Modifier.focusRequester(first), active = favorite, onClick = onFavorite)
+            RowEditorButton(AppIcons.ArrowUp, "Move up", onClick = onUp)
+            RowEditorButton(AppIcons.ArrowDown, "Move down", onClick = onDown)
+        }
+    }
+}
+
+@Composable
+private fun RowEditorButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier, active: Boolean = false, onClick: () -> Unit) {
+    com.zemu.tv.ui.components.FocusSurface(
+        onClick = onClick,
+        modifier = modifier.size(64.dp),
+        shape = androidx.compose.foundation.shape.CircleShape,
+        containerColor = if (active) Palette.Accent else Palette.SurfaceHigh,
+        contentColor = if (active) Palette.OnAccent else Palette.Text,
+        focusedScale = 1.1f,
+    ) {
+        androidx.tv.material3.Icon(icon, contentDescription = label, modifier = Modifier.align(Alignment.Center).size(30.dp))
     }
 }
 

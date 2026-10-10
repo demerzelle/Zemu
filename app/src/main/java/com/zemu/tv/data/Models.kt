@@ -159,6 +159,10 @@ data class AppSettings(
     val subtitleBottom: Float = 0.08f,
 )
 
+/** A screen's row arrangement: [order] is the row keys as last arranged; [favorites] are pinned to the top. */
+@Serializable
+data class RowPrefs(val order: List<String> = emptyList(), val favorites: List<String> = emptyList())
+
 /** Identifies a played stream: [key] matches the exact release, [bingeGroup] the release group across episodes. */
 @Serializable
 data class LastStream(val key: String, val bingeGroup: String? = null)

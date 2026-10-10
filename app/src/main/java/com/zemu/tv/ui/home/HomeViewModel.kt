@@ -37,7 +37,25 @@ data class HomeRow(
     val match: Map<String, Int> = emptyMap(),
     /** Per-title poster badge text, e.g. "3 NEW"; shown instead of the match percent. */
     val badges: Map<String, String> = emptyMap(),
+    /** Pinned to the top by the user (heart). */
+    val favorite: Boolean = false,
 )
+
+/**
+ * Applies the user's arrangement: rows they've placed keep their saved order (in the slots those
+ * rows occupy by default, so new rows still show up where they normally would); favorites go first.
+ */
+fun arrangeRows(rows: List<HomeRow>, prefs: com.zemu.tv.data.RowPrefs): List<HomeRow> {
+    val byKey = rows.associateBy { it.key }
+    val keys = rows.map { it.key }.toMutableList()
+    val saved = prefs.order.filter { it in byKey }
+    if (saved.isNotEmpty()) {
+        val savedSet = saved.toSet()
+        keys.indices.filter { keys[it] in savedSet }.forEachIndexed { i, slot -> keys[slot] = saved[i] }
+    }
+    val favs = keys.filter { it in prefs.favorites }
+    return (favs + keys.filterNot { it in prefs.favorites }).map { k -> byKey.getValue(k).let { if (k in prefs.favorites) it.copy(favorite = true) else it } }
+}
 
 data class HomeUi(
     val rows: List<HomeRow> = emptyList(),
@@ -90,7 +108,9 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         }.sortedBy { it.priority }
     }
 
-    val state: StateFlow<HomeUi> = combine(baseRows, c.addons.ready, c.addons.addons, status) { rows, ready, _, st ->
+    private val arrangedRows = combine(baseRows, c.userStore.homeRows) { rows, prefs -> arrangeRows(rows, prefs) }
+
+    val state: StateFlow<HomeUi> = combine(arrangedRows, c.addons.ready, c.addons.addons, status) { rows, ready, _, st ->
         if (!ready) return@combine HomeUi(loading = true)
         HomeUi(rows = rows, loading = st.loading, error = st.error, noStreamAddons = !c.addons.hasStreamAddons)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, HomeUi())
@@ -121,6 +141,26 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 if (c.addons.ready.value && it != loadedFor) load()
             }
         }
+    }
+
+    /** Moves a row one place up (-1) or down (+1) among rows of the same kind (favorites or not). */
+    fun moveRow(key: String, direction: Int) = viewModelScope.launch {
+        val shown = state.value.rows
+        val i = shown.indexOfFirst { it.key == key }
+        val j = i + direction
+        if (i < 0 || j !in shown.indices || shown[i].favorite != shown[j].favorite) return@launch
+        val keys = shown.map { it.key }.toMutableList()
+        keys[i] = keys[j].also { keys[j] = keys[i] }
+        val prefs = c.userStore.homeRows.value
+        c.userStore.saveHomeRows(prefs.copy(order = keys))
+    }
+
+    fun toggleFavoriteRow(key: String) = viewModelScope.launch {
+        val prefs = c.userStore.homeRows.value
+        // Un-favoriting drops the row's saved spot, so it goes back where it normally appears.
+        val next = if (key in prefs.favorites) prefs.copy(favorites = prefs.favorites - key, order = prefs.order - key)
+        else prefs.copy(favorites = prefs.favorites + key)
+        c.userStore.saveHomeRows(next)
     }
 
     fun match(meta: Meta): Int = c.recommender.matchPercent(meta, c.tasteProfile())

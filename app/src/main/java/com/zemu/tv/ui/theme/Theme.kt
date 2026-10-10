@@ -73,6 +73,8 @@ fun Color.toArgbLong(): Long = toArgb().toLong() and 0xFFFFFFFFL
 object Palette {
     var colors by mutableStateOf(ThemePreset.CLASSIC.colors)
 
+    /** True when the device can blur behind windows (Android 12+ and supported by the device). */
+    var blurSupported: Boolean = false
     val Light: Boolean get() = colors.light
     val Glass: Boolean get() = colors.glass
     val Background: Color get() = colors.base
@@ -126,7 +128,12 @@ fun androidx.compose.ui.Modifier.glassPanel(shape: androidx.compose.ui.graphics.
     if (!Palette.Glass) this.then(androidx.compose.ui.Modifier.background(solid, shape))
     else this.then(
         androidx.compose.ui.Modifier
-            .background(if (Palette.Light) Color.White.copy(alpha = 0.72f) else Color(0xFF1C1C22).copy(alpha = 0.62f), shape)
+            // Without real blur behind it, glass needs a denser fill to stay readable.
+            .background(
+                if (Palette.Light) Color.White.copy(alpha = if (Palette.blurSupported) 0.72f else 0.92f)
+                else Color(0xFF1C1C22).copy(alpha = if (Palette.blurSupported) 0.62f else 0.9f),
+                shape,
+            )
             .background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
                     listOf(Color.White.copy(alpha = if (Palette.Light) 0.35f else 0.10f), Color.Transparent),

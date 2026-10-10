@@ -134,6 +134,7 @@ fun AppShell() {
     val myList by c.userStore.myList.collectAsStateWithLifecycle()
     val history by c.userStore.history.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<Meta?>(null) }
+    var menuRowOptions by remember { mutableStateOf<(() -> Unit)?>(null) }
     var railOpen by remember { mutableStateOf(false) }
     LaunchedEffect(showRail) { if (!showRail) railOpen = false }
     val pending = com.zemu.tv.PendingOpen.target
@@ -143,7 +144,7 @@ fun AppShell() {
         nav.navigate(detailsRoute(Meta(id = id, type = type)))
     }
 
-    CompositionLocalProvider(LocalCardMenu provides { menuFor = it }, LocalWatched provides watched) {
+    CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
     FocusScrollMargins {
     Box(Modifier.fillMaxSize().appBackground()) {
         NavHost(
@@ -200,6 +201,7 @@ fun AppShell() {
                 watched = m.id in watched,
                 inMyList = myList.any { it.id == m.id },
                 inHistory = history.any { it.meta.id == m.id },
+                rowOptions = menuRowOptions != null,
             ),
             onAction = { a ->
                 when (a) {
@@ -210,6 +212,7 @@ fun AppShell() {
                     CardAction.MARK_WATCHED -> scope.launch { c.userStore.setWatched(m, true) }
                     CardAction.MARK_UNWATCHED -> scope.launch { c.userStore.setWatched(m, false) }
                     CardAction.REMOVE_HISTORY -> scope.launch { c.userStore.removeFromHistory(m.id) }
+                    CardAction.ROW_OPTIONS -> menuRowOptions?.invoke()
                 }
             },
             onDismiss = { menuFor = null },

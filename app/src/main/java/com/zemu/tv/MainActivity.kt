@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.zemu.tv.ui.theme.Palette.blurSupported = android.os.Build.VERSION.SDK_INT >= 31 &&
+            runCatching { getSystemService(android.view.WindowManager::class.java).isCrossWindowBlurEnabled }.getOrDefault(false)
         PendingOpen.from(intent)
         setContent {
             var profileId by remember { mutableStateOf(app.container.profileId) }
