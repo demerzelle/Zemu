@@ -175,7 +175,8 @@ class PlayerActivity : ComponentActivity() {
 
         setContent {
             val s by c.userStore.settings.collectAsStateWithLifecycle()
-            ZemuTheme(s.themeColors()) { PlayerScreen(this) }
+            // The player is always dark, whatever the app's light/dark setting.
+            ZemuTheme(s.themeColors().copy(light = false)) { PlayerScreen(this) }
         }
         start(resumeMs)
         loadEpisodes()
@@ -186,6 +187,7 @@ class PlayerActivity : ComponentActivity() {
                 delay(500)
                 pollPosition()
                 if (++ticks % 30 == 0) saveProgress()
+                checkSleepTimer()
             }
         }
         lifecycleScope.launch {
@@ -328,6 +330,35 @@ class PlayerActivity : ComponentActivity() {
         bufferedMs = p.bufferedPosition
         updateActiveSegment()
         maybeShowNextUp()
+    }
+
+    // ---- Sleep timer ----
+
+    var sleep by mutableStateOf(SleepTimer.OFF)
+        private set
+    /** When a timed sleep option pauses playback (uptime millis), or 0. */
+    var sleepAt by mutableLongStateOf(0L)
+        private set
+
+    fun cycleSleepTimer() {
+        sleep = SleepTimer.entries[(sleep.ordinal + 1) % SleepTimer.entries.size]
+        sleepAt = sleep.minutes?.let { android.os.SystemClock.uptimeMillis() + it * 60_000L } ?: 0L
+    }
+
+    /** "Sleep: 30 min (27 left)" etc., for the menu. */
+    fun sleepLabel(): String = when {
+        sleep == SleepTimer.OFF -> "Sleep timer: Off"
+        sleep == SleepTimer.END_OF_EPISODE -> "Sleep timer: end of this ${if (meta?.type == "series") "episode" else "video"}"
+        else -> "Sleep timer: ${sleep.label} (${((sleepAt - android.os.SystemClock.uptimeMillis()) / 60_000 + 1).coerceAtLeast(1)} min left)"
+    }
+
+    private fun checkSleepTimer() {
+        if (sleepAt == 0L || android.os.SystemClock.uptimeMillis() < sleepAt) return
+        sleep = SleepTimer.OFF
+        sleepAt = 0L
+        player?.pause()
+        saveProgress()
+        Toast.makeText(this, "Sleep timer: paused", Toast.LENGTH_LONG).show()
     }
 
     // ---- Skip intro / recap / credits ----
@@ -633,6 +664,12 @@ class PlayerActivity : ComponentActivity() {
 
     private fun onEnded() {
         saveProgress()
+        if (sleep == SleepTimer.END_OF_EPISODE) {
+            // Sleep timer: stop here instead of rolling into the next episode.
+            sleep = SleepTimer.OFF
+            finish()
+            return
+        }
         val next = upNext
         if (next != null && c.userStore.settings.value.autoplayNext && !countdownCancelled) {
             if (countdown == null) startCountdown(next, 0)
@@ -853,4 +890,9 @@ class PlayerActivity : ComponentActivity() {
         /** Show the "Next episode" card this long before the end (roughly where credits start). */
         private const val NEXT_UP_LEAD_MS = 40_000L
     }
+}
+
+/** Sleep timer choices, cycled from the player's More menu. */
+enum class SleepTimer(val label: String, val minutes: Int?) {
+    OFF("Off", null), M15("15 min", 15), M30("30 min", 30), M60("1 hour", 60), M90("90 min", 90), END_OF_EPISODE("End of episode", null)
 }

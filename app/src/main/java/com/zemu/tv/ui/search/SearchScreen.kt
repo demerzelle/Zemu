@@ -1,5 +1,8 @@
 package com.zemu.tv.ui.search
 
+import com.zemu.tv.ui.components.TvChip
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,6 +68,11 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
     val state = combine(query, results, loading) { q, rows, l ->
         SearchUi(query = q, rows = rows, loading = l, searched = q.length >= 2 && !l)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, SearchUi())
+
+    val recent = c.userStore.recentSearches
+
+    fun remember(q: String) = viewModelScope.launch { c.userStore.addRecentSearch(q) }
+    fun clearRecent() = viewModelScope.launch { c.userStore.clearRecentSearches() }
 
     fun setQuery(q: String) {
         query.value = q
@@ -140,11 +148,20 @@ fun SearchScreen(onOpen: (Meta) -> Unit) {
             ui.searched && ui.rows.isEmpty() -> "No results."
             else -> null
         }
+        // Recent searches while the box is empty.
+        val recent by vm.recent.collectAsStateWithLifecycle()
+        if (ui.query.isBlank() && recent.isNotEmpty()) {
+            Text("Recent searches", color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(start = 48.dp, top = 18.dp))
+            LazyRow(contentPadding = PaddingValues(horizontal = 48.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(recent, key = { it }) { q -> TvChip(q, selected = false, onClick = { vm.setQuery(q) }) }
+                item { TvChip("Clear", selected = false, onClick = { vm.clearRecent() }) }
+            }
+        }
         if (status != null) Text(status, color = Palette.TextSecondary, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 48.dp, vertical = 14.dp))
         LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp)) {
             items(ui.rows, key = { it.first }) { (title, items) ->
                 MediaRow(title = title, items = items, key = { it.id }) { _, m, mod ->
-                    PosterCard(m, onClick = { onOpen(m) }, modifier = mod)
+                    PosterCard(m, onClick = { vm.remember(ui.query); onOpen(m) }, modifier = mod)
                 }
             }
         }

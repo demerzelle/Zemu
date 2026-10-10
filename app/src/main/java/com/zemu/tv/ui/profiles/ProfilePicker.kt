@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.profiles
 
+import com.zemu.tv.ui.theme.appBackground
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -45,10 +46,11 @@ fun ProfilePicker(profiles: List<Profile>, currentId: String, onPick: (Profile) 
         delay(100)
         runCatching { (requesters[currentId] ?: requesters.values.first()).requestFocus() }
     }
-    Box(Modifier.fillMaxSize().background(Palette.Background), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().appBackground(), contentAlignment = Alignment.Center) {
         androidx.compose.foundation.Image(
             painterResource(R.drawable.logo_wordmark),
             contentDescription = "Zemu",
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Palette.Accent),
             modifier = Modifier.align(Alignment.TopStart).padding(start = 48.dp, top = 32.dp).height(30.dp).width(200.dp),
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -63,7 +65,7 @@ fun ProfilePicker(profiles: List<Profile>, currentId: String, onPick: (Profile) 
                             modifier = Modifier.touchClick({ onPick(p) }).size(140.dp).focusRequester(requesters.getValue(p.id)),
                             shape = ClickableSurfaceDefaults.shape(shape = shape),
                             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-                            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(4.dp, Color.White), shape = shape)),
+                            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(4.dp, Palette.FocusBorder), shape = shape)),
                             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
                         ) {
                             Avatar(p.avatar, 140.dp, corner = 22.dp)

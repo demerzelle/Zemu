@@ -51,7 +51,7 @@ enum class DynamicTheme(val label: String, val accent: Long? = null, val backgro
 
 /** Colors after applying a dynamic theme's own palette (if it has one). */
 fun DynamicTheme.applyTo(base: ThemeColors): ThemeColors =
-    if (accent != null && background != null) ThemeColors(Color(accent.toInt()), Color(background.toInt())) else base
+    if (accent != null && background != null) base.copy(accent = Color(accent.toInt()), background = Color(background.toInt())) else base
 
 private class Particle(var x: Float, var y: Float, var speed: Float, var size: Float, var drift: Float, var phase: Float, var kind: Int = 0)
 

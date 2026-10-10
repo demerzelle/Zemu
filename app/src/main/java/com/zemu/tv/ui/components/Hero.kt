@@ -213,7 +213,7 @@ fun HeroInfo(meta: Meta?, matchPercent: Int?, modifier: Modifier = Modifier) {
                         val trailerOn = m.trailerId != null && HeroTrailerState.playingId == m.trailerId
                         Text(
                             if (trailerOn) "     ⏯ Press Play/Pause for fullscreen trailer" else "     Hold OK for options",
-                            color = if (trailerOn) Color.White else Palette.TextMuted,
+                            color = if (trailerOn) Palette.Text else Palette.TextMuted,
                             fontSize = 12.sp,
                         )
                     }

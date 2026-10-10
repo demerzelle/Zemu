@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.settings
 
+import com.zemu.tv.ui.theme.DialogBackdropBlur
+import com.zemu.tv.ui.theme.glassPanel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -116,7 +118,8 @@ private fun LinkDialog(c: AppContainer, service: DebridService, phoneAddress: St
     LaunchedEffect(Unit) { delay(150); runCatching { first.requestFocus() } }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.width(900.dp).background(Palette.Surface, RoundedCornerShape(16.dp)).padding(28.dp)) {
+        DialogBackdropBlur()
+        Column(Modifier.width(900.dp).glassPanel(RoundedCornerShape(16.dp)).padding(28.dp)) {
             Text("Link ${service.label}", fontSize = 24.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {

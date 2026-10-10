@@ -128,6 +128,10 @@ data class AppSettings(
     val customBackground: Long = 0xFF0A0A0E,
     /** A [com.zemu.tv.ui.theme.DynamicTheme] name. */
     val dynamicTheme: String = "NONE",
+    /** Light background with dark text. */
+    val lightMode: Boolean = false,
+    /** Translucent "frosted glass" panels and buttons. */
+    val glassStyle: Boolean = false,
     /** Manifest id of the addon preferred for title details and the Movies/Series pages ("" = automatic). */
     val metaProvider: String = "",
     // Player

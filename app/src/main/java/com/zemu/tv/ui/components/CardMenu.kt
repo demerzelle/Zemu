@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.components
 
+import com.zemu.tv.ui.theme.DialogBackdropBlur
+import com.zemu.tv.ui.theme.glassPanel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -74,6 +76,7 @@ fun CardMenuDialog(meta: Meta, actions: List<CardAction>, onAction: (CardAction)
     // can't "click" the first item (Details) by repeating or on key-up.
     var armed by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        DialogBackdropBlur()
         Row(
             Modifier
                 .onPreviewKeyEvent { e ->
@@ -86,7 +89,7 @@ fun CardMenuDialog(meta: Meta, actions: List<CardAction>, onAction: (CardAction)
                     }
                 }
                 .width(600.dp)
-                .background(Palette.Surface, RoundedCornerShape(14.dp))
+                .glassPanel(RoundedCornerShape(14.dp))
                 .padding(20.dp),
         ) {
             Column(Modifier.width(170.dp)) {

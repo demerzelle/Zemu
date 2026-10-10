@@ -112,8 +112,8 @@ private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, o
         shape = RoundedCornerShape(12.dp),
         containerColor = colors.background,
         focusedContainerColor = colors.surfaceHigh,
-        focusedContentColor = Color.White,
-        focusedBorder = Color.White,
+        focusedContentColor = Palette.Text,
+        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.06f,
     ) {
         Column(

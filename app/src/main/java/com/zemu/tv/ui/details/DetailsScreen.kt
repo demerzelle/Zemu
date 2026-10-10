@@ -1,5 +1,8 @@
 package com.zemu.tv.ui.details
 
+import com.zemu.tv.ui.components.SheetAction
+import com.zemu.tv.ui.components.ActionSheet
+import com.zemu.tv.data.title
 import com.zemu.tv.ui.components.heroTrailerTap
 import android.content.Intent
 import android.net.Uri
@@ -128,6 +131,9 @@ fun DetailsScreen(
     val scope = rememberCoroutineScope()
     var openFacet by remember { mutableStateOf<FacetKind?>(null) }
     var sortOpen by remember { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
+    val history by c.userStore.history.collectAsStateWithLifecycle()
+    val watchedIds by c.userStore.watched.collectAsStateWithLifecycle()
 
     val m = meta
     if (m == null) {
@@ -169,6 +175,20 @@ fun DetailsScreen(
     }
 
     val best = vm.preferred(streams.streams)
+    // Partly watched: the Play button resumes, and "Start over" appears under More.
+    val resume = history.firstOrNull { it.meta.id == m.id && it.videoId == vm.currentVideoId() }
+        ?.takeIf { it.durationMs > 0 && it.progress in 0.02f..0.95f }
+        ?.let { ResumeInfo(((it.durationMs - it.positionMs) / 60_000).coerceAtLeast(1)) }
+
+    fun showCastRow() {
+        showCast = !showCast
+        if (showCast) scope.launch {
+            delay(120)
+            listState.animateScrollToItem(1)
+            delay(200)
+            runCatching { castFocus.requestFocus() }
+        }
+    }
     // Index of the "Cached streams" header inside the LazyColumn, used for "Choose stream".
     // The cast row (when shown) sits right after the header, before episodes.
     val streamsHeaderIndex = (if (type == "series" && m.videos.isNotEmpty()) 2 else 1) + (if (showCast) 1 else 0)
@@ -208,11 +228,14 @@ fun DetailsScreen(
                     )
                     people.forEach { Text(it, color = Palette.TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     Spacer(Modifier.size(20.dp))
+                    // Four buttons; everything else lives under "More".
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val epTag = selectedVideo?.takeIf { it.season != null }?.let { "S${it.season} E${it.episodeNumber}" }
                         val playLabel = when {
                             streams.loading -> "Finding cached streams…"
-                            best != null -> if (type == "series") "Play episode" else "Play"
-                            else -> "No cached streams"
+                            best == null -> "No cached streams"
+                            resume != null -> listOfNotNull("Resume", epTag).joinToString(" ") + " · ${resume.minutesLeft}m left"
+                            else -> listOfNotNull("Play", epTag).joinToString(" ")
                         }
                         TvButton(
                             playLabel,
@@ -227,26 +250,13 @@ fun DetailsScreen(
                                 }
                             },
                         )
-                        TvButton("Choose stream", onClick = { scope.launch { listState.animateScrollToItem(streamsHeaderIndex) } })
+                        TvButton("Streams", onClick = { scope.launch { listState.animateScrollToItem(streamsHeaderIndex) } })
                         TvButton(
                             if (inMyList) "In My List" else "My List",
                             icon = if (inMyList) Icons.Filled.Check else Icons.Filled.Add,
                             onClick = vm::toggleMyList,
                         )
-                        TvIconButton(AppIcons.ThumbUp, if (rating > 0) "Liked" else "Like", active = rating > 0) { vm.rate(if (rating > 0) 0 else 1) }
-                        TvIconButton(AppIcons.ThumbDown, if (rating < 0) "Disliked" else "Dislike", active = rating < 0) { vm.rate(if (rating < 0) 0 else -1) }
-                        if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) {
-                            TvButton(if (showCast) "Hide cast" else "View cast", onClick = {
-                                showCast = !showCast
-                                if (showCast) scope.launch {
-                                    delay(120)
-                                    listState.animateScrollToItem(1)
-                                    delay(200)
-                                    runCatching { castFocus.requestFocus() }
-                                }
-                            })
-                        }
-                        m.trailerId?.let { yt -> TvButton("Trailer", onClick = { TrailerActivity.start(context, yt) }) }
+                        TvButton("More", onClick = { moreOpen = true })
                     }
                     bestSummary(best)?.let {
                         Spacer(Modifier.size(8.dp))
@@ -376,6 +386,25 @@ fun DetailsScreen(
         }
     }
 
+    if (moreOpen) {
+        val watched = m.id in watchedIds
+        ActionSheet(
+            title = m.title,
+            onDismiss = { moreOpen = false },
+            actions = buildList {
+                if (resume != null && best != null) add(SheetAction("Start over") {
+                    Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), best.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream }, fromStart = true)
+                })
+                m.trailerId?.let { yt -> add(SheetAction("Watch trailer") { TrailerActivity.start(context, yt) }) }
+                add(SheetAction(if (rating > 0) "Remove like" else "Like", if (rating > 0) "👍 Liked" else null) { vm.rate(if (rating > 0) 0 else 1) })
+                add(SheetAction(if (rating < 0) "Remove dislike" else "Not for me", if (rating < 0) "👎" else null) { vm.rate(if (rating < 0) 0 else -1) })
+                if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) add(SheetAction(if (showCast) "Hide cast" else "View cast") { showCastRow() })
+                add(SheetAction(if (watched) "Mark as unwatched" else "Mark as watched") { scope.launch { c.userStore.setWatched(m, !watched) } })
+                add(SheetAction("Refresh streams") { vm.reloadStreams() })
+            },
+        )
+    }
+
     openFacet?.let { kind ->
         ChoiceDialog(
             title = kind.label,
@@ -470,7 +499,7 @@ private fun EpisodeCard(video: Video, selected: Boolean, onFocused: () -> Unit =
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.07f),
             border = ClickableSurfaceDefaults.border(
                 border = if (selected) Border(BorderStroke(2.dp, Palette.Accent), shape = shape) else Border.None,
-                focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+                focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
             ),
             colors = ClickableSurfaceDefaults.colors(containerColor = Palette.Surface, focusedContainerColor = Palette.Surface),
         ) {
@@ -488,3 +517,5 @@ private fun EpisodeCard(video: Video, selected: Boolean, onFocused: () -> Unit =
         video.released?.take(10)?.let { Text(it, color = Palette.TextMuted, fontSize = 12.sp) }
     }
 }
+
+private data class ResumeInfo(val minutesLeft: Long)

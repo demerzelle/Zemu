@@ -107,8 +107,8 @@ fun StreamRow(r: RankedStream, externalSubLangs: Set<String>, onClick: () -> Uni
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface.copy(alpha = 0.92f),
         focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Color.White,
-        focusedBorder = Color.White,
+        focusedContentColor = Palette.Text,
+        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.015f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {

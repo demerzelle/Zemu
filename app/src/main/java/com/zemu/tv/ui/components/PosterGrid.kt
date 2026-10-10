@@ -27,8 +27,8 @@ fun PosterGrid(
     contentPadding: PaddingValues = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
     /** Full-width content above the grid that scrolls with it (e.g. a "New Episodes" row). */
     header: (@Composable () -> Unit)? = null,
+    state: androidx.compose.foundation.lazy.grid.LazyGridState = rememberLazyGridState(),
 ) {
-    val state = rememberLazyGridState()
     val nearEnd by remember {
         derivedStateOf {
             val last = state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0

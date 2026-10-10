@@ -114,7 +114,7 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
-    APPEARANCE("Appearance", "Color themes, animated themes, vibration and trailers."),
+    APPEARANCE("Appearance", "Light mode, glass style, color themes, vibration and trailers."),
     DEVICE("This device", "What this TV can play, used for \"Best for this TV\"."),
 }
 
@@ -219,7 +219,7 @@ private fun CategoryItem(label: String, selected: Boolean, modifier: Modifier, o
         modifier = modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { if (it.isFocused) onFocused() },
         shape = RoundedCornerShape(10.dp),
         containerColor = if (selected) Palette.SurfaceHigh else Color.Transparent,
-        contentColor = if (selected) Color.White else Palette.TextSecondary,
+        contentColor = if (selected) Palette.Text else Palette.TextSecondary,
         focusedScale = 1.03f,
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -358,6 +358,14 @@ private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: App
 }
 
 private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group("mode", "Look") {
+        ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
+            vm.update { it.copy(lightMode = !it.lightMode) }
+        }
+        ToggleRow("Glass style", "Frosted, see-through panels and menus over a soft glow of your theme color. On Android 12 and newer, menus also blur what's behind them.", settings.glassStyle) {
+            vm.update { it.copy(glassStyle = !it.glassStyle) }
+        }
+    }
     group("theme", "Color theme") {
         ThemePicker(settings) { t -> vm.update(t) }
     }
@@ -402,8 +410,8 @@ private fun InfoRow(title: String, value: String, ok: Boolean = true) {
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface,
         focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Color.White,
-        focusedBorder = Color.White,
+        focusedContentColor = Palette.Text,
+        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.01f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -435,8 +443,8 @@ private fun ToggleRow(title: String, description: String, on: Boolean, onClick: 
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface,
         focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Color.White,
-        focusedBorder = Color.White,
+        focusedContentColor = Palette.Text,
+        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.01f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -457,8 +465,8 @@ private fun ValueRow(title: String, value: String, modifier: Modifier = Modifier
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface,
         focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Color.White,
-        focusedBorder = Color.White,
+        focusedContentColor = Palette.Text,
+        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.01f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -1,5 +1,8 @@
 package com.zemu.tv.ui.browse
 
+import kotlinx.coroutines.launch
+import com.zemu.tv.ui.components.SheetAction
+import com.zemu.tv.ui.components.ActionSheet
 import com.zemu.tv.ui.components.heroTrailerTap
 import com.zemu.tv.ui.components.PosterCard
 import com.zemu.tv.ui.components.MediaRow
@@ -64,8 +67,19 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
     val ui by vm.state.collectAsStateWithLifecycle()
     val settings by c.userStore.settings.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<BrowseDialog?>(null) }
+    var filtersOpen by remember { mutableStateOf(false) }
     val f = ui.filters
     val topFocus = remember { FocusRequester() }
+    // Back from deep in the grid jumps to the top first.
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val scrolled by androidx.compose.runtime.remember { androidx.compose.runtime.derivedStateOf { gridState.firstVisibleItemIndex > 0 } }
+    androidx.activity.compose.BackHandler(enabled = scrolled) {
+        scope.launch {
+            gridState.scrollToItem(0)
+            runCatching { topFocus.requestFocus() }
+        }
+    }
 
     var focused by remember { mutableStateOf<Meta?>(null) }
     var hero by remember { mutableStateOf<Meta?>(null) }
@@ -129,23 +143,11 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
                     }
                     item { TvChip("$catalogLabel ▾", selected = false, onClick = { dialog = BrowseDialog.CATALOG }) }
                 } else {
-                    ui.catalogs.forEachIndexed { i, cat ->
-                        item {
-                            TvChip(
-                                cat.label,
-                                selected = f.catalog == cat.id,
-                                onClick = { vm.setFilters { it.copy(catalog = cat.id) } },
-                                modifier = if (i == 0) Modifier.focusRequester(topFocus) else Modifier,
-                            )
-                        }
-                    }
+                    item { TvChip("$catalogLabel ▾", selected = false, onClick = { dialog = BrowseDialog.CATALOG }, modifier = Modifier.focusRequester(topFocus)) }
                 }
-                if (genreAllowed && ui.genres.isNotEmpty()) {
-                    item { TvChip("Genre: ${f.genre ?: "All"} ▾", selected = f.genre != null, onClick = { dialog = BrowseDialog.GENRE }) }
-                }
-                item { TvChip("Rating: ${ratingLabel(f.minRating)} ▾", selected = f.minRating != null, onClick = { dialog = BrowseDialog.RATING }) }
-                item { TvChip("Decade: ${decadeLabel(f.decade)} ▾", selected = f.decade != null, onClick = { dialog = BrowseDialog.DECADE }) }
-                item { TvChip("Sort: ${f.sort.label} ▾", selected = f.sort != BrowseSort.DEFAULT, onClick = { dialog = BrowseDialog.SORT }) }
+                // Genre, rating, decade and sort live behind one button.
+                val active = listOf(f.genre != null && genreAllowed, f.minRating != null, f.decade != null, f.sort != BrowseSort.DEFAULT).count { it }
+                item { TvChip(if (active > 0) "Filters · $active ▾" else "Filters ▾", selected = active > 0, onClick = { filtersOpen = true }) }
                 item { Text(if (ui.loading) "loading…" else "${ui.items.size} titles", color = Palette.TextMuted, fontSize = 13.sp) }
             }
             when {
@@ -164,6 +166,7 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
                         focused = m
                     },
                     contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 6.dp, bottom = 48.dp),
+                    state = gridState,
                     header = newEpisodes.takeIf { it.isNotEmpty() }?.let { list ->
                         {
                             // Shows you watch with episodes out since you last watched; the row bleeds past the grid padding.
@@ -184,6 +187,22 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
                 )
             }
         }
+    }
+
+    if (filtersOpen) {
+        ActionSheet(
+            title = "Filters",
+            onDismiss = { filtersOpen = false },
+            actions = buildList {
+                if (genreAllowed && ui.genres.isNotEmpty()) add(SheetAction("Genre", f.genre ?: "All") { dialog = BrowseDialog.GENRE })
+                add(SheetAction("Rating", ratingLabel(f.minRating)) { dialog = BrowseDialog.RATING })
+                add(SheetAction("Decade", decadeLabel(f.decade)) { dialog = BrowseDialog.DECADE })
+                add(SheetAction("Sort", f.sort.label) { dialog = BrowseDialog.SORT })
+                if (f.genre != null || f.minRating != null || f.decade != null || f.sort != BrowseSort.DEFAULT) {
+                    add(SheetAction("Clear filters") { vm.setFilters { it.copy(genre = null, minRating = null, decade = null, sort = BrowseSort.DEFAULT) } })
+                }
+            },
+        )
     }
 
     when (dialog) {

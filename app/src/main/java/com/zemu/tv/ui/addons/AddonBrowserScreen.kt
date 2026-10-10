@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.addons
 
+import com.zemu.tv.ui.theme.glassPanel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,7 +139,7 @@ private fun AddonCard(item: AddonItem, busy: Boolean, onInstall: () -> Unit, onU
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 48.dp, vertical = 6.dp)
-            .background(Palette.Surface, RoundedCornerShape(12.dp))
+            .glassPanel(RoundedCornerShape(12.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -1,5 +1,10 @@
 package com.zemu.tv.ui.home
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.activity.compose.BackHandler
 import com.zemu.tv.ui.components.heroTrailerTap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,6 +79,25 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
         if (!ok) runCatching { firstRequester.requestFocus() }
     }
 
+    // Back: first jump to the top of Home, then ask before leaving the app.
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var lastBack by remember { mutableLongStateOf(0L) }
+    BackHandler {
+        val now = System.currentTimeMillis()
+        when {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 -> scope.launch {
+                listState.animateScrollToItem(0)
+                runCatching { firstRequester.requestFocus() }
+            }
+            now - lastBack < 2_000 -> (context as? android.app.Activity)?.finish()
+            else -> {
+                lastBack = now
+                android.widget.Toast.makeText(context, "Press Back again to exit Zemu", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     Box(Modifier.fillMaxSize().heroTrailerKeys()) {
         Backdrop(
             hero,
@@ -91,6 +115,7 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
             }
             LazyColumn(
                 Modifier.fillMaxSize(),
+                state = listState,
                 contentPadding = PaddingValues(bottom = 48.dp),
             ) {
                 if (state.noStreamAddons) {

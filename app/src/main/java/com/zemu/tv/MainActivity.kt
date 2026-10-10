@@ -40,6 +40,14 @@ object PendingOpen {
 }
 
 class MainActivity : ComponentActivity() {
+    /** This screen's theme; re-applied on return because the (always dark) player shares [com.zemu.tv.ui.theme.Palette]. */
+    private var appColors: com.zemu.tv.ui.theme.ThemeColors? = null
+
+    override fun onResume() {
+        super.onResume()
+        appColors?.let { com.zemu.tv.ui.theme.Palette.colors = it }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         PendingOpen.from(intent)
@@ -61,6 +69,14 @@ class MainActivity : ComponentActivity() {
                 var rgbAccent by remember { mutableStateOf<Color?>(null) }
                 val base = dynamic.applyTo(settings.themeColors())
                 val colors = rgbAccent?.let { base.copy(accent = it) } ?: base
+                appColors = colors
+                // Dark status/navigation bar icons in light mode (phones and tablets).
+                androidx.compose.runtime.SideEffect {
+                    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = colors.light
+                        isAppearanceLightNavigationBars = colors.light
+                    }
+                }
 
                 ZemuTheme(colors) {
                     Box(Modifier.fillMaxSize()) {

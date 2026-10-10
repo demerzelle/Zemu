@@ -96,7 +96,7 @@ private fun CastTile(label: String, sub: String?, photo: String?, modifier: Modi
             modifier = modifier.touchClick(onClick).size(104.dp),
             shape = ClickableSurfaceDefaults.shape(shape = CircleShape),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = CircleShape)),
+            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = CircleShape)),
             colors = ClickableSurfaceDefaults.colors(containerColor = Palette.SurfaceHigh, focusedContainerColor = Palette.SurfaceHigh),
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

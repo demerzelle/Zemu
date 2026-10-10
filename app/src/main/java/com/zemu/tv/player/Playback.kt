@@ -68,13 +68,15 @@ object Playback {
         stream: ParsedStream,
         externalSubs: List<SubtitleTrack>,
         alternatives: List<ParsedStream> = emptyList(),
+        /** Ignore saved progress and play from the beginning. */
+        fromStart: Boolean = false,
     ) {
         val c = context.container
         val url = stream.raw.url ?: return
         val settings = c.userStore.settings.value
         com.zemu.tv.ui.components.Haptics.buzz(context, com.zemu.tv.ui.components.Haptics.Kind.START)
         c.appScope.launch { c.userStore.rememberStream(meta.id, com.zemu.tv.data.LastStream(stream.key, stream.raw.behaviorHints?.bingeGroup)) }
-        val resume = c.userStore.history.value
+        val resume = if (fromStart) 0L else c.userStore.history.value
             .firstOrNull { it.meta.id == meta.id && it.videoId == videoId }
             ?.takeIf { it.progress in 0.02f..0.95f }?.positionMs ?: 0L
         val displayTitle = listOfNotNull(meta.title, episodeLabel).joinToString(" · ")

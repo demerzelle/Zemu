@@ -420,10 +420,10 @@ private fun MenuBar(
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion // re-read track labels when tracks change
-    val items = buildList {
+    // Main row keeps the essentials; the rest is one press away under "More".
+    var more by remember { mutableStateOf(false) }
+    val items = if (!more) buildList {
         add(MenuItem("play", if (a.isPlaying) "Pause" else "Play", if (a.isPlaying) AppIcons.Pause else AppIcons.Play) { a.togglePlay() })
-        add(MenuItem("back", "Back 10s", AppIcons.Rewind) { a.seekBy(-10_000) })
-        add(MenuItem("fwd", "Forward 10s", AppIcons.Forward) { a.seekBy(10_000) })
         add(MenuItem("audio", "Audio: ${a.currentAudioLabel()}", AppIcons.Audio) { a.cycleAudio() })
         add(
             MenuItem(
@@ -434,6 +434,10 @@ private fun MenuBar(
                 onLongClick = { onDialog(PlayerDialog.SUBTITLE_STYLE) },
             ) { a.cycleSubtitles() },
         )
+        if (a.nextUp != null) add(MenuItem("next", "Next episode", AppIcons.Next) { a.playNextNow() })
+        add(MenuItem("more", "More: speed, picture, sleep timer, rating, My List", AppIcons.More) { more = true })
+    } else buildList {
+        add(MenuItem("less", "Back", AppIcons.Back) { more = false })
         add(MenuItem("speed", "Speed: $speedLabel", AppIcons.Speed, active = speedLabel != "1x") {
             val i = SPEEDS.indexOf(a.speed)
             a.changeSpeed(SPEEDS[(i + 1).mod(SPEEDS.size)])
@@ -442,11 +446,13 @@ private fun MenuBar(
             val next = AspectMode.entries[(aspect.ordinal + 1) % AspectMode.entries.size]
             scope.launch { a.container.userStore.updateSettings { it.copy(aspectMode = next.name) } }
         })
+        add(MenuItem("sleep", a.sleepLabel(), AppIcons.Sleep, active = a.sleep != SleepTimer.OFF) { a.cycleSleepTimer() })
         add(MenuItem("like", if (rating > 0) "Liked" else "Like", AppIcons.ThumbUp, active = rating > 0) { a.rate(if (rating > 0) 0 else 1) })
         add(MenuItem("dislike", if (rating < 0) "Disliked" else "Dislike", AppIcons.ThumbDown, active = rating < 0) { a.rate(if (rating < 0) 0 else -1) })
         add(MenuItem("fav", if (inMyList) "In My List" else "Add to My List", if (inMyList) AppIcons.Heart else AppIcons.HeartOutline, active = inMyList) { onToggleMyList() })
-        if (a.nextUp != null) add(MenuItem("next", "Next episode", AppIcons.Next) { a.playNextNow() })
     }
+    // Keep focus on the first button when switching rows.
+    LaunchedEffect(more) { delay(50); runCatching { playFocus.requestFocus() } }
     var focusedKey by remember { mutableStateOf<String?>(null) }
     Column {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -457,7 +463,7 @@ private fun MenuBar(
                     modifier = Modifier
                         .size(52.dp)
                         .onFocusChanged { if (it.isFocused) focusedKey = item.key }
-                        .then(if (item.key == "play") Modifier.focusRequester(playFocus) else Modifier),
+                        .then(if (item.key == "play" || item.key == "less") Modifier.focusRequester(playFocus) else Modifier),
                     shape = CircleShape,
                     containerColor = if (item.active) Palette.Accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.14f),
                     contentColor = if (item.active) Palette.OnAccent else Color.White,

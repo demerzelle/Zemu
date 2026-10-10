@@ -44,6 +44,7 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
         val ratedMetas = stringPreferencesKey("rated_metas")
         val debrid = stringPreferencesKey("debrid")
         val lastStreams = stringPreferencesKey("last_streams")
+        val recentSearches = stringPreferencesKey("recent_searches")
     }
 
     private val ratingSer = MapSerializer(String.serializer(), Int.serializer())
@@ -172,6 +173,23 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
             val next = linkedMapOf(metaId to stream).apply { putAll(cur.filterKeys { it != metaId }.entries.take(199).associate { it.toPair() }) }
             p[Keys.lastStreams] = json.encodeToString(lastStreamSer, next)
         }
+    }
+
+    /** Searches that led to opening a title, newest first. */
+    val recentSearches: StateFlow<List<String>> = ds.data
+        .map { it.decode(Keys.recentSearches, idSetSer).orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun addRecentSearch(q: String) {
+        val t = q.trim().takeIf { it.length >= 2 } ?: return
+        ds.edit { p ->
+            val cur = p.decode(Keys.recentSearches, idSetSer).orEmpty()
+            p[Keys.recentSearches] = json.encodeToString(idSetSer, (listOf(t) + cur.filterNot { it.equals(t, ignoreCase = true) }).take(10))
+        }
+    }
+
+    suspend fun clearRecentSearches() {
+        ds.edit { it.remove(Keys.recentSearches) }
     }
 
     suspend fun clearHistory() {

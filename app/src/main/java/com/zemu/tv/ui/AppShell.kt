@@ -1,5 +1,6 @@
 package com.zemu.tv.ui
 
+import com.zemu.tv.ui.theme.appBackground
 import android.net.Uri
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -144,7 +145,7 @@ fun AppShell() {
 
     CompositionLocalProvider(LocalCardMenu provides { menuFor = it }, LocalWatched provides watched) {
     FocusScrollMargins {
-    Box(Modifier.fillMaxSize().background(Palette.Background)) {
+    Box(Modifier.fillMaxSize().appBackground()) {
         NavHost(
             navController = nav,
             startDestination = "home",
@@ -251,7 +252,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
         Modifier
             .fillMaxHeight()
             .width(width)
-            .background(Palette.Background)
+            // Glass: the rail is a translucent pane over the page.
+            .background(if (Palette.Glass) Palette.Background.copy(alpha = 0.55f) else Palette.Background)
             .onGloballyPositioned { railOrigin = it.positionInWindow() }
             .pointerInput(Unit) {
                 fun destAt(p: Offset): Dest? = (p + railOrigin).let { w -> bounds.entries.firstOrNull { it.value.contains(w) }?.key }
@@ -290,6 +292,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
             contentDescription = "Zemu",
             contentScale = ContentScale.Fit,
             alignment = Alignment.CenterStart,
+            // The logo follows the theme's accent color.
+            colorFilter = ColorFilter.tint(Palette.Accent),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 20.dp, top = 22.dp, end = 16.dp)
@@ -322,9 +326,9 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
-                        contentColor = Color.White,
-                        focusedContainerColor = Color.White,
-                        focusedContentColor = Color.Black,
+                        contentColor = Palette.Text,
+                        focusedContainerColor = Palette.Focus,
+                        focusedContentColor = Palette.OnFocus,
                     ),
                 ) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {

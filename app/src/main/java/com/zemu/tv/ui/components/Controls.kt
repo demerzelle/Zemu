@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.components
 
+import com.zemu.tv.ui.theme.DialogBackdropBlur
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.onKeyEvent
@@ -65,6 +66,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.zemu.tv.ui.theme.Palette
+import com.zemu.tv.ui.theme.glassPanel
 
 /** Focusable D-pad surface with TV-style scale + colour change on focus. */
 @Composable
@@ -75,9 +77,9 @@ fun FocusSurface(
     shape: Shape = RoundedCornerShape(8.dp),
     focusedScale: Float = 1.05f,
     containerColor: Color = Palette.SurfaceHigh,
-    contentColor: Color = Color.White,
-    focusedContainerColor: Color = Color.White,
-    focusedContentColor: Color = Color.Black,
+    contentColor: Color = Palette.Text,
+    focusedContainerColor: Color = Palette.Focus,
+    focusedContentColor: Color = Palette.OnFocus,
     focusedBorder: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -115,7 +117,7 @@ fun TvButton(
         modifier = modifier,
         shape = RoundedCornerShape(6.dp),
         containerColor = if (primary) Palette.Accent else Palette.SurfaceHigh.copy(alpha = 0.9f),
-        contentColor = if (primary) Palette.OnAccent else Color.White,
+        contentColor = if (primary) Palette.OnAccent else Palette.Text,
     ) {
         Row(
             Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
@@ -138,7 +140,7 @@ fun TvIconButton(icon: ImageVector, label: String, modifier: Modifier = Modifier
         modifier = modifier.size(46.dp),
         shape = androidx.compose.foundation.shape.CircleShape,
         containerColor = if (active) Palette.Accent else Palette.SurfaceHigh.copy(alpha = 0.9f),
-        contentColor = if (active) Palette.OnAccent else Color.White,
+        contentColor = if (active) Palette.OnAccent else Palette.Text,
         focusedScale = 1.1f,
     ) {
         Icon(icon, contentDescription = label, modifier = Modifier.align(Alignment.Center).size(22.dp))
@@ -157,7 +159,7 @@ fun TvChip(
         modifier = modifier,
         shape = RoundedCornerShape(50),
         containerColor = if (selected) Palette.Accent else Palette.SurfaceHigh,
-        contentColor = if (selected) Palette.OnAccent else Color.White,
+        contentColor = if (selected) Palette.OnAccent else Palette.Text,
         focusedScale = 1.06f,
     ) {
         Text(
@@ -247,15 +249,15 @@ fun TvTextField(
                 }
             }
             .background(if (active) Palette.SurfaceHigh else Palette.Surface, RoundedCornerShape(8.dp))
-            .border(2.dp, if (active) Color.White else Color.Transparent, RoundedCornerShape(8.dp))
+            .border(2.dp, if (active) Palette.FocusBorder else Color.Transparent, RoundedCornerShape(8.dp))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
-            cursorBrush = SolidColor(Color.White),
+            textStyle = TextStyle(color = Palette.Text, fontSize = 18.sp),
+            cursorBrush = SolidColor(Palette.Text),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
             keyboardActions = KeyboardActions(onDone = { onSubmit() }, onSearch = { onSubmit() }, onGo = { onSubmit() }),
             modifier = Modifier
@@ -301,11 +303,12 @@ fun ChoiceDialog(
 ) {
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
+        DialogBackdropBlur()
         Column(
             Modifier
                 .width(480.dp)
                 .heightIn(max = 560.dp)
-                .background(Palette.Surface, RoundedCornerShape(14.dp))
+                .glassPanel(RoundedCornerShape(14.dp))
                 .padding(24.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -372,10 +375,11 @@ fun CenteredMessage(title: String, body: String? = null, modifier: Modifier = Mo
 fun ConfirmDialog(title: String, message: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val cancel = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
+        DialogBackdropBlur()
         Column(
             Modifier
                 .width(520.dp)
-                .background(Palette.Surface, RoundedCornerShape(14.dp))
+                .glassPanel(RoundedCornerShape(14.dp))
                 .padding(24.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -389,4 +393,43 @@ fun ConfirmDialog(title: String, message: String, confirmLabel: String, onConfir
         }
     }
     LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+}
+
+/** One row in an [ActionSheet]. [detail] shows on the right, e.g. the current value. */
+data class SheetAction(val label: String, val detail: String? = null, val onClick: () -> Unit)
+
+/**
+ * A small menu of actions ("More", "Filters"): keeps rarely used buttons off the main screens.
+ * Picking an action closes the sheet first, so actions can open their own dialogs.
+ */
+@Composable
+fun ActionSheet(title: String, actions: List<SheetAction>, onDismiss: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { first.requestFocus() } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        DialogBackdropBlur()
+        Column(
+            Modifier
+                .width(440.dp)
+                .glassPanel(RoundedCornerShape(16.dp))
+                .padding(vertical = 18.dp, horizontal = 14.dp),
+        ) {
+            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp, bottom = 10.dp))
+            actions.forEachIndexed { i, a ->
+                FocusSurface(
+                    onClick = { onDismiss(); a.onClick() },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).then(if (i == 0) Modifier.focusRequester(first) else Modifier),
+                    shape = RoundedCornerShape(10.dp),
+                    containerColor = Color.Transparent,
+                    contentColor = Palette.Text,
+                    focusedScale = 1.02f,
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(a.label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        a.detail?.let { Text(it, fontSize = 14.sp, color = androidx.tv.material3.LocalContentColor.current.copy(alpha = 0.7f)) }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.profiles
 
+import com.zemu.tv.ui.theme.DialogBackdropBlur
+import com.zemu.tv.ui.theme.glassPanel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -82,7 +84,7 @@ fun ProfilesSection(phoneAddress: String?) {
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
                     border = ClickableSurfaceDefaults.border(
                         border = Border(BorderStroke(2.dp, Palette.TextMuted), shape = shape),
-                        focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+                        focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
                     ),
                     colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Palette.SurfaceHigh),
                 ) {
@@ -141,7 +143,7 @@ private fun ProfileTile(p: Profile, current: Boolean, onClick: () -> Unit) {
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
             border = ClickableSurfaceDefaults.border(
                 border = if (current) Border(BorderStroke(3.dp, Palette.Accent), shape = shape) else Border.None,
-                focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+                focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
             ),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
         ) {
@@ -175,10 +177,11 @@ private fun ProfileEditor(
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        DialogBackdropBlur()
         Column(
             Modifier
                 .width(760.dp)
-                .background(Palette.Surface, RoundedCornerShape(16.dp))
+                .glassPanel(RoundedCornerShape(16.dp))
                 .padding(24.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,7 +210,7 @@ private fun ProfileEditor(
                         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
                         border = ClickableSurfaceDefaults.border(
                             border = if (avatar == value) Border(BorderStroke(3.dp, Palette.Accent), shape = shape) else Border.None,
-                            focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+                            focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
                         ),
                         colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
                     ) { Avatar(value, 64.dp, corner = 12.dp) }
