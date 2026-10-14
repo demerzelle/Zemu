@@ -1,6 +1,6 @@
 # Zemu
 
-An Android TV client for the [Stremio addon protocol](https://github.com/Stremio/stremio-addon-sdk/tree/master/docs/api)
+An online Streaming TV client for the [Stremio addon protocol](https://github.com/Stremio/stremio-addon-sdk/tree/master/docs/api)
 with a Netflix-style interface and **cached-only** debrid streams.
 
 ## Features
