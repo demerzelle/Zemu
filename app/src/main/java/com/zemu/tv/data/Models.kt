@@ -115,6 +115,14 @@ data class AppSettings(
     val useExternalPlayer: Boolean = false,
     /** TMDB v3 API key or v4 read token; enables cast photos, studios and filmographies. */
     val tmdbApiKey: String = "",
+    /** OMDb key (free at omdbapi.com): Rotten Tomatoes and Metacritic scores, US ratings. */
+    val omdbApiKey: String = "",
+    /** Your Trakt API app (trakt.tv/oauth/applications) and the tokens from linking this TV. */
+    val traktClientId: String = "",
+    val traktClientSecret: String = "",
+    val traktAccessToken: String = "",
+    val traktRefreshToken: String = "",
+    val traktExpiresAt: Long = 0,
     val skipIntroButton: Boolean = true,
     /** Muted trailer replaces the hero backdrop after a title stays focused. */
     val heroTrailers: Boolean = true,

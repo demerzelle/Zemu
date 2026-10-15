@@ -1,5 +1,8 @@
 package com.zemu.tv.ui.components
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.zemu.tv.data.imdbId
+import androidx.compose.foundation.border
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import com.zemu.tv.data.officialTrailers
@@ -211,12 +214,50 @@ fun TitleLogo(meta: Meta, maxHeight: Int = 110) {
 
 @Composable
 fun MetaLine(meta: Meta, matchPercent: Int?) {
+    val c = LocalContext.current.container
+    // The US rating and critic scores load after the line shows (both are remembered).
+    val cert by androidx.compose.runtime.produceState<String?>(null, meta.id) { value = c.kids.certification(meta) }
+    val scores by androidx.compose.runtime.produceState<com.zemu.tv.data.TitleScores?>(null, meta.id) {
+        value = runCatching { c.scores.of(meta.imdbId) }.getOrNull()
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         if (matchPercent != null) Text("$matchPercent% Match", color = Palette.Match, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         meta.releaseInfo?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 15.sp, color = Palette.TextSecondary) }
         meta.runtimeLabel?.let { Text(it, fontSize = 15.sp, color = Palette.TextSecondary) }
+        (scores?.rated ?: cert)?.let { RatingBadge(it) }
         Tag(if (meta.type == "series") "SERIES" else "MOVIE", Palette.TextSecondary)
         ImdbBadge(meta.imdbRating)
+        scores?.rottenTomatoes?.let { rt ->
+            // Fresh (60%+) gets the red tomato, rotten the green splat, like the real site.
+            Text((if (rt >= 60) "🍅 " else "🤢 ") + "$rt%", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        scores?.metacritic?.let { MetacriticBadge(it) }
+    }
+}
+
+/**
+ * A US rating badge, drawn the way it appears on screen: movie ratings as a black-outlined white
+ * box with bold black letters, TV ratings as a white-outlined black box.
+ */
+@Composable
+fun RatingBadge(cert: String) {
+    val tv = cert.startsWith("TV-")
+    Box(
+        Modifier
+            .background(if (tv) Color.Black else Color.White, RoundedCornerShape(if (tv) 4.dp else 1.dp))
+            .border(if (tv) 1.5.dp else 2.dp, if (tv) Color.White else Color.Black, RoundedCornerShape(if (tv) 4.dp else 1.dp))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(cert, color = if (tv) Color.White else Color.Black, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 0.5.sp)
+    }
+}
+
+/** Metacritic's colored square: green 61+, yellow 40–60, red below 40. */
+@Composable
+fun MetacriticBadge(score: Int) {
+    val color = when { score >= 61 -> Color(0xFF66CC33); score >= 40 -> Color(0xFFFFCC33); else -> Color(0xFFFF0000) }
+    Box(Modifier.size(26.dp).background(color, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+        Text("$score", color = if (score in 40..60) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
     }
 }
 

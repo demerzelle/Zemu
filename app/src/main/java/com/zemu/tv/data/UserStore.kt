@@ -86,6 +86,21 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
         .map { it.decode(Keys.history, historySer).orEmpty() }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
+    /** My List as saved (not the flow's placeholder before it has loaded). */
+    suspend fun myListNow(): List<Meta> = ds.data.first().decode(Keys.myList, metaListSer).orEmpty()
+
+    /** Marks these ids watched (e.g. from Trakt); returns how many were new. */
+    suspend fun addWatched(ids: List<String>): Int {
+        var added = 0
+        ds.edit { p ->
+            val cur = p.decode(Keys.watched, idSetSer).orEmpty()
+            val fresh = ids.filter { it !in cur }.distinct()
+            added = fresh.size
+            if (fresh.isNotEmpty()) p[Keys.watched] = json.encodeToString(idSetSer, (fresh + cur).take(2000))
+        }
+        return added
+    }
+
     /** Titles marked watched (by meta id). */
     val watched: StateFlow<Set<String>> = ds.data
         .map { it.decode(Keys.watched, idSetSer).orEmpty().toSet() }

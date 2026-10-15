@@ -112,12 +112,12 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
         else -> type == page && !id.startsWith("kitsu:")
     }
 
-    private data class Extras(val daily: List<HomeRow>, val fresh: List<com.zemu.tv.data.NewEpisodesItem>, val providers: List<com.zemu.tv.data.Provider>, val studioLogos: Map<String, String>, val settings: com.zemu.tv.data.AppSettings)
+    private data class Extras(val daily: List<HomeRow>, val episodes: Pair<List<com.zemu.tv.data.NewEpisodesItem>, List<com.zemu.tv.data.UpcomingItem>>, val providers: List<com.zemu.tv.data.Provider>, val studioLogos: Map<String, String>, val settings: com.zemu.tv.data.AppSettings)
 
-    private val extraRows = combine(dailyRows, c.newEpisodes.items, providers, studioLogos, c.userStore.settings) { d, n, p, l, st -> Extras(d, n, p, l, st) }
+    private val extraRows = combine(dailyRows, combine(c.newEpisodes.items, c.newEpisodes.upcoming, ::Pair), providers, studioLogos, c.userStore.settings) { d, n, p, l, st -> Extras(d, n, p, l, st) }
 
     private val baseRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { specs, ex, history, myList, watched ->
-        val freshAll = ex.fresh
+        val freshAll = ex.episodes.first
         // Optionally keep watched titles out of suggestion and category rows.
         val hide: (HomeRow) -> HomeRow = { r -> if (ex.settings.hideWatchedInRows) r.copy(items = r.items.filterNot { it.id in watched }) else r }
         val catalogs = specs.map(hide).filter { it.items.isNotEmpty() }
@@ -126,6 +126,11 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
             val fresh = freshAll.filter { it.meta.onPage() }
             if (fresh.isNotEmpty() && page != "movie") add(
                 HomeRow("new-episodes", "New Episodes", fresh.map { it.meta }, priority = -1, badges = fresh.associate { it.meta.id to it.badge }),
+            )
+            // Calendar: the next episode of each show you follow, soonest first, with its day.
+            val upcoming = ex.episodes.second.filter { it.meta.onPage() }
+            if (upcoming.isNotEmpty() && page != "movie") add(
+                HomeRow("coming-up", "Coming Up", upcoming.map { it.meta }, priority = -1, badges = upcoming.associate { it.meta.id to it.badge }),
             )
             // A show whose last episode was finished stays here, pointing at the next episode.
             fun finishedEpisode(e: com.zemu.tv.data.WatchEntry) = e.meta.type == "series" && e.durationMs > 0 && e.progress > 0.9f

@@ -315,6 +315,7 @@ class PlayerActivity : ComponentActivity() {
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                scrobble(if (playing) "start" else "pause")
             }
 
             override fun onVideoSizeChanged(size: VideoSize) {
@@ -1009,8 +1010,17 @@ class PlayerActivity : ComponentActivity() {
         if (!stillWatchingPrompt) player?.play()
     }
 
+    /** Tells Trakt (when linked) what's playing and how far in. */
+    private fun scrobble(action: String) {
+        val p = player ?: return
+        val m = meta ?: return
+        val duration = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return
+        c.trakt.scrobble(action, m, videoId, p.currentPosition.toFloat() / duration)
+    }
+
     override fun onDestroy() {
         saveProgress()
+        scrobble("stop")
         player?.release()
         player = null
         super.onDestroy()

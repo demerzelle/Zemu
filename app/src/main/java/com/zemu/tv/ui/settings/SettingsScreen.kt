@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.LaunchedEffect
+import com.zemu.tv.ui.theme.glassPanel
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -260,6 +261,8 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Manage addons" to SettingsCategory.ADDONS,
     "Metadata provider" to SettingsCategory.ADDONS,
     "TMDB key (cast, studios, streaming services)" to SettingsCategory.ADDONS,
+    "OMDb key (Rotten Tomatoes, Metacritic scores)" to SettingsCategory.ADDONS,
+    "Trakt (watchlist, history, scrobbling)" to SettingsCategory.ADDONS,
     "My streaming services" to SettingsCategory.ADDONS,
     "Profiles and profile pictures" to SettingsCategory.PROFILES,
     "Kid profiles, parental controls, allowed ratings, parent code" to SettingsCategory.KIDS,
@@ -371,6 +374,82 @@ private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSet
             TvTextField(tmdbKey, { tmdbKey = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API key" else "Key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
             TvButton("Save", primary = true, onClick = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
             if (settings.tmdbApiKey.isNotBlank()) TvButton("Remove", onClick = { vm.saveTmdbKey("") })
+        }
+    }
+    group(
+        "omdb", "Critic scores (OMDb)",
+        "A free OMDb key adds Rotten Tomatoes and Metacritic scores, and US ratings for shows too: omdbapi.com → API Key (free, 1,000 lookups a day).",
+    ) {
+        var omdbKey by remember { mutableStateOf("") }
+        val save = { vm.update { it.copy(omdbApiKey = omdbKey.trim()) }; omdbKey = "" }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(omdbKey, { omdbKey = it }, if (settings.omdbApiKey.isBlank()) "OMDb API key" else "Key saved (••••${settings.omdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = save)
+            TvButton("Save", primary = true, onClick = save)
+            if (settings.omdbApiKey.isNotBlank()) TvButton("Remove", onClick = { vm.update { it.copy(omdbApiKey = "") } })
+        }
+    }
+    group(
+        "trakt", "Trakt",
+        "Syncs your Trakt watchlist with My List (both ways), brings in movies you've watched, and scrobbles what you play. Make a free API app at trakt.tv/oauth/applications (redirect URI: urn:ietf:wg:oauth:2.0:oob), then enter its Client ID and Client Secret here.",
+    ) { TraktSection(vm, settings) }
+}
+
+@Composable
+private fun TraktSection(vm: SettingsViewModel, settings: AppSettings) {
+    val trakt = vm.container.trakt
+    val scope = rememberCoroutineScope()
+    var id by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var link by remember { mutableStateOf<com.zemu.tv.data.TraktLink?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (settings.traktAccessToken.isNotBlank()) {
+            Text("✓ Linked to Trakt", color = Palette.Cached, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton("Sync now", primary = true, onClick = { scope.launch { status = runCatching { trakt.sync() }.getOrElse { "Sync failed: ${it.message}" } } })
+                TvButton("Unlink", onClick = { scope.launch { trakt.disconnect() } })
+            }
+        } else {
+            val saveId = { vm.update { it.copy(traktClientId = id.trim()) }; id = "" }
+            val saveSecret = { vm.update { it.copy(traktClientSecret = secret.trim()) }; secret = "" }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvTextField(id, { id = it }, if (settings.traktClientId.isBlank()) "Client ID" else "Client ID saved (••••${settings.traktClientId.takeLast(4)})", Modifier.weight(1f), onSubmit = saveId)
+                TvButton("Save", onClick = saveId)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvTextField(secret, { secret = it }, if (settings.traktClientSecret.isBlank()) "Client Secret" else "Secret saved (••••${settings.traktClientSecret.takeLast(4)})", Modifier.weight(1f), onSubmit = saveSecret)
+                TvButton("Save", onClick = saveSecret)
+            }
+            if (trakt.configured) TvButton("Link this TV", primary = true, onClick = {
+                scope.launch { link = runCatching { trakt.startLink() }.onFailure { status = "Couldn't reach Trakt: ${it.message}" }.getOrNull() }
+            })
+        }
+        status?.let { Text(it, color = Palette.TextSecondary, fontSize = 14.sp) }
+    }
+    link?.let { l ->
+        // Polls until linked, declined or expired.
+        LaunchedEffect(l) {
+            while (System.currentTimeMillis() < l.expiresAt) {
+                kotlinx.coroutines.delay(l.intervalSec * 1000L)
+                val done = runCatching { trakt.pollLink(l) }.getOrElse { status = it.message; link = null; return@LaunchedEffect }
+                if (done) { status = "Linked! Syncing your watchlist…"; link = null; return@LaunchedEffect }
+            }
+            status = "The code expired. Try again."; link = null
+        }
+        androidx.compose.ui.window.Dialog(onDismissRequest = { link = null }) {
+            com.zemu.tv.ui.theme.DialogBackdropBlur()
+            Column(
+                Modifier.glassPanel(RoundedCornerShape(16.dp)).padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Link Trakt", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("On your phone or computer, go to", color = Palette.TextSecondary, modifier = Modifier.padding(top = 10.dp))
+                Text(l.url, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                com.zemu.tv.ui.components.QrCode(l.url, 150.dp, Modifier.padding(vertical = 12.dp))
+                Text("and enter this code", color = Palette.TextSecondary)
+                Text(l.userCode, fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp, color = Palette.Accent)
+                TvButton("Cancel", onClick = { link = null }, modifier = Modifier.padding(top = 14.dp))
+            }
         }
     }
 }
@@ -648,7 +727,9 @@ private fun ValueRow(title: String, value: String, modifier: Modifier = Modifier
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(value, color = LocalContentColor.current.copy(alpha = 0.72f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Weighted too, so a long value at big UI zoom can't squeeze the title into a word per line.
+            Text(value, color = LocalContentColor.current.copy(alpha = 0.72f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f, fill = false).padding(start = 12.dp))
         }
     }
 }
@@ -709,7 +790,7 @@ private fun KidsSection() {
         if (kids.enabled) {
             Text("Ratings a kid may watch", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
             Text(
-                "Only family or kids' titles show at all, whatever their rating. Movie ratings come from Wikidata (or TMDB with a key). TV ratings need a TMDB key; without one, kids' shows count as unrated.",
+                "Only family or kids' titles show at all, whatever their rating. Movie ratings come from Wikidata (or OMDb or TMDB with a key). TV ratings need an OMDb or TMDB key; without one, kids' shows count as unrated.",
                 color = Palette.TextSecondary, fontSize = 13.sp,
             )
             listOf("Movies" to com.zemu.tv.data.Ratings.MOVIE, "TV" to com.zemu.tv.data.Ratings.TV, "Other" to listOf(com.zemu.tv.data.Ratings.UNRATED)).forEach { (group, certs) ->

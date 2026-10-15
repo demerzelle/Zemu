@@ -25,6 +25,13 @@ class RatingsTest {
         assertFalse(Ratings.allows(allowed - Ratings.UNRATED, "", kidsGenre = true))
     }
 
+    @Test fun realRatingsOnly() {
+        assertTrue(Ratings.isRating("PG-13"))
+        assertTrue(Ratings.isRating("TV-MA"))
+        assertFalse(Ratings.isRating("N/A"))
+        assertFalse(Ratings.isRating("Not Rated"))
+    }
+
     @Test fun kidsGenres() {
         assertTrue(Ratings.isKidsGenre(listOf("Animation", "Family")))
         assertTrue(Ratings.isKidsGenre(listOf("kids")))

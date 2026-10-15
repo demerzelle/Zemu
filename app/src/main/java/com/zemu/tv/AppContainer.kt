@@ -48,7 +48,9 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
     val recommender = Recommender(addons)
     val tmdb = Tmdb(http, json) { userStore.settings.value.tmdbApiKey }
     val skipSegments = SkipSegments(http, json)
-    val kids = com.zemu.tv.data.KidsGate(context, http, json, tmdb, (context.applicationContext as ZemuApp).profiles.kids)
+    val trakt = com.zemu.tv.data.Trakt(http, json, userStore, appScope)
+    val scores = com.zemu.tv.data.Scores(http, json) { userStore.settings.value.omdbApiKey }
+    val kids = com.zemu.tv.data.KidsGate(context, http, json, tmdb, scores, (context.applicationContext as ZemuApp).profiles.kids)
     val freeCast = com.zemu.tv.data.FreeCast(http, json)
     val screensaverImages = com.zemu.tv.data.ScreensaverImages(context, http, json, tmdb) { userStore.settings.value.fanartApiKey }
 

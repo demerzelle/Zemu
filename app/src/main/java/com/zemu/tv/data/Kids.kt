@@ -62,6 +62,9 @@ object Ratings {
     fun allows(allowed: Set<String>, cert: String, kidsGenre: Boolean): Boolean =
         kidsGenre && if (cert.isEmpty()) UNRATED in allowed else normalize(cert) in allowed
 
+    /** A US movie or TV rating ("PG-13", "TV-MA"), as opposed to "N/A", "Not Rated", "Unrated". */
+    fun isRating(cert: String) = normalize(cert) in MOVIE + TV + listOf("NC-17", "TV-MA")
+
     fun hash(pin: String): String =
         MessageDigest.getInstance("SHA-256").digest("zemu-kids:$pin".toByteArray()).joinToString("") { "%02x".format(it) }
 }
@@ -71,7 +74,7 @@ object Ratings {
  * from Wikidata (no key needed), or TMDB when there's a key; TV ratings need TMDB; anime uses
  * Kitsu. Genres come with the title or from Cinemeta.
  */
-class KidsGate(context: Context, private val http: OkHttpClient, private val json: Json, private val tmdb: Tmdb, val settings: StateFlow<KidsSettings>) {
+class KidsGate(context: Context, private val http: OkHttpClient, private val json: Json, private val tmdb: Tmdb, private val scores: Scores, val settings: StateFlow<KidsSettings>) {
     private val file = File(context.filesDir, "kid_ratings.json")
     private val ser = MapSerializer(String.serializer(), String.serializer())
     /** Title id to "<rating>|<1 if a kids' title>"; the rating is "" when none was found. */
@@ -92,8 +95,12 @@ class KidsGate(context: Context, private val http: OkHttpClient, private val jso
         return known[m.id]?.let(::verdict)
     }
 
-    /** The title's rating, if known (for showing a badge). */
-    fun ratingOf(id: String): String? = known[id]?.substringBefore('|')?.takeIf { it.isNotEmpty() }
+    /** The title's US rating for a badge ("PG-13"), looked up if needed; null when unrated or unknown. */
+    suspend fun certification(m: Meta): String? {
+        if (!m.id.startsWith("tt") && !m.id.startsWith("tmdb:") && !m.id.startsWith("kitsu:")) return null
+        val entry = known[m.id] ?: runCatching { lookup(m) }.getOrNull()?.also { known[m.id] = it } ?: return null
+        return entry.substringBefore('|').takeIf { Ratings.isRating(it) }
+    }
 
     suspend fun allowed(m: Meta): Boolean {
         knownAllowed(m)?.let { return it }
@@ -120,7 +127,7 @@ class KidsGate(context: Context, private val http: OkHttpClient, private val jso
     private val wikidata = ConcurrentHashMap<String, String>()
 
     private suspend fun prefetchWikidata(metas: List<Meta>) {
-        if (tmdb.enabled) return
+        if (tmdb.enabled || scores.enabled) return
         val ids = metas.filter { it.type == "movie" && it.id.startsWith("tt") && !known.containsKey(it.id) }
             .map { it.id.substringBefore(':') }.filter { !wikidata.containsKey(it) }.distinct()
         if (ids.isEmpty()) return
@@ -158,7 +165,9 @@ class KidsGate(context: Context, private val http: OkHttpClient, private val jso
                     .jsonObject["meta"]?.jsonObject?.get("genres")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
             }.getOrNull().orEmpty() else emptyList()
         }
+        val omdb = if (m.id.startsWith("tt")) scores.of(m.id.substringBefore(':'))?.rated else null
         val cert = when {
+            omdb != null -> omdb
             tmdb.enabled -> tmdb.usCertification(m).orEmpty()
             m.type == "movie" && m.id.startsWith("tt") -> {
                 prefetchWikidata(listOf(m))
