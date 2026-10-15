@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -63,11 +64,11 @@ enum class DynamicTheme(
     /** Shh. */
     CATRAVE("Cat Rave", 0xFFFF00E6, 0xFF07000F, UiStyle.CATRAVE, hidden = true),
     /** Kids Mode: sky, hills and rising balloons; big bubbly buttons. */
-    TODDLER("Toddler", 0xFFFF7A1A, 0xFFCDEBFF, UiStyle.TODDLER, kids = true),
+    TODDLER("Toddler", 0xFFFF7A1A, 0xFFCDEBFF, UiStyle.TODDLER, KIDS_SCENES, kids = true),
     /** Kids Mode: notebook paper, doodles and paper airplanes. */
-    GRADE_SCHOOL("Grade School", 0xFF2F6FED, 0xFFFFFBEA, UiStyle.GRADE, kids = true),
+    GRADE_SCHOOL("Grade School", 0xFF2F6FED, 0xFFFFFBEA, UiStyle.GRADE, KIDS_SCENES, kids = true),
     /** Kids Mode: a night gradient with drifting glow orbs and sparkles. */
-    YOUNG_ADULT("Young Adult", 0xFF7CFFCB, 0xFF0E0B1F, UiStyle.TEEN, kids = true),
+    YOUNG_ADULT("Young Adult", 0xFF7CFFCB, 0xFF0E0B1F, UiStyle.TEEN, KIDS_SCENES, kids = true),
     ;
 
     /** This theme's own accent and background for [variant], or null to keep your palette. */
@@ -162,7 +163,7 @@ enum class Holiday(val label: String, val accent: Long, val background: Long) {
 /** Colors after applying an animated theme's own palette (if it has one). */
 fun DynamicTheme.applyTo(base: ThemeColors, variant: String): ThemeColors {
     if (this == DynamicTheme.RETRO) return retroColors(variant, base)
-    if (kids) return kidsColors(this)
+    if (kids) return kidsColors(this, variant)
     val own = colorsFor(variant) ?: return base
     // Its own palette replaces yours entirely (your saved edits for this theme apply afterwards).
     val c = ThemeColors(Color(own.first.toInt()), Color(own.second.toInt()), light = base.light, glass = base.glass || style == UiStyle.LIQUID)
@@ -180,23 +181,36 @@ private fun retroColors(variant: String, base: ThemeColors): ThemeColors {
     return ThemeColors(accent, desk, light = true, customBase = desk, customPanel = window, customButton = window, customText = text)
 }
 
-/** Kids themes have fixed colors: Toddler and Grade School are light, Young Adult is dark. */
-private fun kidsColors(theme: DynamicTheme): ThemeColors {
-    val (accent, base, panel, text) = when (theme) {
-        DynamicTheme.TODDLER -> listOf(0xFFFF7A1A, 0xFFCDEBFF, 0xFFFFFFFF, 0xFF23305A)
-        DynamicTheme.GRADE_SCHOOL -> listOf(0xFF2F6FED, 0xFFFFFBEA, 0xFFFFFFFF, 0xFF1F2937)
-        else -> listOf(0xFF7CFFCB, 0xFF0E0B1F, 0xFF1C1736, 0xFFF4F1FF)
+/**
+ * Kids themes have fixed colors: Toddler and Grade School are light, Young Adult is dark. The
+ * Dinosaurs, Space and Ocean scenes bring their own background colors; the age's accent stays.
+ */
+private fun kidsColors(theme: DynamicTheme, variant: String): ThemeColors {
+    val accent = Color(theme.accent!!.toInt())
+    val (base, panel, text) = when (variant) {
+        "DINOS" -> listOf(0xFFE6F4CF, 0xFFFFFFFF, 0xFF1E3A1E)
+        "SPACE" -> listOf(0xFF0B1030, 0xFF1A2152, 0xFFF0F4FF)
+        "OCEAN" -> listOf(0xFF0C4A70, 0xFF125E8C, 0xFFFFFFFF)
+        else -> when (theme) {
+            DynamicTheme.TODDLER -> listOf(0xFFCDEBFF, 0xFFFFFFFF, 0xFF23305A)
+            DynamicTheme.GRADE_SCHOOL -> listOf(0xFFFFFBEA, 0xFFFFFFFF, 0xFF1F2937)
+            else -> listOf(0xFF0E0B1F, 0xFF1C1736, 0xFFF4F1FF)
+        }
     }.map { Color(it.toInt()) }
-    return ThemeColors(accent, base, light = theme != DynamicTheme.YOUNG_ADULT, customBase = base, customPanel = panel, customButton = panel, customText = text)
+    val light = base.luminance() > 0.5f
+    return ThemeColors(accent, base, light = light, customBase = base, customPanel = panel, customButton = panel, customText = text)
 }
 
 private class Particle(var x: Float, var y: Float, var speed: Float, var size: Float, var drift: Float, var phase: Float, var kind: Int = 0)
 
 /** The effect key for a theme and its sub-theme: "SNOW", "RAIN", "HALLOWEEN", "MATRIX", … */
-private fun effectKey(theme: DynamicTheme, variant: String): String = when (theme) {
+private fun effectKey(theme: DynamicTheme, variant: String): String = when {
+    theme.kids && variant in setOf("DINOS", "SPACE", "OCEAN") -> variant
+    else -> when (theme) {
     DynamicTheme.WEATHER -> variant.ifEmpty { "SNOW" }
     DynamicTheme.HOLIDAYS -> theme.resolveVariant(variant)
     else -> theme.name
+    }
 }
 
 /**
@@ -226,7 +240,9 @@ fun DynamicThemeLayer(theme: DynamicTheme, variant: String = "", onAccent: (Colo
             "CATRAVE" -> 80
             "TODDLER" -> 14
             "GRADE_SCHOOL" -> 5
-            "YOUNG_ADULT" -> 40
+            "YOUNG_ADULT", "SPACE" -> 40
+            "OCEAN" -> 30
+            "DINOS" -> 18
             else -> 0
         }
         List(n) {
@@ -269,6 +285,10 @@ fun DynamicThemeLayer(theme: DynamicTheme, variant: String = "", onAccent: (Colo
                         "TODDLER" -> { p.y -= dt * 0.045f * p.speed; p.x += dt * 0.012f * sin(time * 0.8f + p.phase) }
                         "GRADE_SCHOOL" -> { p.x += dt * 0.07f * p.speed; p.y += dt * 0.02f * sin(time * 1.3f + p.phase) }
                         "YOUNG_ADULT" -> { p.y -= dt * 0.02f * p.speed; p.x += dt * 0.008f * sin(time * 0.5f + p.phase) }
+                        // Stars twinkle in place; bubbles rise and wobble; leaves drift down.
+                        "SPACE" -> {}
+                        "OCEAN" -> { p.y -= dt * 0.06f * p.speed; p.x += dt * 0.01f * sin(time * 2f + p.phase) }
+                        "DINOS" -> { p.y += dt * 0.035f * p.speed; p.x += dt * 0.025f * (1 + sin(time + p.phase)) }
                         else -> {}
                     }
                     if (p.y > 1.05f) { p.y = -0.05f; p.x = rnd.nextFloat() }
@@ -317,6 +337,9 @@ fun DynamicThemeLayer(theme: DynamicTheme, variant: String = "", onAccent: (Colo
             "TODDLER" -> balloons(particles, t)
             "GRADE_SCHOOL" -> paperPlanes(particles, t)
             "YOUNG_ADULT" -> sparkles(particles, Color(0xFFB9FFE6))
+            "SPACE" -> twinkles(particles, t)
+            "OCEAN" -> bubbles(particles)
+            "DINOS" -> leaves(particles, t)
             else -> {}
         }
     }
@@ -640,6 +663,27 @@ private fun DrawScope.catRaveOverlay(ps: List<Particle>, t: Float) {
         val bob = kotlin.math.abs(sin((t * 2.13f + i * 0.5f) * 3.1416f)) * 22f
         catFace(Offset(size.width * (i + 0.5f) / n, size.height - 40f - bob), 26f, Color.hsv((t * 120f + i * 51f) % 360f, 0.7f, 1f).copy(alpha = 0.85f))
     }
+}
+
+/** Kids themes' sub-themes: each a scene of its own, for any age. */
+private val KIDS_SCENES = listOf("CLASSIC" to "Classic", "DINOS" to "Dinosaurs", "SPACE" to "Space", "OCEAN" to "Ocean")
+
+private fun DrawScope.twinkles(ps: List<Particle>, t: Float) = ps.forEach { p ->
+    val a = 0.35f + 0.65f * ((sin(t * (1.5f + p.speed) + p.phase) + 1f) / 2f)
+    val c = Offset(p.x * size.width, p.y * size.height)
+    val r = 1.5f + p.size * 2f
+    drawCircle(Color.White.copy(alpha = a), r, c)
+    if (p.kind == 0) { // a few sparkle crosses
+        drawLine(Color.White.copy(alpha = a * 0.6f), c - Offset(r * 3, 0f), c + Offset(r * 3, 0f), strokeWidth = 1.2f)
+        drawLine(Color.White.copy(alpha = a * 0.6f), c - Offset(0f, r * 3), c + Offset(0f, r * 3), strokeWidth = 1.2f)
+    }
+}
+
+private fun DrawScope.bubbles(ps: List<Particle>) = ps.forEach { p ->
+    val c = Offset(p.x * size.width, p.y * size.height)
+    val r = 4f + p.size * 9f
+    drawCircle(Color.White.copy(alpha = 0.35f), r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f))
+    drawCircle(Color.White.copy(alpha = 0.5f), r * 0.25f, c + Offset(-r * 0.35f, -r * 0.35f))
 }
 
 private val BALLOON_COLORS = listOf(Color(0xFFFF5A5F), Color(0xFFFFC93C), Color(0xFF3EC1FF), Color(0xFF7BD389), Color(0xFFB57BFF), Color(0xFFFF8AC7))

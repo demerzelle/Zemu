@@ -603,3 +603,130 @@ fun YoungAdultBackdrop(modifier: Modifier = Modifier) {
         }
     }
 }
+
+// Kids sub-themes: Dinosaurs, Space and Ocean (any age).
+
+/** Dinosaurs: a jungle valley with a smoking volcano, palms and dinosaurs strolling past. */
+@Composable
+fun DinoBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(20)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(listOf(Color(0xFFFFE3B0), Color(0xFFE6F4CF))))
+        // Volcano with drifting smoke puffs.
+        val vx = size.width * 0.78f
+        val vy = size.height * 0.62f
+        drawPath(Path().apply { moveTo(vx - 260f, vy + 120f); lineTo(vx - 50f, vy - 170f); lineTo(vx + 50f, vy - 170f); lineTo(vx + 260f, vy + 120f); close() }, Color(0xFF8A6A55))
+        drawPath(Path().apply { moveTo(vx - 50f, vy - 170f); lineTo(vx + 50f, vy - 170f); lineTo(vx + 30f, vy - 140f); lineTo(vx - 30f, vy - 140f); close() }, Color(0xFFFF7A3D))
+        repeat(5) { i ->
+            val k = (t * 0.12f + i * 0.2f) % 1f
+            drawCircle(Color(0xFF9E9E9E).copy(alpha = 0.5f * (1 - k)), 30f + k * 60f, Offset(vx + sin(k * 6f + i) * 30f, vy - 190f - k * 260f))
+        }
+        // Hills.
+        drawPath(Path().apply {
+            moveTo(0f, size.height)
+            var x = 0f
+            while (x <= size.width) { lineTo(x, size.height * 0.78f + sin(x / size.width * 5f) * 26f); x += 30f }
+            lineTo(size.width, size.height); close()
+        }, Color(0xFF7CB86A))
+        // Palm trees swaying.
+        listOf(0.18f, 0.55f, 0.95f).forEachIndexed { i, fx ->
+            val base = Offset(size.width * fx, size.height * 0.82f)
+            val sway = sin(t * 1.2f + i) * 8f
+            val top = base + Offset(20f + sway, -220f)
+            drawLine(Color(0xFF8B5A2B), base, top, strokeWidth = 16f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            repeat(6) { k ->
+                rotate(k * 60f + sway, top) {
+                    drawOval(Color(0xFF3E8E41), Offset(top.x, top.y - 14f), Size(110f, 28f))
+                }
+            }
+        }
+        // Two dinosaurs walking across (a long-neck and a little one), bobbing with each step.
+        listOf(0.018f to 1.4f, 0.03f to 0.8f).forEachIndexed { i, (speed, s) ->
+            val x = ((t * speed + i * 0.5f) % 1.3f - 0.15f) * size.width
+            val y = size.height * (0.86f + i * 0.04f) + kotlin.math.abs(sin(t * 4f + i)) * -6f
+            val c = if (i == 0) Color(0xFF4FA36B) else Color(0xFFE38B3C)
+            drawOval(c, Offset(x - 70f * s, y - 50f * s), Size(140f * s, 70f * s))
+            drawLine(c, Offset(x + 50f * s, y - 30f * s), Offset(x + 100f * s, y - (if (i == 0) 150f else 70f) * s), strokeWidth = 22f * s, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawCircle(c, 20f * s, Offset(x + 105f * s, y - (if (i == 0) 155f else 75f) * s))
+            drawCircle(Color.Black, 3.5f * s, Offset(x + 112f * s, y - (if (i == 0) 160f else 80f) * s))
+            drawLine(c, Offset(x - 65f * s, y - 20f * s), Offset(x - 130f * s, y - 5f * s), strokeWidth = 16f * s, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            val step = sin(t * 4f + i) * 10f * s
+            listOf(-40f, 35f).forEach { lx -> drawLine(c, Offset(x + lx * s, y), Offset(x + lx * s + step, y + 40f * s), strokeWidth = 14f * s, cap = androidx.compose.ui.graphics.StrokeCap.Round) }
+        }
+    }
+}
+
+/** Space: deep blue night, a ringed planet, a moon and a rocket looping by. */
+@Composable
+fun SpaceBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(24)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(listOf(Color(0xFF05071A), Color(0xFF0B1030), Color(0xFF1B1446))))
+        val r = Random(5)
+        repeat(90) { drawCircle(Color.White.copy(alpha = 0.25f + 0.4f * r.nextFloat()), 1f + r.nextFloat() * 1.4f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height)) }
+        // Ringed planet.
+        val p = Offset(size.width * 0.84f, size.height * 0.22f)
+        drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB86B), Color(0xFFE0663B)), p - Offset(30f, 30f), 140f), 95f, p)
+        rotate(-18f, p) { drawOval(Color(0xFFFFE0A8).copy(alpha = 0.8f), Offset(p.x - 170f, p.y - 26f), Size(340f, 52f), style = Stroke(9f)) }
+        // Moon.
+        val m = Offset(size.width * 0.12f, size.height * 0.8f)
+        drawCircle(Color(0xFFD9DDE8), 70f, m)
+        drawCircle(Color(0xFFB8BECC), 14f, m + Offset(-20f, -15f))
+        drawCircle(Color(0xFFB8BECC), 9f, m + Offset(25f, 20f))
+        // Rocket on a slow loop with a flickering flame.
+        val a = t * 0.15f
+        val c = Offset(size.width * (0.5f + 0.32f * kotlin.math.cos(a)), size.height * (0.5f + 0.28f * sin(a)))
+        val heading = Math.toDegrees(kotlin.math.atan2(0.28 * kotlin.math.cos(a), -0.32 * sin(a))).toFloat() + 90f
+        rotate(heading, c) {
+            drawPath(Path().apply { moveTo(c.x, c.y - 50f); lineTo(c.x + 18f, c.y + 20f); lineTo(c.x - 18f, c.y + 20f); close() }, Color(0xFFF2F2F2))
+            drawCircle(Color(0xFF5AB8FF), 8f, c + Offset(0f, -12f))
+            drawPath(Path().apply { moveTo(c.x - 18f, c.y + 20f); lineTo(c.x - 30f, c.y + 34f); lineTo(c.x - 12f, c.y + 20f); close() }, Color(0xFFE5484D))
+            drawPath(Path().apply { moveTo(c.x + 18f, c.y + 20f); lineTo(c.x + 30f, c.y + 34f); lineTo(c.x + 12f, c.y + 20f); close() }, Color(0xFFE5484D))
+            drawOval(Color(0xFFFFB13B), Offset(c.x - 9f, c.y + 22f), Size(18f, 22f + sin(t * 30f) * 6f))
+        }
+    }
+}
+
+/** Ocean: sunbeams through blue water, swaying seaweed and fish swimming both ways. */
+@Composable
+fun OceanBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(24)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(listOf(Color(0xFF2A9BD1), Color(0xFF0C4A70), Color(0xFF062B45))))
+        repeat(5) { i ->
+            val x = size.width * (0.1f + i * 0.2f) + sin(t * 0.3f + i) * 40f
+            drawPath(Path().apply { moveTo(x - 30f, 0f); lineTo(x + 30f, 0f); lineTo(x + 160f, size.height); lineTo(x + 40f, size.height); close() }, Color.White.copy(alpha = 0.05f))
+        }
+        // Sand and seaweed.
+        drawRect(Color(0xFFD9C38C), Offset(0f, size.height * 0.93f), Size(size.width, size.height * 0.07f))
+        repeat(9) { i ->
+            val bx = size.width * (0.04f + i * 0.12f)
+            val path = Path().apply {
+                moveTo(bx, size.height * 0.94f)
+                var y = size.height * 0.94f
+                var k = 0
+                while (y > size.height * (0.68f + (i % 3) * 0.05f)) {
+                    y -= 20f; k++
+                    lineTo(bx + sin(t * 1.3f + i + k * 0.5f) * 14f, y)
+                }
+            }
+            drawPath(path, Color(0xFF2E9E6A), style = Stroke(12f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        }
+        // Fish.
+        val colors = listOf(Color(0xFFFFB13B), Color(0xFFFF6B9A), Color(0xFF7CFFCB), Color(0xFFFFE066))
+        repeat(6) { i ->
+            val dir = if (i % 2 == 0) 1f else -1f
+            val k = (t * (0.025f + i * 0.006f) + i * 0.17f) % 1.3f - 0.15f
+            val x = (if (dir > 0) k else 1f - k) * size.width
+            val y = size.height * (0.18f + i * 0.11f) + sin(t * 1.5f + i) * 12f
+            val s = 0.8f + (i % 3) * 0.3f
+            val col = colors[i % colors.size]
+            drawOval(col, Offset(x - 30f * s, y - 16f * s), Size(60f * s, 32f * s))
+            drawPath(Path().apply { moveTo(x - dir * 26f * s, y); lineTo(x - dir * 50f * s, y - 16f * s); lineTo(x - dir * 50f * s, y + 16f * s); close() }, col)
+            drawCircle(Color.Black, 3.5f * s, Offset(x + dir * 16f * s, y - 4f * s))
+        }
+    }
+}

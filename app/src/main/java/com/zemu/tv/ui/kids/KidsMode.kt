@@ -174,7 +174,8 @@ fun CreateParentCode(onDismiss: () -> Unit, onDone: () -> Unit) {
 @Composable
 fun KidsThemePicker(onDismiss: () -> Unit) {
     val c = LocalContext.current.container
-    val current = c.userStore.settings.collectAsStateWithLifecycle().value.dynamicTheme
+    val settings = c.userStore.settings.collectAsStateWithLifecycle().value
+    val current = settings.dynamicTheme
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         DialogBackdropBlur()
@@ -191,6 +192,19 @@ fun KidsThemePicker(onDismiss: () -> Unit) {
                             Text(listOf("🎈", "✏️", "🌙")[i], fontSize = 34.sp)
                             Text((if (key == current) "✓ " else "") + label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+            }
+            // Sub-themes: the same scenes for every age.
+            val theme = com.zemu.tv.ui.theme.DynamicTheme.of(current)
+            if (theme.kids) {
+                val scene = settings.themeVariants[theme.name] ?: "CLASSIC"
+                Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    theme.variants.forEach { (key, label) ->
+                        val emoji = mapOf("CLASSIC" to "⭐", "DINOS" to "🦕", "SPACE" to "🚀", "OCEAN" to "🐠")[key].orEmpty()
+                        com.zemu.tv.ui.components.TvChip("$emoji $label", key == scene, {
+                            c.appScope.launch { c.userStore.updateSettings { it.copy(themeVariants = it.themeVariants + (theme.name to key)) } }
+                        })
                     }
                 }
             }

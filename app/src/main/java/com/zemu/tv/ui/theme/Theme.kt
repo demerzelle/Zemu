@@ -37,6 +37,8 @@ data class ThemeColors(
     val customText: Color? = null,
     /** Sub-style of [style] (e.g. Cybercore's "CLASSIC", "KAWAII", "XP"). */
     val variant: String = "",
+    /** Accessibility: pure black and white, full-strength text and a bold outline on what's focused. */
+    val highContrast: Boolean = false,
 ) {
     /** In light mode the theme's dark background becomes a pale tint of its accent. */
     val base: Color = customBase ?: if (light) lerp(Color(0xFFF4F4F7), accent, 0.05f) else background
@@ -88,6 +90,8 @@ enum class ThemePreset(
     val accent: Long,
     val dark: List<Long>,
     val light: List<Long>,
+    /** Stays dark in light mode (a white OLED theme makes no sense). */
+    val alwaysDark: Boolean = false,
 ) {
     // Colors: background, panels & rows, buttons, text.
     CLASSIC("Zemu Neon", 0xFF39FF14, listOf(0xFF07090A, 0xFF121516, 0xFF1D2122, 0xFFFFFFFF), listOf(0xFFF3F6F2, 0xFFFFFFFF, 0xFFE4E9E3, 0xFF101410)),
@@ -95,13 +99,20 @@ enum class ThemePreset(
     OCEAN("Ocean Blue", 0xFF2F80ED, listOf(0xFF070B14, 0xFF111827, 0xFF1C2537, 0xFFFFFFFF), listOf(0xFFF1F5FB, 0xFFFFFFFF, 0xFFE1E8F3, 0xFF0D1422)),
     PURPLE("Royal Purple", 0xFF8B5CF6, listOf(0xFF0C0814, 0xFF171222, 0xFF231C31, 0xFFFFFFFF), listOf(0xFFF5F2FB, 0xFFFFFFFF, 0xFFE8E2F4, 0xFF15101F)),
     SUNSET("Sunset", 0xFFF97316, listOf(0xFF120A06, 0xFF1E140E, 0xFF2B1E15, 0xFFFFFFFF), listOf(0xFFFBF5F0, 0xFFFFFFFF, 0xFFF1E6DC, 0xFF1C120C)),
+    /** Pure black: OLED pixels switch off, so it's the darkest and most power-saving look. */
+    OLED("OLED Black", 0xFFE6E6E6, listOf(0xFF000000, 0xFF000000, 0xFF121212, 0xFFFFFFFF), listOf(0xFF000000, 0xFF000000, 0xFF121212, 0xFFFFFFFF), alwaysDark = true),
+    /** Accessibility: black and white with a bright yellow focus. */
+    HIGH_CONTRAST("High Contrast", 0xFFFFE600, listOf(0xFF000000, 0xFF000000, 0xFF1F1F1F, 0xFFFFFFFF), listOf(0xFF000000, 0xFF000000, 0xFF1F1F1F, 0xFFFFFFFF), alwaysDark = true),
     ;
 
     /** The exact colors; with [glass], panels and buttons stay see-through instead. */
     fun colors(light: Boolean = false, glass: Boolean = false): ThemeColors {
+        val light = light && !alwaysDark
+        // High contrast never goes see-through.
+        val glass = glass && this != HIGH_CONTRAST
         val c = (if (light) this.light else dark).map { Color(it.toInt()) }
         return ThemeColors(
-            accent = Color(accent.toInt()), background = Color(dark[0].toInt()), light = light, glass = glass,
+            accent = Color(accent.toInt()), background = Color(dark[0].toInt()), light = light, glass = glass, highContrast = this == HIGH_CONTRAST,
             customBase = c[0], customPanel = c[1].takeUnless { glass }, customButton = c[2].takeUnless { glass }, customText = c[3],
         )
     }
@@ -112,7 +123,7 @@ enum class ThemePreset(
         /** Your own palette: starts from the one you were using, every color editable. */
         const val CUSTOM = "CUSTOM"
         /** Removed palettes map to their nearest one. */
-        private val RENAMED = mapOf("OLED" to "CRIMSON", "ARCTIC" to "OCEAN", "EMERALD" to "CLASSIC", "ROSE" to "PURPLE", "GOLD" to "SUNSET", "SLATE" to "OCEAN")
+        private val RENAMED = mapOf("ARCTIC" to "OCEAN", "EMERALD" to "CLASSIC", "ROSE" to "PURPLE", "GOLD" to "SUNSET", "SLATE" to "OCEAN")
 
         fun of(name: String) = entries.firstOrNull { it.name == (RENAMED[name] ?: name) } ?: CLASSIC
     }
@@ -168,8 +179,8 @@ object Palette {
     val OnAccent: Color get() = if (colors.accent.luminance() > 0.45f) Color(0xFF07130A) else Color.White
 
     val Text: Color get() = colors.customText ?: if (Light) Color(0xFF121216) else Color.White
-    val TextSecondary: Color get() = colors.customText?.copy(alpha = 0.75f) ?: if (Light) Color(0xFF4A4A55) else Color(0xFFB8B8C2)
-    val TextMuted: Color get() = colors.customText?.copy(alpha = 0.55f) ?: if (Light) Color(0xFF74747E) else Color(0xFF80808C)
+    val TextSecondary: Color get() = if (colors.highContrast) Text else colors.customText?.copy(alpha = 0.75f) ?: if (Light) Color(0xFF4A4A55) else Color(0xFFB8B8C2)
+    val TextMuted: Color get() = if (colors.highContrast) Color(0xFFDDDDDD) else colors.customText?.copy(alpha = 0.55f) ?: if (Light) Color(0xFF74747E) else Color(0xFF80808C)
     /**
      * A focused button's fill and its content. Buttons are dark with light text in dark mode and
      * light with dark text in light mode; only the focused one takes the accent color.

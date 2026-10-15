@@ -157,6 +157,19 @@ fun DetailsScreen(
         }
     }
 
+    // "More like this": jump to that row once it has loaded, and onto its first title.
+    val similarFocus = remember { FocusRequester() }
+    var showSimilar by remember { mutableStateOf(section == "similar") }
+    LaunchedEffect(showSimilar, similar.isNotEmpty(), m.id) {
+        if (!showSimilar || similar.isEmpty()) return@LaunchedEffect
+        // After the page's own first focus on Play (which runs when the title loads).
+        delay(500)
+        // The row is at the end: scrolling there brings it on screen, then focus lands on its first title.
+        listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+        delay(150)
+        if (runCatching { similarFocus.requestFocus() }.isSuccess) showSimilar = false
+    }
+
     /** [picked]: chosen from the stream list, so play exactly that one instead of the saved file. */
     fun play(r: RankedStream, fromStart: Boolean = false, picked: Boolean = false) {
         Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), r.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream }, fromStart = fromStart, preferSaved = !picked)
@@ -389,7 +402,8 @@ fun DetailsScreen(
             if (similar.isNotEmpty()) {
                 item(key = "similar") {
                     Spacer(Modifier.size(24.dp))
-                    MediaRow(title = "More Like This", items = com.zemu.tv.ui.kids.kidsSafe(similar) { it.meta }, key = { it.meta.id }) { _, s, mod ->
+                    val shownSimilar = com.zemu.tv.ui.kids.kidsSafe(similar) { it.meta }
+                    MediaRow(title = "More Like This", items = shownSimilar, key = { it.meta.id }, requesters = shownSimilar.firstOrNull()?.let { mapOf(it.meta.id to similarFocus) }.orEmpty()) { _, s, mod ->
                         PosterCard(s.meta, onClick = { onOpen(s.meta) }, modifier = mod, badge = "${s.matchPercent}%")
                     }
                 }
@@ -415,6 +429,7 @@ fun DetailsScreen(
                 add(SheetAction(if (rating < 0) "Remove dislike" else "Not for me", if (rating < 0) "👎" else null) { vm.rate(if (rating < 0) 0 else -1) })
                 if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) add(SheetAction(if (showCast) "Hide cast" else "View cast") { showCastRow() })
                 add(SheetAction(if (watched) "Mark as unwatched" else "Mark as watched") { scope.launch { c.userStore.setWatched(m, !watched) } })
+                if (similar.isNotEmpty()) add(SheetAction("More like this") { showSimilar = true })
                 add(SheetAction("Refresh streams") { vm.reloadStreams() })
             },
         )

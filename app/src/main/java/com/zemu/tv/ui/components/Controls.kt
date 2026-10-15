@@ -128,7 +128,9 @@ fun FocusSurface(
         scale = ClickableSurfaceDefaults.scale(focusedScale = if (retro) 1f else focusedScale),
         border = ClickableSurfaceDefaults.border(
             border = outline?.let { Border(BorderStroke(1.dp, it), shape = shape) } ?: Border.None,
-            focusedBorder = focusedBorder?.let { Border(BorderStroke(2.dp, it), shape = shape) } ?: Border.None,
+            // High contrast: a thick white outline on whatever is focused, on top of the accent fill.
+            focusedBorder = (focusedBorder ?: Color.White.takeIf { Palette.colors.highContrast })
+                ?.let { Border(BorderStroke(if (Palette.colors.highContrast) 3.dp else 2.dp, it), shape = shape) } ?: Border.None,
         ),
         content = content,
     )

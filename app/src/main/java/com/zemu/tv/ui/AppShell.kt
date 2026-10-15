@@ -284,6 +284,7 @@ fun AppShell() {
                     CardAction.PLAY -> if (kids.on || !com.zemu.tv.player.Playback.resumeSaved(context, m)) nav.navigate(detailsRoute(m, play = true))
                     CardAction.DETAILS -> nav.navigate(detailsRoute(m))
                     CardAction.EPISODES -> nav.navigate(detailsRoute(m, "episodes"))
+                    CardAction.MORE_LIKE_THIS -> nav.navigate(detailsRoute(m, "similar"))
                     CardAction.TRAILER -> m.officialTrailers.takeIf { it.isNotEmpty() }?.let { TrailerActivity.start(context, it) }
                     CardAction.MY_LIST_ADD, CardAction.MY_LIST_REMOVE -> scope.launch { c.userStore.toggleMyList(m) }
                     CardAction.MARK_WATCHED -> scope.launch { c.userStore.setWatched(m, true) }
@@ -302,6 +303,15 @@ fun AppShell() {
 /** The page's background plus the whole-app style's animated scene (PS2 towers, kids' sky, …). */
 @Composable
 private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground()) {
+    // Kids themes' sub-themes have their own scenes, whatever the age.
+    val kidsScene = com.zemu.tv.ui.theme.Palette.colors.variant.takeIf {
+        com.zemu.tv.ui.theme.Palette.Style in setOf(com.zemu.tv.ui.theme.UiStyle.TODDLER, com.zemu.tv.ui.theme.UiStyle.GRADE, com.zemu.tv.ui.theme.UiStyle.TEEN)
+    }
+    when (kidsScene) {
+        "DINOS" -> return@Box com.zemu.tv.ui.theme.DinoBackdrop()
+        "SPACE" -> return@Box com.zemu.tv.ui.theme.SpaceBackdrop()
+        "OCEAN" -> return@Box com.zemu.tv.ui.theme.OceanBackdrop()
+    }
     when (com.zemu.tv.ui.theme.Palette.Style) {
         com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
         com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()

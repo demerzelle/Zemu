@@ -56,6 +56,7 @@ enum class CardAction(val label: String) {
     PLAY("Play"),
     DETAILS("Details"),
     EPISODES("Episodes"),
+    MORE_LIKE_THIS("More like this"),
     TRAILER("View trailer"),
     MY_LIST_ADD("Add to My List"),
     MY_LIST_REMOVE("Remove from My List"),
@@ -69,6 +70,7 @@ fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Bool
     add(CardAction.PLAY)
     add(CardAction.DETAILS)
     if (meta.type == "series") add(CardAction.EPISODES)
+    add(CardAction.MORE_LIKE_THIS)
     if (meta.trailerId != null) add(CardAction.TRAILER)
     add(if (inMyList) CardAction.MY_LIST_REMOVE else CardAction.MY_LIST_ADD)
     add(if (watched) CardAction.MARK_UNWATCHED else CardAction.MARK_WATCHED)
