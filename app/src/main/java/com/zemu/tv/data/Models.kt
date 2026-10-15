@@ -132,6 +132,10 @@ data class AppSettings(
     val screensaver: Boolean = false,
     val screensaverIdleSec: Int = 60,
     val screensaverImageSec: Int = 10,
+    /** Crossfade between screensaver titles, in tenths of a second. */
+    val screensaverFadeTenths: Int = 15,
+    /** Show the title's logo (or name) and the "Watch now" hint on the screensaver. */
+    val screensaverShowTitle: Boolean = true,
     /** fanart.tv personal API key, for screensaver backdrops. */
     val fanartApiKey: String = "",
     /** Light background with dark text. */
@@ -163,6 +167,17 @@ data class AppSettings(
     val subtitleEdge: Int = 1,
     /** Distance from the bottom, as a fraction of the screen height. */
     val subtitleBottom: Float = 0.08f,
+    /** Show subtitles as the file styles them, ignoring the appearance settings above. */
+    val subtitleOriginalStyle: Boolean = false,
+    /** Prefer SDH (deaf / hard of hearing) subtitle tracks. */
+    val preferSdh: Boolean = false,
+    // This TV: manual overrides of what was detected ("" key absent = use detected).
+    /** Capability key (see [com.zemu.tv.streams.DeviceCapabilities.KEYS]) to forced on/off. */
+    val deviceOverrides: Map<String, Boolean> = emptyMap(),
+    /** 0 = detected. */
+    val maxResolutionOverride: Int = 0,
+    /** Per-theme color overrides: "<theme>/<dark|light>/<role>" to ARGB. */
+    val colorOverrides: Map<String, Long> = emptyMap(),
 )
 
 /** A screen's row arrangement: [order] is the row keys as last arranged; [favorites] are pinned to the top. */
@@ -171,7 +186,15 @@ data class RowPrefs(val order: List<String> = emptyList(), val favorites: List<S
 
 /** Identifies a played stream: [key] matches the exact release, [bingeGroup] the release group across episodes. */
 @Serializable
-data class LastStream(val key: String, val bingeGroup: String? = null)
+data class LastStream(
+    val key: String,
+    val bingeGroup: String? = null,
+    /** The exact link that played (a debrid-resolved file), so resuming replays that same file. */
+    val url: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val videoId: String? = null,
+    val label: String? = null,
+)
 
 @Serializable
 data class WatchEntry(

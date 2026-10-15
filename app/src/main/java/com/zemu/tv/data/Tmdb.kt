@@ -154,19 +154,26 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         return (if (meta.type == "series") found.tv.firstOrNull() ?: found.movies.firstOrNull() else found.movies.firstOrNull() ?: found.tv.firstOrNull())?.id
     }
 
-    /** 16:9 backdrop image URLs for a title (text-free ones first), for the screensaver. */
-    suspend fun backdrops(meta: Meta): List<String> {
-        if (!enabled) return emptyList()
-        val id = tmdbIdFor(meta) ?: return emptyList()
-        val raw = get(if (meta.type == "series") "/tv/$id/images" else "/movie/$id/images")
-        val list = json.parseToJsonElement(raw).jsonObject["backdrops"]?.jsonArray.orEmpty().mapNotNull { e ->
+    /**
+     * Screensaver art: 16:9 backdrops (text-free ones first) and the English (or language-free)
+     * title logo, if TMDB has one.
+     */
+    suspend fun art(meta: Meta): Pair<List<String>, String?> {
+        if (!enabled) return emptyList<String>() to null
+        val id = tmdbIdFor(meta) ?: return emptyList<String>() to null
+        val raw = json.parseToJsonElement(get(if (meta.type == "series") "/tv/$id/images" else "/movie/$id/images", "include_image_language=en,null")).jsonObject
+        val logo = raw["logos"]?.jsonArray.orEmpty().map { it.jsonObject }
+            .sortedByDescending { if (it["iso_639_1"]?.jsonPrimitive?.contentOrNull == "en") 1 else 0 }
+            .firstNotNullOfOrNull { it["file_path"]?.jsonPrimitive?.contentOrNull }
+            ?.let { "https://image.tmdb.org/t/p/w500${it.replace(".svg", ".png")}" }
+        val list = raw["backdrops"]?.jsonArray.orEmpty().mapNotNull { e ->
             val o = e.jsonObject
             val path = o["file_path"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val lang = o["iso_639_1"]?.jsonPrimitive?.contentOrNull
             Triple(path, lang == null, o["vote_average"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
         }
         return list.sortedWith(compareByDescending<Triple<String, Boolean, Double>> { it.second }.thenByDescending { it.third })
-            .take(6).map { "https://image.tmdb.org/t/p/w1280${it.first}" }
+            .take(6).map { "https://image.tmdb.org/t/p/w1280${it.first}" } to logo
     }
 
     /** TheTVDB id of a series (fanart.tv indexes shows by it). */

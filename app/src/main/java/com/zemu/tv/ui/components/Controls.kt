@@ -67,6 +67,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.zemu.tv.ui.theme.Palette
 import com.zemu.tv.ui.theme.glassPanel
+import com.zemu.tv.ui.theme.y2kChrome
 
 /** Focusable D-pad surface with TV-style scale + colour change on focus. */
 @Composable
@@ -83,13 +84,15 @@ fun FocusSurface(
     focusedBorder: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    // Y2K: solid buttons become brushed chrome (dark in dark mode, silver in light mode).
+    val chrome = Palette.Y2K && containerColor.alpha > 0.5f
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.touchClick(onClick, onLongClick),
+        modifier = modifier.then(if (chrome) Modifier.y2kChrome(shape) else Modifier).touchClick(onClick, onLongClick),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = containerColor,
+            containerColor = if (chrome) Color.Transparent else containerColor,
             contentColor = contentColor,
             focusedContainerColor = focusedContainerColor,
             focusedContentColor = focusedContentColor,
@@ -116,8 +119,9 @@ fun TvButton(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(6.dp),
-        containerColor = if (primary) Palette.Accent else Palette.SurfaceHigh.copy(alpha = 0.9f),
-        contentColor = if (primary) Palette.OnAccent else Palette.Text,
+        // Only the focused button is accent-colored; [primary] just marks the main action.
+        containerColor = Palette.SurfaceHigh,
+        contentColor = Palette.Text,
     ) {
         Row(
             Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
@@ -139,8 +143,9 @@ fun TvIconButton(icon: ImageVector, label: String, modifier: Modifier = Modifier
         onClick = onClick,
         modifier = modifier.size(46.dp),
         shape = androidx.compose.foundation.shape.CircleShape,
-        containerColor = if (active) Palette.Accent else Palette.SurfaceHigh.copy(alpha = 0.9f),
-        contentColor = if (active) Palette.OnAccent else Palette.Text,
+        containerColor = Palette.SurfaceHigh,
+        // On/active shows as an accent icon; the fill stays a plain button until focused.
+        contentColor = if (active) Palette.Accent else Palette.Text,
         focusedScale = 1.1f,
     ) {
         Icon(icon, contentDescription = label, modifier = Modifier.align(Alignment.Center).size(22.dp))
@@ -158,8 +163,8 @@ fun TvChip(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        containerColor = if (selected) Palette.Accent else Palette.SurfaceHigh,
-        contentColor = if (selected) Palette.OnAccent else Palette.Text,
+        containerColor = Palette.SurfaceHigh,
+        contentColor = Palette.Text,
         focusedScale = 1.06f,
     ) {
         Text(

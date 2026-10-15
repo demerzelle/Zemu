@@ -145,13 +145,14 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
         }
     }
 
-    suspend fun recordProgress(entry: WatchEntry) {
+    /** [finished]: the player saw the credits start; null = judge by how much was played. */
+    suspend fun recordProgress(entry: WatchEntry, finished: Boolean? = null) {
         ds.edit { p ->
             val cur = p.decode(Keys.history, historySer).orEmpty()
             val next = (listOf(entry.copy(meta = entry.meta.slim())) + cur.filterNot { it.meta.id == entry.meta.id }).take(150)
             p[Keys.history] = json.encodeToString(historySer, next)
-            val done = entry.durationMs > 0 && entry.progress > 0.92f && entry.meta.type != "series"
-            if (done || entry.progress in 0.01f..0.9f) {
+            val done = entry.meta.type != "series" && (finished ?: (entry.durationMs > 0 && entry.progress > 0.92f))
+            if (done || (finished == false && entry.progress >= 0.01f) || entry.progress in 0.01f..0.9f) {
                 val watched = p.decode(Keys.watched, idSetSer).orEmpty().toMutableList()
                 watched.remove(entry.meta.id)
                 if (done) watched.add(0, entry.meta.id)

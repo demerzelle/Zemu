@@ -45,7 +45,7 @@ import com.zemu.tv.container
 import com.zemu.tv.data.TrailerRef
 import com.zemu.tv.ui.components.TvChip
 import com.zemu.tv.ui.theme.ZemuTheme
-import com.zemu.tv.ui.theme.themeColors
+import com.zemu.tv.ui.theme.resolvedColors
 import kotlinx.coroutines.delay
 
 /**
@@ -87,7 +87,7 @@ class TrailerActivity : ComponentActivity() {
         YouTubeEmbed.load(view, trailers[current].id, muted = false, controls = true, cover = false, startSeconds = intent.getIntExtra(EXTRA_START, 0))
         if (trailers.size > 1) hintUntil = System.currentTimeMillis() + 5_000
 
-        val colors = container.userStore.settings.value.themeColors().copy(light = false)
+        val colors = container.userStore.settings.value.resolvedColors(light = false)
         setContent {
             ZemuTheme(colors) {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {

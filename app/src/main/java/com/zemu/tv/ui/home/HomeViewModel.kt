@@ -57,6 +57,9 @@ fun arrangeRows(rows: List<HomeRow>, prefs: com.zemu.tv.data.RowPrefs): List<Hom
     return (favs + keys.filterNot { it in prefs.favorites }).map { k -> byKey.getValue(k).let { if (k in prefs.favorites) it.copy(favorite = true) else it } }
 }
 
+/** Titles from Home's suggestion rows ([recommended]) and catalog rows. */
+data class DiscoveryPool(val recommended: List<Meta> = emptyList(), val catalogs: List<Meta> = emptyList())
+
 data class HomeUi(
     val rows: List<HomeRow> = emptyList(),
     val loading: Boolean = true,
@@ -82,7 +85,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             if (inProgress.isNotEmpty()) add(
                 HomeRow(
                     key = "continue",
-                    title = "Continue Watching",
+                    title = "In Progress",
                     items = inProgress.map { it.meta },
                     priority = 0,
                     style = RowStyle.LANDSCAPE,
@@ -92,7 +95,8 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
             )
             if (myList.isNotEmpty()) add(HomeRow("mylist", "My List", myList, priority = 7))
             val recent = history.sortedByDescending { it.updatedAt }.distinctBy { it.meta.id }
-            recent.filter { it.meta.type == "movie" }.map { it.meta }.take(30).takeIf { it.isNotEmpty() }
+            // Only movies watched through to the credits; partly watched ones are In Progress.
+            recent.filter { it.meta.type == "movie" && it.meta.id in watched }.map { it.meta }.take(30).takeIf { it.isNotEmpty() }
                 ?.let { add(HomeRow("recent-movies", "Recently Watched Movies", it, priority = 6)) }
             recent.filter { it.meta.type == "series" }.take(30).takeIf { it.isNotEmpty() }?.let { list ->
                 add(
@@ -109,6 +113,15 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     private val arrangedRows = combine(baseRows, c.userStore.homeRows) { rows, prefs -> arrangeRows(rows, prefs) }
+
+    init {
+        // The screensaver suggests titles from the same discovery rows (not your own history).
+        viewModelScope.launch {
+            combine(catalogRows, dailyRows) { cat, daily -> daily to cat }.collect { (daily, cat) ->
+                c.discovery.value = DiscoveryPool(daily.flatMap { it.items }, cat.flatMap { it.items })
+            }
+        }
+    }
 
     val state: StateFlow<HomeUi> = combine(arrangedRows, c.addons.ready, c.addons.addons, status) { rows, ready, _, st ->
         if (!ready) return@combine HomeUi(loading = true)

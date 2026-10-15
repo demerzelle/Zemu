@@ -1,6 +1,7 @@
 package com.zemu.tv
 
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,8 +23,7 @@ import com.zemu.tv.ui.profiles.ProfilePicker
 import com.zemu.tv.ui.theme.DynamicTheme
 import com.zemu.tv.ui.theme.DynamicThemeLayer
 import com.zemu.tv.ui.theme.ZemuTheme
-import com.zemu.tv.ui.theme.applyTo
-import com.zemu.tv.ui.theme.themeColors
+import com.zemu.tv.ui.theme.resolvedColors
 
 /** Opens the "Who's watching?" screen (from Settings). */
 val LocalSwitchProfile = staticCompositionLocalOf<() -> Unit> { {} }
@@ -31,6 +31,8 @@ val LocalSwitchProfile = staticCompositionLocalOf<() -> Unit> { {} }
 /** A title to open from a launcher/widget link: type to id. Consumed by the app shell. */
 object PendingOpen {
     var target by mutableStateOf<Pair<String, String>?>(null)
+    /** Start playing [target] right away (the screensaver's "Watch now"). */
+    var play = false
 
     fun from(intent: Intent?) {
         val uri = intent?.data ?: return
@@ -62,6 +64,8 @@ class MainActivity : ComponentActivity() {
     private var lastInput by androidx.compose.runtime.mutableLongStateOf(0L)
     private var screensaverOn by mutableStateOf(false)
 
+    /** The screensaver slide showing now, for "Watch now". */
+    private var saverCurrent: com.zemu.tv.data.ScreensaverSlide? = null
     private var swallowTouch = false
     private var swallowKey = -1
 
@@ -72,7 +76,13 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         lastInput = android.os.SystemClock.uptimeMillis()
         if (screensaverOn) {
-            if (event.action == android.view.KeyEvent.ACTION_DOWN) { screensaverOn = false; swallowKey = event.keyCode }
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                screensaverOn = false
+                swallowKey = event.keyCode
+                // OK: "Watch now" on the title showing; any other key just wakes the app.
+                val ok = event.keyCode in setOf(android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER, android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)
+                saverCurrent?.takeIf { ok }?.let { PendingOpen.play = true; PendingOpen.target = it.meta.type to it.meta.id }
+            }
             return true
         }
         if (event.keyCode == swallowKey) {
@@ -116,7 +126,7 @@ class MainActivity : ComponentActivity() {
                 val settings by c.userStore.settings.collectAsStateWithLifecycle()
                 val dynamic = DynamicTheme.of(settings.dynamicTheme)
                 var rgbAccent by remember { mutableStateOf<Color?>(null) }
-                val base = dynamic.applyTo(settings.themeColors())
+                val base = settings.resolvedColors()
                 val colors = rgbAccent?.let { base.copy(accent = it) } ?: base
                 appColors = colors
                 // Dark status/navigation bar icons in light mode (phones and tablets).
@@ -143,23 +153,30 @@ class MainActivity : ComponentActivity() {
                         }
                         DynamicThemeLayer(dynamic, onAccent = { rgbAccent = it })
                         // Library screensaver: an overlay, so the app underneath stays as it was.
-                        var saverImages by remember { mutableStateOf<List<String>>(emptyList()) }
+                        var saverSlides by remember { mutableStateOf<List<com.zemu.tv.data.ScreensaverSlide>>(emptyList()) }
                         LaunchedEffect(settings.screensaver, resumed) {
                             if (!settings.screensaver || !resumed) return@LaunchedEffect
-                            runCatching { c.screensaverImages.refresh(c.libraryTitles()) }
+                            // A fresh pick of suggestions each run; art for them is looked up ahead of time.
+                            var titles = c.screensaverTitles()
+                            runCatching { c.screensaverImages.refresh(titles) }
                             while (true) {
                                 kotlinx.coroutines.delay(1_000)
                                 val idle = android.os.SystemClock.uptimeMillis() - lastInput
                                 if (!screensaverOn && idle >= settings.screensaverIdleSec * 1000L) {
-                                    // Skip when the library is empty or nothing has been cached yet.
-                                    val images = c.screensaverImages.cached(c.libraryTitles())
-                                    if (images.isNotEmpty()) { saverImages = images; screensaverOn = true }
+                                    // Skip when nothing has art yet.
+                                    val slides = c.screensaverImages.slides(titles)
+                                    if (slides.isNotEmpty()) { saverSlides = slides; screensaverOn = true }
                                     else lastInput = android.os.SystemClock.uptimeMillis()
+                                    titles = c.screensaverTitles()
+                                    launch { runCatching { c.screensaverImages.refresh(titles) } }
                                 }
                             }
                         }
-                        if (screensaverOn && saverImages.isNotEmpty()) {
-                            com.zemu.tv.ui.LibraryScreensaver(saverImages, settings.screensaverImageSec)
+                        if (screensaverOn && saverSlides.isNotEmpty()) {
+                            com.zemu.tv.ui.LibraryScreensaver(
+                                saverSlides, settings.screensaverImageSec, settings.screensaverFadeTenths * 100,
+                                settings.screensaverShowTitle, onCurrent = { saverCurrent = it },
+                            )
                         }
                     }
                 }

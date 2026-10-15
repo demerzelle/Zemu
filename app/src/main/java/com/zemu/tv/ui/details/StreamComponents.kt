@@ -106,6 +106,7 @@ fun StreamRow(r: RankedStream, externalSubLangs: Set<String>, onClick: () -> Uni
         modifier = modifier.fillMaxWidth().padding(horizontal = 48.dp),
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface.copy(alpha = 0.92f),
+        // Colored tags inside: focus is an accent outline here rather than an accent fill.
         focusedContainerColor = Palette.SurfaceHigh,
         focusedContentColor = Palette.Text,
         focusedBorder = Palette.FocusBorder,

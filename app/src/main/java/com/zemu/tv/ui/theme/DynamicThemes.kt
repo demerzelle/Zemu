@@ -42,6 +42,8 @@ enum class DynamicTheme(val label: String, val accent: Long? = null, val backgro
     FIREFLIES("Fireflies", 0xFFFACC15, 0xFF070A06),
     MATRIX("Matrix", 0xFF22C55E, 0xFF000500),
     SAKURA("Sakura", 0xFFF472B6, 0xFF120810),
+    /** Restyles the whole app: chrome buttons, PS2-style backdrop, chromatic aberration. */
+    Y2K("Y2K", 0xFF7FD4FF, 0xFF040818),
     ;
 
     companion object {
@@ -77,6 +79,7 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
             DynamicTheme.HALLOWEEN -> 14
             DynamicTheme.MATRIX -> 48
             DynamicTheme.SAKURA -> 40
+            DynamicTheme.Y2K -> 14
             else -> 0
         }
         List(n) {
@@ -129,6 +132,7 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
                             p.y += dt * 0.02f * sin(time * 2 + p.phase)
                         }
                         DynamicTheme.MATRIX -> p.y += dt * 0.25f * p.speed
+                        DynamicTheme.Y2K -> p.phase += dt * (0.6f + p.speed)
                         DynamicTheme.SAKURA -> {
                             p.y += dt * 0.04f * p.speed
                             p.x += dt * 0.03f * (1 + sin(time + p.phase))
@@ -166,6 +170,7 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
             DynamicTheme.MATRIX -> matrix(particles)
             DynamicTheme.SAKURA -> sakura(particles, t)
             DynamicTheme.RGB -> rgbEdge(t)
+            DynamicTheme.Y2K -> y2kOverlay(particles, t)
             DynamicTheme.NONE -> {}
         }
     }
@@ -312,4 +317,102 @@ private fun DrawScope.rgbEdge(t: Float) {
     val colors = (0..6).map { Color.hsv(((t * 40f) + it * 60f) % 360f, 0.9f, 1f).copy(alpha = 0.55f) }
     drawRect(Brush.horizontalGradient(colors), size = Size(size.width, 3f))
     drawRect(Brush.horizontalGradient(colors.reversed()), topLeft = Offset(0f, size.height - 3f), size = Size(size.width, 3f))
+}
+
+/**
+ * Y2K, above the UI: chromatic aberration at the screen edges (red and cyan fringes), faint CRT
+ * scanlines and a few four-point chrome sparkles that twinkle in and out.
+ */
+private fun DrawScope.y2kOverlay(ps: List<Particle>, t: Float) {
+    val edge = size.width * 0.06f
+    drawRect(Brush.horizontalGradient(listOf(Color(0x30FF1E56), Color.Transparent), endX = edge), size = Size(edge, size.height))
+    drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color(0x3000E5FF)), startX = size.width - edge, endX = size.width), topLeft = Offset(size.width - edge, 0f), size = Size(edge, size.height))
+    drawRect(Brush.verticalGradient(listOf(Color(0x2200E5FF), Color.Transparent), endY = edge * 0.6f), size = Size(size.width, edge * 0.6f))
+    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0x22FF1E56)), startY = size.height - edge * 0.6f, endY = size.height), topLeft = Offset(0f, size.height - edge * 0.6f), size = Size(size.width, edge * 0.6f))
+    var y = 0f
+    while (y < size.height) {
+        drawLine(Color.Black.copy(alpha = 0.06f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+        y += 3f
+    }
+    ps.forEach { p ->
+        val a = sin(p.phase).coerceAtLeast(0f)
+        if (a < 0.05f) return@forEach
+        val c = Offset(p.x * size.width, p.y * size.height)
+        val r = (10f + p.size * 14f) * a
+        val glint = Color.White.copy(alpha = 0.75f * a)
+        drawLine(glint, Offset(c.x - r, c.y), Offset(c.x + r, c.y), strokeWidth = 2f, cap = StrokeCap.Round)
+        drawLine(glint, Offset(c.x, c.y - r), Offset(c.x, c.y + r), strokeWidth = 2f, cap = StrokeCap.Round)
+        drawCircle(Color(0xFF7FD4FF).copy(alpha = 0.35f * a), radius = r * 0.35f, center = c)
+    }
+}
+
+/**
+ * Y2K, behind the UI: a PS2 boot-screen style scene. A deep blue void, a perspective floor of
+ * light, and rows of translucent glowing towers that slowly rise and fall, with drifting
+ * cubes. Drawn in its own layer so only it redraws each frame.
+ */
+@Composable
+fun Y2kBackdrop(modifier: Modifier = Modifier) {
+    var time by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            withFrameNanos { now ->
+                // ~30 fps is plenty for slow motion and keeps the TV's GPU cool.
+                if (last == 0L || now - last > 33_000_000L) {
+                    time += if (last == 0L) 0f else (now - last) / 1e9f
+                    last = now
+                }
+            }
+        }
+    }
+    val light = Palette.Light
+    Canvas(modifier.fillMaxSize()) {
+        val t = time
+        val top = if (light) Color(0xFFE6EEFF) else Color(0xFF02040D)
+        val mid = if (light) Color(0xFFB9CCF2) else Color(0xFF0A1440)
+        drawRect(Brush.verticalGradient(listOf(top, mid, top)))
+        val horizon = size.height * 0.62f
+        // Floor: glow at the horizon and converging lines.
+        drawRect(
+            Brush.verticalGradient(listOf(Color(0x552F6BFF), Color.Transparent), startY = horizon, endY = size.height),
+            topLeft = Offset(0f, horizon), size = Size(size.width, size.height - horizon),
+        )
+        val cx = size.width / 2
+        for (i in -10..10) drawLine(Color(0x223F8CFF), Offset(cx + i * 22f, horizon), Offset(cx + i * 200f, size.height), strokeWidth = 1f)
+        var fy = 0f
+        while (horizon + fy < size.height) {
+            drawLine(Color(0x1A3F8CFF), Offset(0f, horizon + fy), Offset(size.width, horizon + fy), strokeWidth = 1f)
+            fy = fy * 1.35f + 6f
+        }
+        // Towers: three depth rows, farther ones smaller and dimmer.
+        for (row in 0..2) {
+            val depth = 1f - row * 0.3f
+            val n = 9 + row * 4
+            val w = size.width / n * 0.42f * depth
+            for (i in 0 until n) {
+                val seed = (i * 37 + row * 101) % 97 / 97f
+                val x = (i + 0.5f) / n * size.width + (seed - 0.5f) * w
+                val h = size.height * (0.10f + 0.28f * seed) * depth * (0.75f + 0.25f * sin(t * (0.25f + seed * 0.3f) + seed * 6.28f))
+                val base = horizon + row * 10f
+                val alpha = (0.10f + 0.16f * depth) * (if (light) 0.8f else 1f)
+                drawRect(
+                    Brush.verticalGradient(listOf(Color(0xFF7FD4FF).copy(alpha = alpha * 1.6f), Color(0xFF2F6BFF).copy(alpha = alpha * 0.4f)), startY = base - h, endY = base),
+                    topLeft = Offset(x - w / 2, base - h), size = Size(w, h),
+                )
+                drawRect(Color.White.copy(alpha = alpha * 1.8f), topLeft = Offset(x - w / 2, base - h), size = Size(w, 2f))
+            }
+        }
+        // Drifting wireframe cubes.
+        for (k in 0 until 7) {
+            val s0 = k / 7f
+            val x = ((s0 * 1.7f + t * 0.012f * (1 + k % 3)) % 1.2f - 0.1f) * size.width
+            val y = size.height * (0.12f + 0.4f * ((k * 53 % 11) / 11f)) + sin(t * 0.4f + k) * 14f
+            val r = 10f + (k % 3) * 8f
+            rotate(t * 20f * (if (k % 2 == 0) 1 else -1) + k * 30f, Offset(x, y)) {
+                drawRect(Color(0x667FD4FF), topLeft = Offset(x - r, y - r), size = Size(r * 2, r * 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f))
+                drawRect(Color(0x33FF7AD9), topLeft = Offset(x - r * 0.55f, y - r * 0.55f), size = Size(r * 1.1f, r * 1.1f), style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+            }
+        }
+    }
 }

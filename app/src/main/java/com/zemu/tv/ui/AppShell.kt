@@ -141,19 +141,22 @@ fun AppShell() {
     val pending = com.zemu.tv.PendingOpen.target
     LaunchedEffect(pending) {
         val (type, id) = pending ?: return@LaunchedEffect
+        val play = com.zemu.tv.PendingOpen.play
         com.zemu.tv.PendingOpen.target = null
-        nav.navigate(detailsRoute(Meta(id = id, type = type)))
+        com.zemu.tv.PendingOpen.play = false
+        nav.navigate(detailsRoute(Meta(id = id, type = type), play = play))
     }
 
     CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
     FocusScrollMargins {
     Box(Modifier.fillMaxSize().appBackground()) {
+        if (com.zemu.tv.ui.theme.Palette.Y2K) com.zemu.tv.ui.theme.Y2kBackdrop()
         NavHost(
             navController = nav,
             startDestination = "home",
             modifier = Modifier.fillMaxSize().padding(start = if (showRail) RAIL_WIDTH else 0.dp),
         ) {
-            composable("home") { HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }) }
+            composable("home") { HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }) }
             composable("movies") { BrowseScreen(type = "movie", onOpen = open) }
             composable("series") { BrowseScreen(type = "series", onOpen = open) }
             composable("anime") { BrowseScreen(type = "anime", onOpen = open) }

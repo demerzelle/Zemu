@@ -48,6 +48,8 @@ import com.zemu.tv.ui.theme.Palette
 import com.zemu.tv.ui.theme.ThemeColors
 import com.zemu.tv.ui.theme.ThemePreset
 import com.zemu.tv.ui.theme.themeColors
+import com.zemu.tv.ui.theme.colorScope
+import com.zemu.tv.ui.theme.resolvedColors
 import com.zemu.tv.ui.theme.toArgbLong
 
 private data class Hsv(val h: Float, val s: Float, val v: Float) {
@@ -156,7 +158,7 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
             }
             .focusable()
             .background(if (focused) Palette.SurfaceHigh else Palette.Surface, RoundedCornerShape(10.dp))
-            .border(2.dp, if (focused) Color.White else Color.Transparent, RoundedCornerShape(10.dp))
+            .border(2.dp, if (focused) Palette.Accent else Color.Transparent, RoundedCornerShape(10.dp))
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -180,5 +182,50 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
             )
         }
         Text(valueText ?: "${(value * 100).toInt()}%", fontSize = 13.sp, color = Palette.TextSecondary, modifier = Modifier.width(64.dp).padding(start = 12.dp))
+    }
+}
+
+/**
+ * Appearance → Customize colors: every color of the theme showing now, separately for light and
+ * dark mode (and for animated themes with their own palette, like Y2K). Saved per theme and mode.
+ */
+@Composable
+fun ColorCustomizer(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    var role by remember { mutableStateOf(com.zemu.tv.ui.theme.ColorRole.ACCENT) }
+    val scope = settings.colorScope()
+    val colors = settings.resolvedColors()
+    val current = when (role) {
+        com.zemu.tv.ui.theme.ColorRole.ACCENT -> colors.accent
+        com.zemu.tv.ui.theme.ColorRole.BACKGROUND -> colors.base
+        com.zemu.tv.ui.theme.ColorRole.PANEL -> colors.surface
+        com.zemu.tv.ui.theme.ColorRole.BUTTON -> colors.surfaceHigh
+        com.zemu.tv.ui.theme.ColorRole.TEXT -> Palette.Text
+    }
+    val key = "$scope/${role.key}"
+    val themeName = scope.substringBefore('/').let { n ->
+        com.zemu.tv.ui.theme.DynamicTheme.entries.firstOrNull { it.name == n }?.label
+            ?: ThemePreset.entries.firstOrNull { it.name == n }?.label ?: "Custom"
+    }
+    Text(
+        "Editing $themeName · ${if (settings.lightMode) "light" else "dark"} mode. Switch light mode or the theme to edit theirs.",
+        color = Palette.TextSecondary, fontSize = 13.sp,
+    )
+    LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(com.zemu.tv.ui.theme.ColorRole.entries.toList(), key = { it.name }) { r ->
+            val custom = "$scope/${r.key}" in settings.colorOverrides
+            com.zemu.tv.ui.components.TvChip(r.label + if (custom) " •" else "", selected = r == role, onClick = { role = r })
+        }
+    }
+    val hsv = Hsv.of(current)
+    fun set(h: Hsv) = update { it.copy(colorOverrides = it.colorOverrides + (key to h.color().toArgbLong())) }
+    val hueBrush = Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) })
+    TvSlider("Hue", hsv.h / 360f, 1f / 72, hueBrush) { set(hsv.copy(h = it * 360f, s = hsv.s.coerceAtLeast(0.05f))) }
+    TvSlider("Saturation", hsv.s, 0.05f, Brush.horizontalGradient(listOf(hsv.copy(s = 0f).color(), hsv.copy(s = 1f).color()))) { set(hsv.copy(s = it)) }
+    TvSlider("Brightness", hsv.v, 0.05f, Brush.horizontalGradient(listOf(Color.Black, hsv.copy(v = 1f).color()))) { set(hsv.copy(v = it)) }
+    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        com.zemu.tv.ui.components.TvButton("Reset ${role.label.substringBefore(" (")}", onClick = { update { it.copy(colorOverrides = it.colorOverrides - key) } })
+        com.zemu.tv.ui.components.TvButton("Reset all colors for $themeName (${if (settings.lightMode) "light" else "dark"})", onClick = {
+            update { s -> s.copy(colorOverrides = s.colorOverrides.filterKeys { !it.startsWith("$scope/") }) }
+        })
     }
 }

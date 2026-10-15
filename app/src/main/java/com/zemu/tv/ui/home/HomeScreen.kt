@@ -54,7 +54,7 @@ import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 
 @Composable
-fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
+fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta) -> Unit = onOpen) {
     val context = LocalContext.current
     val c = context.container
     val vm: HomeViewModel = viewModel { HomeViewModel(c) }
@@ -161,7 +161,12 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit) {
                         onTitleLongPress = { editingRow = row.key },
                     ) { _, m, mod ->
                         when (row.style) {
-                            RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus)
+                            RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = {
+                                // In Progress replays the same file from where it stopped.
+                                if (row.key != "continue" || !com.zemu.tv.player.Playback.resumeSaved(context, m)) {
+                                    if (row.key == "continue") onPlay(m) else onOpen(m)
+                                }
+                            }, modifier = mod, onFocused = onFocus)
                             RowStyle.POSTER -> PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
                         }
                     }
@@ -209,8 +214,8 @@ private fun RowEditorButton(icon: androidx.compose.ui.graphics.vector.ImageVecto
         onClick = onClick,
         modifier = modifier.size(64.dp),
         shape = androidx.compose.foundation.shape.CircleShape,
-        containerColor = if (active) Palette.Accent else Palette.SurfaceHigh,
-        contentColor = if (active) Palette.OnAccent else Palette.Text,
+        containerColor = Palette.SurfaceHigh,
+        contentColor = if (active) Palette.Accent else Palette.Text,
         focusedScale = 1.1f,
     ) {
         androidx.tv.material3.Icon(icon, contentDescription = label, modifier = Modifier.align(Alignment.Center).size(30.dp))

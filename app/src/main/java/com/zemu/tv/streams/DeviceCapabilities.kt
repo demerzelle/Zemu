@@ -20,20 +20,46 @@ data class DeviceCapabilities(
 ) {
     fun canPlay(a: AudioCodec) = a in playableAudio
 
-    fun summary(): List<Pair<String, Boolean>> = listOf(
-        "4K output" to (maxResolution >= 2160),
-        "HEVC / H.265" to hevc,
-        "AV1" to av1,
-        "HDR10" to hdr10,
-        "HDR10+" to hdr10Plus,
-        "Dolby Vision" to dolbyVision,
-        "Dolby Digital+ / Atmos" to canPlay(AudioCodec.DDP),
-        "Dolby TrueHD" to canPlay(AudioCodec.TRUEHD),
-        "DTS" to canPlay(AudioCodec.DTS),
-        "DTS-HD" to canPlay(AudioCodec.DTS_HD),
-    )
+    /** Each format by its stable key ([KEYS]) to whether it's supported. */
+    fun supports(key: String): Boolean = when (key) {
+        "hevc" -> hevc
+        "av1" -> av1
+        "hdr10" -> hdr10
+        "hdr10plus" -> hdr10Plus
+        "dv" -> dolbyVision
+        else -> AudioCodec.entries.firstOrNull { it.name == key }?.let(::canPlay) ?: false
+    }
+
+    /** The user's choices in Settings → This TV, on top of what was detected. */
+    fun withOverrides(o: Map<String, Boolean>, maxRes: Int): DeviceCapabilities {
+        if (o.isEmpty() && maxRes == 0) return this
+        fun pick(key: String) = o[key] ?: supports(key)
+        return DeviceCapabilities(
+            maxResolution = maxRes.takeIf { it > 0 } ?: maxResolution,
+            hevc = pick("hevc"),
+            av1 = pick("av1"),
+            dolbyVision = pick("dv"),
+            hdr10 = pick("hdr10"),
+            hdr10Plus = pick("hdr10plus"),
+            playableAudio = AudioCodec.entries.filter { pick(it.name) }.toSet(),
+        )
+    }
 
     companion object {
+        /** Settings → This TV: key to label, in display order. */
+        val KEYS: List<Pair<String, String>> = listOf(
+            "hevc" to "HEVC / H.265",
+            "av1" to "AV1",
+            "hdr10" to "HDR10",
+            "hdr10plus" to "HDR10+",
+            "dv" to "Dolby Vision",
+            AudioCodec.DD.name to "Dolby Digital",
+            AudioCodec.DDP.name to "Dolby Digital+ / Atmos",
+            AudioCodec.TRUEHD.name to "Dolby TrueHD",
+            AudioCodec.DTS.name to "DTS",
+            AudioCodec.DTS_HD.name to "DTS-HD",
+        )
+
         // android.view.Display.HdrCapabilities constants (inlined to avoid API-level lint noise).
         private const val HDR_TYPE_DOLBY_VISION = 1
         private const val HDR_TYPE_HDR10 = 2

@@ -156,8 +156,9 @@ fun DetailsScreen(
         }
     }
 
-    fun play(r: RankedStream) {
-        Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), r.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream })
+    /** [picked]: chosen from the stream list, so play exactly that one instead of the saved file. */
+    fun play(r: RankedStream, fromStart: Boolean = false, picked: Boolean = false) {
+        Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), r.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream }, fromStart = fromStart, preferSaved = !picked)
     }
 
     LaunchedEffect(autoPick) {
@@ -176,10 +177,23 @@ fun DetailsScreen(
     }
 
     val best = vm.preferred(streams.streams)
-    // Partly watched: the Play button resumes, and "Start over" appears under More.
+
+    /** Resume / start over: the saved file plays even before (or without) a fresh stream list. */
+    fun playSavedOrBest(fromStart: Boolean) {
+        val pick = best
+        when {
+            pick != null -> play(pick, fromStart)
+            Playback.resumeSaved(context, m, fromStart) -> {}
+            streams.result?.noStreamAddons == true -> onOpenSettings()
+            !streams.loading -> Toast.makeText(context, "No cached streams for this title", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Partly watched: "Resume from h:mm:ss" and "Start from beginning", both on the saved file.
     val resume = history.firstOrNull { it.meta.id == m.id && it.videoId == vm.currentVideoId() }
-        ?.takeIf { it.durationMs > 0 && it.progress in 0.02f..0.95f }
-        ?.let { ResumeInfo(((it.durationMs - it.positionMs) / 60_000).coerceAtLeast(1)) }
+        ?.takeIf { it.durationMs > 0 && it.progress in 0.02f..0.95f && (m.type == "series" || m.id !in watchedIds) }
+        ?.let { ResumeInfo(it.positionMs) }
+    val hasSaved = resume != null && Playback.savedFor(context, m.id, vm.currentVideoId()) != null
 
     fun showCastRow() {
         showCast = !showCast
@@ -233,9 +247,10 @@ fun DetailsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val epTag = selectedVideo?.takeIf { it.season != null }?.let { "S${it.season} E${it.episodeNumber}" }
                         val playLabel = when {
+                            resume != null && (best != null || hasSaved) ->
+                                listOfNotNull("Resume", epTag).joinToString(" ") + " from ${com.zemu.tv.player.formatTime(resume.positionMs)}"
                             streams.loading -> "Finding cached streams…"
                             best == null -> "No cached streams"
-                            resume != null -> listOfNotNull("Resume", epTag).joinToString(" ") + " · ${resume.minutesLeft}m left"
                             else -> listOfNotNull("Play", epTag).joinToString(" ")
                         }
                         TvButton(
@@ -243,14 +258,11 @@ fun DetailsScreen(
                             icon = Icons.Filled.PlayArrow,
                             primary = true,
                             modifier = Modifier.focusRequester(playRequester),
-                            onClick = {
-                                when {
-                                    best != null -> play(best)
-                                    streams.result?.noStreamAddons == true -> onOpenSettings()
-                                    !streams.loading -> Toast.makeText(context, "No cached streams for this title", Toast.LENGTH_SHORT).show()
-                                }
-                            },
+                            onClick = { playSavedOrBest(fromStart = false) },
                         )
+                        if (resume != null && (best != null || hasSaved)) {
+                            TvButton("Start from beginning", onClick = { playSavedOrBest(fromStart = true) })
+                        }
                         TvButton("Streams", onClick = { scope.launch { listState.animateScrollToItem(streamsHeaderIndex) } })
                         TvButton(
                             if (inMyList) "In My List" else "My List",
@@ -364,7 +376,7 @@ fun DetailsScreen(
                     }
                 }
                 else -> items(streams.streams, key = { "s-" + it.stream.key }) { rs ->
-                    StreamRow(rs, streams.externalSubLangs, onClick = { play(rs) }, modifier = Modifier.padding(vertical = 5.dp))
+                    StreamRow(rs, streams.externalSubLangs, onClick = { play(rs, picked = true) }, modifier = Modifier.padding(vertical = 5.dp))
                 }
             }
 
@@ -393,9 +405,6 @@ fun DetailsScreen(
             title = m.title,
             onDismiss = { moreOpen = false },
             actions = buildList {
-                if (resume != null && best != null) add(SheetAction("Start over") {
-                    Playback.play(context, m, vm.currentVideoId(), vm.episodeLabel(), best.stream, streams.externalSubs, alternatives = streams.streams.map { it.stream }, fromStart = true)
-                })
                 m.officialTrailers.takeIf { it.isNotEmpty() }?.let { list ->
                     add(SheetAction(if (list.size > 1) "Watch trailers" else "Watch trailer", if (list.size > 1) "${list.size}" else null) { TrailerActivity.start(context, list) })
                 }
@@ -521,4 +530,4 @@ private fun EpisodeCard(video: Video, selected: Boolean, onFocused: () -> Unit =
     }
 }
 
-private data class ResumeInfo(val minutesLeft: Long)
+private data class ResumeInfo(val positionMs: Long)

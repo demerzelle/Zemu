@@ -57,7 +57,7 @@ import com.zemu.tv.streams.FilterState
 import com.zemu.tv.streams.Languages
 import com.zemu.tv.streams.StreamFilter
 import com.zemu.tv.ui.theme.ZemuTheme
-import com.zemu.tv.ui.theme.themeColors
+import com.zemu.tv.ui.theme.resolvedColors
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -176,7 +176,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             val s by c.userStore.settings.collectAsStateWithLifecycle()
             // The player is always dark, whatever the app's light/dark setting.
-            ZemuTheme(s.themeColors().copy(light = false)) { PlayerScreen(this) }
+            ZemuTheme(s.resolvedColors(light = false)) { PlayerScreen(this) }
         }
         start(resumeMs)
         loadEpisodes()
@@ -216,6 +216,16 @@ class PlayerActivity : ComponentActivity() {
 
     private fun applyCaptionStyle(s: AppSettings) {
         val view = playerView?.subtitleView ?: return
+        if (s.subtitleOriginalStyle) {
+            // The file's own fonts, colors and positions, at the system caption size.
+            view.setUserDefaultStyle()
+            view.setUserDefaultTextSize()
+            view.setApplyEmbeddedStyles(true)
+            view.setApplyEmbeddedFontSizes(true)
+            view.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+            return
+        }
+        view.setApplyEmbeddedFontSizes(false)
         val bg = when (s.subtitleBackground) { 1 -> 0x99000000.toInt(); 2 -> 0xFF000000.toInt(); else -> 0 }
         val edge = when (s.subtitleEdge) {
             1 -> CaptionStyleCompat.EDGE_TYPE_OUTLINE
@@ -273,6 +283,7 @@ class PlayerActivity : ComponentActivity() {
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
             .setPreferredAudioLanguages(*settings.audioLanguages.toTypedArray())
             .apply { if (settings.autoSubtitles) setPreferredTextLanguages(*settings.subtitleLanguages.toTypedArray()) }
+            .apply { if (settings.preferSdh) setPreferredTextRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) }
             .setSelectUndeterminedTextLanguage(false)
             .build()
 
@@ -296,6 +307,7 @@ class PlayerActivity : ComponentActivity() {
                 if (state == Player.STATE_READY && !reachedReady) {
                     reachedReady = true
                     rememberWorkingMode()
+                    rememberPlayingFile()
                     loadSegments()
                 }
                 if (state == Player.STATE_ENDED) onEnded()
@@ -459,6 +471,45 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private var holdJob: Job? = null
+
+    /**
+     * Rewind / fast-forward held down: the preview moves smoothly, speeding up the longer it's
+     * held (from 10 s to 5 min per second of holding). Seeks once on release.
+     */
+    fun startHoldScrub(direction: Int) {
+        if (holdJob?.isActive == true) return
+        val p = player ?: return
+        scrubJob?.cancel()
+        holdJob = lifecycleScope.launch {
+            val started = SystemClock.uptimeMillis()
+            var last = started
+            var target = (scrubTargetMs ?: p.currentPosition).toDouble()
+            val limit = if (durationMs > 0) durationMs - 1_000.0 else Double.MAX_VALUE
+            while (isActive) {
+                val now = SystemClock.uptimeMillis()
+                val held = (now - started) / 1000.0
+                // Seconds of video per second held: 10 s → 300 s (5 min) over ~6 s of holding.
+                val rate = (10.0 * Math.pow(1.75, held)).coerceAtMost(300.0)
+                target = (target + direction * rate * (now - last)).coerceIn(0.0, max(limit, 0.0))
+                last = now
+                scrubTargetMs = target.toLong()
+                scrubShownUntil = now + 2_500
+                delay(33)
+            }
+        }
+    }
+
+    fun stopHoldScrub() {
+        holdJob?.cancel() ?: return
+        holdJob = null
+        val target = scrubTargetMs ?: return
+        player?.seekTo(target)
+        positionMs = target
+        scrubTargetMs = null
+        scrubShownUntil = SystemClock.uptimeMillis() + 1_500
+    }
+
     /** True while audio must be decoded on the device (needed for speeds other than 1x). */
     private var forcePcm = false
 
@@ -512,6 +563,7 @@ class PlayerActivity : ComponentActivity() {
                         if (f.channelCount > 0) add(channelLabel(f.channelCount))
                     }
                     if ((f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) add("Forced")
+                    if (type == C.TRACK_TYPE_TEXT && isSdh(f)) add("SDH")
                 }
                 val name = listOfNotNull(f.label?.takeIf { it.isNotBlank() } ?: lang ?: "Track ${out.size + 1}")
                     .plus(extra).joinToString(" · ")
@@ -549,7 +601,8 @@ class PlayerActivity : ComponentActivity() {
             selectTrack(options.first(), C.TRACK_TYPE_TEXT)
             return "Off"
         }
-        val track = tracks.first { it.lang == nextLang }
+        val sdh = c.userStore.settings.value.preferSdh
+        val track = tracks.filter { it.lang == nextLang }.let { same -> same.firstOrNull { it.label.contains("SDH") == sdh } ?: same.first() }
         selectTrack(track, C.TRACK_TYPE_TEXT)
         return track.label.replace(Regex(" \\d+$"), "")
     }
@@ -573,6 +626,10 @@ class PlayerActivity : ComponentActivity() {
         if (type == C.TRACK_TYPE_TEXT && option.group != null) p.seekTo(p.currentPosition)
         tracksVersion++
     }
+
+    private fun isSdh(f: androidx.media3.common.Format): Boolean =
+        (f.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0 ||
+            f.label?.let { Regex("\\b(SDH|CC|HI)\\b|hearing", RegexOption.IGNORE_CASE).containsMatchIn(it) } == true
 
     private fun audioCodecName(mime: String?): String? = when (mime) {
         MimeTypes.AUDIO_AC3 -> "Dolby Digital"
@@ -769,7 +826,40 @@ class PlayerActivity : ComponentActivity() {
             start(position)
             return
         }
+        if (!refetched) {
+            refetched = true
+            refetchStreams(position, error)
+            return
+        }
         showFailure(error, position)
+    }
+
+    private var refetched = false
+
+    /**
+     * The saved file (or every candidate) is gone: look up cached streams for this video again,
+     * same release first, and carry on from the same position.
+     */
+    private fun refetchStreams(position: Long, error: PlaybackException) {
+        val m = meta ?: return showFailure(error, position)
+        val tried = candidates.map { it.url }.toSet()
+        val group = candidates.getOrNull(index)?.bingeGroup
+        val key = candidates.getOrNull(index)?.key
+        Toast.makeText(this, "That file isn't available anymore. Finding it again…", Toast.LENGTH_LONG).show()
+        lifecycleScope.launch {
+            val result = runCatching { c.streams.load(m.type, videoId, force = true) }.getOrNull()
+            val settings = c.userStore.settings.value
+            val fresh = result?.cached.orEmpty().let { all ->
+                StreamFilter.apply(all, c.streamFilter.value, c.capabilities, settings, emptySet())
+                    .ifEmpty { StreamFilter.apply(all, FilterState(), c.capabilities, settings, emptySet()) }
+            }.map { it.stream }.filter { it.raw.url != null && it.raw.url !in tried }
+                .sortedByDescending { (if (it.key == key) 2 else 0) + (if (group != null && it.raw.behaviorHints?.bingeGroup == group) 1 else 0) }
+            if (fresh.isEmpty()) return@launch showFailure(error, position)
+            candidates = fresh.take(5).map { it.toCandidate() }
+            index = 0
+            mode = startMode
+            start(position)
+        }
     }
 
     private fun escalate(error: PlaybackException): DecoderMode? {
@@ -788,6 +878,14 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    /** Saves the exact link that's playing, so Continue Watching / Resume replay this same file. */
+    private fun rememberPlayingFile() {
+        val m = meta ?: return
+        val cand = candidates.getOrNull(index) ?: return
+        val entry = com.zemu.tv.data.LastStream(cand.key.ifEmpty { cand.url }, cand.bingeGroup, cand.url, cand.headers, videoId, cand.label)
+        c.appScope.launch { c.userStore.rememberStream(m.id, entry) }
+    }
+
     private fun rememberWorkingMode() {
         if (mode == startMode) return
         val learnDv = mode.avoidDolbyVision && !startMode.avoidDolbyVision
@@ -800,7 +898,7 @@ class PlayerActivity : ComponentActivity() {
         }
         startMode = mode
         val what = listOfNotNull("play Dolby Vision as HDR10".takeIf { learnDv }, "prefer software decoders".takeIf { learnSw }).joinToString(" and ")
-        Toast.makeText(this, "Playing. This TV will now $what (change in Settings).", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Playing. This TV will now $what (change in Settings → This TV).", Toast.LENGTH_LONG).show()
     }
 
     private fun showFailure(error: PlaybackException, position: Long) {
@@ -857,8 +955,12 @@ class PlayerActivity : ComponentActivity() {
         val p = player ?: return
         val m = meta ?: return
         val duration = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return
-        val entry = WatchEntry(m, videoId, label, p.currentPosition, duration, System.currentTimeMillis())
-        c.appScope.launch { c.userStore.recordProgress(entry) }
+        val pos = p.currentPosition
+        val entry = WatchEntry(m, videoId, label, pos, duration, System.currentTimeMillis())
+        // Finished once the credits start (known from skip segments), else in the last 5%.
+        val creditsAt = segments.firstOrNull { it.type == SegmentType.CREDITS && it.startMs > duration / 2 }?.startMs
+        val finished = if (creditsAt != null) pos >= creditsAt - 2_000 else pos >= duration * 0.95
+        c.appScope.launch { c.userStore.recordProgress(entry, finished) }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

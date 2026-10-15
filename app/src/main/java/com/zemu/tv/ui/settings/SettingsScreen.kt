@@ -65,6 +65,8 @@ import com.zemu.tv.ui.components.SectionTitle
 import com.zemu.tv.ui.components.TvButton
 import com.zemu.tv.ui.components.TvTextField
 import com.zemu.tv.ui.theme.Palette
+import androidx.tv.material3.LocalContentColor
+import com.zemu.tv.streams.DeviceCapabilities
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -114,8 +116,8 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
-    APPEARANCE("Appearance", "Light mode, glass style, color themes, screensaver, vibration and trailers."),
-    DEVICE("This device", "What this TV can play, used for \"Best for this TV\"."),
+    APPEARANCE("Appearance", "Light mode, glass style, color themes and custom colors, Y2K, screensaver, vibration and trailers."),
+    DEVICE("This TV", "What this TV can play, used to pick \"Best for this TV\" streams. Change anything that was detected wrong."),
 }
 
 @Composable
@@ -172,7 +174,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit) {
                 SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
                 SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings)
                 SettingsCategory.APPEARANCE -> appearanceCategory(vm, settings)
-                SettingsCategory.DEVICE -> deviceCategory(vm)
+                SettingsCategory.DEVICE -> deviceCategory(vm, settings)
             }
         }
     }
@@ -311,16 +313,6 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
         ToggleRow("Use external player", "Open streams in VLC, Just Player, MX Player, etc. instead of the built-in player.", settings.useExternalPlayer) {
             vm.update { it.copy(useExternalPlayer = !it.useExternalPlayer) }
         }
-        ToggleRow(
-            "Play Dolby Vision as HDR10",
-            "Fixes \"decoding failed\" on TVs whose Dolby Vision decoder can't handle some files. Turned on automatically if needed.",
-            settings.avoidDolbyVision,
-        ) { vm.update { it.copy(avoidDolbyVision = !it.avoidDolbyVision) } }
-        ToggleRow(
-            "Prefer software video decoders",
-            "Slower, but can play files the TV's hardware decoder rejects. Turned on automatically if needed.",
-            settings.preferSoftwareDecoders,
-        ) { vm.update { it.copy(preferSoftwareDecoders = !it.preferSoftwareDecoders) } }
     }
     group("history", "History") {
         ValueRow("Clear watch history", "Resets Continue Watching and recommendations") { vm.clearHistory() }
@@ -346,7 +338,15 @@ private fun LazyListScope.streamsCategory(vm: SettingsViewModel, settings: AppSe
 }
 
 private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: AppSettings) {
-    group("subtitle-style", "Subtitle appearance", "Also available in the player: Subtitles → Subtitle style.") {
+    group("subtitle-prefs", "Subtitle preferences") {
+        ToggleRow("Prefer SDH subtitles", "Choose subtitles for the deaf and hard of hearing (with sound descriptions like [door slams]) when a language has them.", settings.preferSdh) {
+            vm.update { it.copy(preferSdh = !it.preferSdh) }
+        }
+        ToggleRow("Use original formatting", "Show subtitles with the file's own fonts, colors and positions. Turns off the custom appearance below.", settings.subtitleOriginalStyle) {
+            vm.update { it.copy(subtitleOriginalStyle = !it.subtitleOriginalStyle) }
+        }
+    }
+    if (!settings.subtitleOriginalStyle) group("subtitle-style", "Subtitle appearance", "Also available in the player: hold OK on Subtitles → Subtitle style.") {
         SubtitlePreview(settings)
         SubtitleStyleEditor(settings) { t -> vm.update(t) }
     }
@@ -369,12 +369,15 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("theme", "Color theme") {
         ThemePicker(settings) { t -> vm.update(t) }
     }
-    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. RGB, Snowfall and Rain keep your color theme.") {
+    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk, Y2K and the other effect themes bring their own colors. Y2K restyles the whole app: chrome buttons, a PS2-style backdrop and chromatic aberration. RGB, Snowfall and Rain keep your color theme.") {
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(DynamicTheme.entries.toList(), key = { it.name }) { d ->
                 TvChip(d.label, selected = settings.dynamicTheme == d.name, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
             }
         }
+    }
+    group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors. Each theme keeps its own, separately for light and dark mode.") {
+        ColorCustomizer(settings) { t -> vm.update(t) }
     }
     group("feedback", "Touch screens") {
         ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {
@@ -382,11 +385,14 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
         }
     }
     group(
-        "screensaver", "Library screensaver",
-        "A full-screen slideshow of backdrops from My List and your watch history after Zemu sits idle. Any button or touch returns to where you were.",
+        "screensaver", "Screensaver",
+        "After Zemu sits idle, a full-screen slideshow of titles picked for you, from the same suggestions and catalogs as Home (a new mix every time). OK plays the title showing; any other button returns to where you were.",
     ) {
-        ToggleRow("Library Screensaver", "Off by default. Needs a TMDB or fanart.tv key below to find backdrops.", settings.screensaver) {
+        ToggleRow("Screensaver", "Off by default. Needs a TMDB or fanart.tv key below to find backdrops and title logos.", settings.screensaver) {
             vm.update { it.copy(screensaver = !it.screensaver) }
+        }
+        ToggleRow("Show title and Watch now", "The title's logo, year and genres, with a Watch now button.", settings.screensaverShowTitle) {
+            vm.update { it.copy(screensaverShowTitle = !it.screensaverShowTitle) }
         }
         // Idle timeout: 15 s to 10 min in 15 s steps. Image duration: 3–60 s.
         TvSlider(
@@ -394,9 +400,14 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverIdleSec}s",
         ) { v -> vm.update { it.copy(screensaverIdleSec = (15 + Math.round(v * 585 / 15f) * 15).coerceIn(15, 600)) } }
         TvSlider(
-            "Image duration (s)", (settings.screensaverImageSec - 3) / 57f, 1f / 57f,
+            "Time per title (s)", (settings.screensaverImageSec - 3) / 57f, 1f / 57f,
             androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverImageSec}s",
         ) { v -> vm.update { it.copy(screensaverImageSec = (3 + Math.round(v * 57)).coerceIn(3, 60)) } }
+        // Fade: 0.3–5 s in tenths.
+        TvSlider(
+            "Fade between titles", (settings.screensaverFadeTenths - 3) / 47f, 1f / 47f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "%.1fs".format(settings.screensaverFadeTenths / 10f),
+        ) { v -> vm.update { it.copy(screensaverFadeTenths = (3 + Math.round(v * 47)).coerceIn(3, 50)) } }
         var tmdbKey by remember { mutableStateOf("") }
         Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvTextField(tmdbKey, { tmdbKey = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API Key" else "TMDB key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
@@ -418,32 +429,42 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     }
 }
 
-private fun LazyListScope.deviceCategory(vm: SettingsViewModel) {
+private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSettings) {
+    val detected = vm.container.detectedCapabilities
     val caps = vm.capabilities
-    group("output", "Video output") {
-        InfoRow("Maximum resolution", if (caps.maxResolution >= 2160) "4K" else "${caps.maxResolution}p")
+    fun res(r: Int) = if (r >= 2160) "4K" else "${r}p"
+    group("reset", "Recommended settings") {
+        val changed = settings.deviceOverrides.isNotEmpty() || settings.maxResolutionOverride != 0 || settings.avoidDolbyVision || settings.preferSoftwareDecoders
+        ValueRow("Reset to recommended settings for my TV", if (changed) "Uses what this TV reports" else "Already using them") {
+            vm.update { it.copy(deviceOverrides = emptyMap(), maxResolutionOverride = 0, avoidDolbyVision = false, preferSoftwareDecoders = false) }
+        }
     }
-    group("formats", "Formats this device can play") {
-        caps.summary().forEach { (label, ok) -> InfoRow(label, if (ok) "✓ Supported" else "✗ Not supported", ok) }
+    group("output", "Video output", "OK cycles through the choices.") {
+        val options = listOf(0, 2160, 1440, 1080, 720)
+        ValueRow("Maximum resolution", if (settings.maxResolutionOverride == 0) "${res(detected.maxResolution)} (detected)" else res(caps.maxResolution)) {
+            vm.update { s -> s.copy(maxResolutionOverride = options[(options.indexOf(s.maxResolutionOverride) + 1).mod(options.size)]) }
+        }
     }
-}
-
-/** A read-only line. Focusable so the remote can scroll to it. */
-@Composable
-private fun InfoRow(title: String, value: String, ok: Boolean = true) {
-    FocusSurface(
-        onClick = {},
-        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        shape = RoundedCornerShape(10.dp),
-        containerColor = Palette.Surface,
-        focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Palette.Text,
-        focusedBorder = Palette.FocusBorder,
-        focusedScale = 1.01f,
-    ) {
-        Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(value, color = if (ok) Palette.Match else Palette.TextMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    group("formats", "Formats this TV can play", "OK switches a format on or off. \"Detected\" means it's what the TV reported.") {
+        DeviceCapabilities.KEYS.forEach { (key, label) ->
+            val on = caps.supports(key)
+            val manual = key in settings.deviceOverrides
+            ToggleRow(label, if (manual) "Set by you (detected: ${if (detected.supports(key)) "supported" else "not supported"})" else "Detected", on) {
+                vm.update { s ->
+                    val next = !on
+                    // Back to the detected value drops the override, so a reset isn't needed.
+                    val o = if (next == detected.supports(key)) s.deviceOverrides - key else s.deviceOverrides + (key to next)
+                    s.copy(deviceOverrides = o)
+                }
+            }
+        }
+    }
+    group("decoders", "Decoders") {
+        ToggleRow("Play Dolby Vision as HDR10", "For TVs whose Dolby Vision decoder fails on some files.", settings.avoidDolbyVision) {
+            vm.update { it.copy(avoidDolbyVision = !it.avoidDolbyVision) }
+        }
+        ToggleRow("Prefer software video decoders", "Slower, but plays files the hardware decoder rejects.", settings.preferSoftwareDecoders) {
+            vm.update { it.copy(preferSoftwareDecoders = !it.preferSoftwareDecoders) }
         }
     }
 }
@@ -469,17 +490,14 @@ private fun ToggleRow(title: String, description: String, on: Boolean, onClick: 
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface,
-        focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Palette.Text,
-        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.01f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(description, color = Palette.TextSecondary, fontSize = 13.sp)
+                Text(description, color = LocalContentColor.current.copy(alpha = 0.72f), fontSize = 13.sp)
             }
-            Text(if (on) "ON" else "OFF", color = if (on) Palette.Match else Palette.TextMuted, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Text(if (on) "ON" else "OFF", color = LocalContentColor.current.copy(alpha = if (on) 1f else 0.5f), fontWeight = FontWeight.Black, fontSize = 15.sp)
         }
     }
 }
@@ -491,14 +509,11 @@ private fun ValueRow(title: String, value: String, modifier: Modifier = Modifier
         modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         shape = RoundedCornerShape(10.dp),
         containerColor = Palette.Surface,
-        focusedContainerColor = Palette.SurfaceHigh,
-        focusedContentColor = Palette.Text,
-        focusedBorder = Palette.FocusBorder,
         focusedScale = 1.01f,
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(value, color = Palette.TextSecondary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, color = LocalContentColor.current.copy(alpha = 0.72f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

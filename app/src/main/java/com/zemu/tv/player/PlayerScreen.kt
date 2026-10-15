@@ -68,7 +68,9 @@ import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class PlayerDialog { SUBTITLE_STYLE }
+private enum class PlayerDialog { SUBTITLE_STYLE, AUDIO, SUBTITLES }
+
+private const val STYLE_OPTION = "__style"
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
 
@@ -283,6 +285,35 @@ fun PlayerScreen(a: PlayerActivity) {
 
     when (dialog) {
         PlayerDialog.SUBTITLE_STYLE -> SubtitleStyleDialog(settings, update = { t -> scope.launch { c.userStore.updateSettings(t) } }) { dialog = null }
+        PlayerDialog.AUDIO -> {
+            @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
+            val options = a.audioOptions()
+            com.zemu.tv.ui.components.ChoiceDialog(
+                title = "Audio",
+                options = options.map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) },
+                selected = options.filter { it.selected }.map { it.key }.toSet(),
+                multiSelect = false,
+                onToggle = { k -> options.firstOrNull { it.key == k }?.let { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_AUDIO) } },
+                onDismiss = { dialog = null },
+            )
+        }
+        PlayerDialog.SUBTITLES -> {
+            @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
+            val options = a.subtitleOptions()
+            com.zemu.tv.ui.components.ChoiceDialog(
+                title = "Subtitles",
+                options = options.map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) } +
+                    com.zemu.tv.ui.components.ChoiceOption(STYLE_OPTION, "Subtitle style…"),
+                selected = options.filter { it.selected }.map { it.key }.toSet(),
+                multiSelect = false,
+                onToggle = { k ->
+                    if (k == STYLE_OPTION) dialog = PlayerDialog.SUBTITLE_STYLE
+                    else options.firstOrNull { it.key == k }?.let { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_TEXT) }
+                },
+                // Picking "Subtitle style…" swaps dialogs; only close when this one is still showing.
+                onDismiss = { if (dialog == PlayerDialog.SUBTITLES) dialog = null },
+            )
+        }
         null -> {}
     }
 }
@@ -292,9 +323,19 @@ private fun handleMediaKeys(a: PlayerActivity, e: KeyEvent): Boolean? {
     val down = e.type == KeyEventType.KeyDown
     return when (e.key) {
         Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> { if (down) a.togglePlay(); true }
-        Key.MediaFastForward -> { if (down) a.scrub(1, e.nativeKeyEvent.repeatCount); true }
-        Key.MediaRewind -> { if (down) a.scrub(-1, e.nativeKeyEvent.repeatCount); true }
+        Key.MediaFastForward, Key.ButtonR1 -> { holdScrub(a, e, 1); true }
+        Key.MediaRewind, Key.ButtonL1 -> { holdScrub(a, e, -1); true }
         else -> null
+    }
+}
+
+/** A tap jumps one step; holding scrubs smoothly, faster the longer it's held, until released. */
+private fun holdScrub(a: PlayerActivity, e: KeyEvent, direction: Int) {
+    when {
+        e.type == KeyEventType.KeyUp -> a.stopHoldScrub()
+        e.type != KeyEventType.KeyDown -> {}
+        e.nativeKeyEvent.repeatCount == 0 -> a.scrub(direction, 0)
+        else -> a.startHoldScrub(direction)
     }
 }
 
@@ -424,14 +465,14 @@ private fun MenuBar(
     var more by remember { mutableStateOf(false) }
     val items = if (!more) buildList {
         add(MenuItem("play", if (a.isPlaying) "Pause" else "Play", if (a.isPlaying) AppIcons.Pause else AppIcons.Play) { a.togglePlay() })
-        add(MenuItem("audio", "Audio: ${a.currentAudioLabel()}", AppIcons.Audio) { a.cycleAudio() })
+        add(MenuItem("audio", "Audio: ${a.currentAudioLabel()}  ·  hold OK to choose", AppIcons.Audio, onLongClick = { onDialog(PlayerDialog.AUDIO) }) { a.cycleAudio() })
         add(
             MenuItem(
                 "subs",
-                "Subtitles: ${a.currentSubtitleLabel()}  ·  hold OK for subtitle style",
+                "Subtitles: ${a.currentSubtitleLabel()}  ·  hold OK to choose or change the style",
                 AppIcons.Subtitles,
                 active = a.currentSubtitleLabel() != "Off",
-                onLongClick = { onDialog(PlayerDialog.SUBTITLE_STYLE) },
+                onLongClick = { onDialog(PlayerDialog.SUBTITLES) },
             ) { a.cycleSubtitles() },
         )
         if (a.nextUp != null) add(MenuItem("next", "Next episode", AppIcons.Next) { a.playNextNow() })
@@ -465,8 +506,9 @@ private fun MenuBar(
                         .onFocusChanged { if (it.isFocused) focusedKey = item.key }
                         .then(if (item.key == "play" || item.key == "less") Modifier.focusRequester(playFocus) else Modifier),
                     shape = CircleShape,
-                    containerColor = if (item.active) Palette.Accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.14f),
-                    contentColor = if (item.active) Palette.OnAccent else Color.White,
+                    // Dark buttons; "on" shows as an accent icon, focus as the accent fill.
+                    containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
+                    contentColor = if (item.active) Palette.Accent else Color.White,
                     focusedScale = 1.12f,
                 ) {
                     Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(26.dp))
@@ -511,10 +553,8 @@ private fun BubbleButton(onClick: () -> Unit, modifier: Modifier = Modifier, con
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
         focusedScale = 1.04f,
-        containerColor = Color.White.copy(alpha = 0.18f),
+        containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
         contentColor = Color.White,
-        focusedContainerColor = Color.White,
-        focusedContentColor = Color.Black,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { content() }
     }

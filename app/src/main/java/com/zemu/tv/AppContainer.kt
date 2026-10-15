@@ -51,9 +51,21 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
     val freeCast = com.zemu.tv.data.FreeCast(http, json)
     val screensaverImages = com.zemu.tv.data.ScreensaverImages(context, http, json, tmdb) { userStore.settings.value.fanartApiKey }
 
-    /** Titles for the screensaver: My List plus watch history. */
-    fun libraryTitles(): List<com.zemu.tv.data.Meta> =
-        (userStore.myList.value + userStore.history.value.map { it.meta }).distinctBy { it.id }
+    /** Home's discovery rows (recommendations and catalogs), published for the screensaver. */
+    val discovery = MutableStateFlow(com.zemu.tv.ui.home.DiscoveryPool())
+
+    /**
+     * A fresh mix of suggestions for each screensaver run: mostly personal recommendations, the
+     * rest from catalogs, minus anything already watched. Falls back to My List before Home loads.
+     */
+    fun screensaverTitles(count: Int = 30): List<com.zemu.tv.data.Meta> {
+        val seen = userStore.watched.value
+        val pool = discovery.value
+        val daily = pool.recommended.filter { it.id !in seen }.distinctBy { it.id }.shuffled()
+        val catalogs = pool.catalogs.filter { it.id !in seen }.distinctBy { it.id }.shuffled()
+        val picked = (daily.take(count * 2 / 3) + catalogs).distinctBy { it.id }.take(count)
+        return picked.ifEmpty { userStore.myList.value.shuffled().take(count) }
+    }
     val debridAuth = com.zemu.tv.data.DebridAuth(http, json)
     /** Shows you've watched that have episodes out since you last watched them. */
     val newEpisodes = com.zemu.tv.data.NewEpisodes(addons, userStore, appScope)
@@ -98,7 +110,10 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
             }
         }
     }
-    val capabilities: DeviceCapabilities by lazy { DeviceCapabilities.detect(context) }
+    /** What this TV reported; [capabilities] adds the user's overrides from Settings → This TV. */
+    val detectedCapabilities: DeviceCapabilities by lazy { DeviceCapabilities.detect(context) }
+    val capabilities: DeviceCapabilities
+        get() = userStore.settings.value.let { detectedCapabilities.withOverrides(it.deviceOverrides, it.maxResolutionOverride) }
 
     /** Stream filters persist across titles for the session, like a "sticky" preference. */
     val streamFilter = MutableStateFlow(FilterState())
