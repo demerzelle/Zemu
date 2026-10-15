@@ -256,6 +256,7 @@ fun TvTextField(
     var boxFocused by remember { mutableStateOf(false) }
     var fieldFocused by remember { mutableStateOf(false) }
     val fieldFocus = remember { FocusRequester() }
+    val boxFocus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(editing) {
@@ -267,6 +268,7 @@ fun TvTextField(
     val active = boxFocused || fieldFocused
     Box(
         modifier
+            .focusRequester(boxFocus)
             .onFocusChanged { boxFocused = it.isFocused }
             .onKeyEvent { e ->
                 val ok = e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter
@@ -291,7 +293,14 @@ fun TvTextField(
             textStyle = TextStyle(color = Palette.Text, fontSize = 18.sp),
             cursorBrush = SolidColor(Palette.Text),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
-            keyboardActions = KeyboardActions(onDone = { onSubmit() }, onSearch = { onSubmit() }, onGo = { onSubmit() }),
+            // The keyboard's ✓ / Enter: submit or save what was typed, close the keyboard, and put focus
+            // back on the field so the remote carries on from there.
+            keyboardActions = KeyboardActions(onAny = {
+                onSubmit()
+                keyboard?.hide()
+                editing = false
+                runCatching { boxFocus.requestFocus() }
+            }),
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(fieldFocus)

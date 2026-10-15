@@ -222,10 +222,10 @@ fun PlayerScreen(a: PlayerActivity) {
                     Modifier
                         .fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
-                        .padding(horizontal = 48.dp, vertical = 28.dp),
+                        .padding(horizontal = 40.dp, vertical = 18.dp),
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(a.title, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(a.title, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         a.label?.let { Text(it, fontSize = 16.sp, color = Palette.TextSecondary, maxLines = 1) }
                         Text(a.streamLabel, fontSize = 13.sp, color = Palette.TextMuted, maxLines = 1)
                     }
@@ -247,7 +247,7 @@ fun PlayerScreen(a: PlayerActivity) {
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))))
-                        .padding(start = 48.dp, end = 48.dp, top = 60.dp, bottom = 28.dp),
+                        .padding(start = 40.dp, end = 40.dp, top = 36.dp, bottom = 16.dp),
                 ) {
                     var seekFocused by remember { mutableStateOf(false) }
                     Box(
@@ -268,7 +268,7 @@ fun PlayerScreen(a: PlayerActivity) {
                     ) {
                         SeekBar(a, focused = seekFocused)
                     }
-                    Spacer(Modifier.height(18.dp))
+                    Spacer(Modifier.height(10.dp))
                     MenuBar(
                         a = a,
                         playFocus = playFocus,
@@ -509,7 +509,7 @@ private fun MenuBar(
                         onClick = item.onClick,
                         onLongClick = item.onLongClick,
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(34.dp)
                             .onFocusChanged { if (it.isFocused) focusedKey = item.key }
                             .then(if (item.key == "play") Modifier.focusRequester(playFocus) else Modifier),
                         shape = CircleShape,
@@ -518,19 +518,19 @@ private fun MenuBar(
                         contentColor = if (item.active) Palette.Accent else Color.White,
                         focusedScale = 1.12f,
                     ) {
-                        Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(20.dp))
+                        Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(17.dp))
                     }
                     val focused = focusedKey == item.key
-                    Text(item.label, fontSize = 11.sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
-                        color = if (focused) Color.White else Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 6.dp))
+                    Text(item.label, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
+                        color = if (focused) Color.White else Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 3.dp))
                     item.value?.let {
-                        Text(it, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp),
+                        Text(it, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp),
                             color = if (item.active) Palette.Accent else Color.White.copy(alpha = 0.55f))
                     }
                 }
             }
         }
-        Text("Hold OK on Audio or Subtitles to see every track", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(top = 8.dp))
+        Text("Hold OK on Audio or Subtitles to see every track", fontSize = 10.sp, color = Color.White.copy(alpha = 0.45f), modifier = Modifier.padding(top = 4.dp))
     }
 }
 

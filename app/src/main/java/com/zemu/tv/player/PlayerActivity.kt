@@ -176,7 +176,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             val s by c.userStore.settings.collectAsStateWithLifecycle()
             // The player is always dark, whatever the app's light/dark setting.
-            ZemuTheme(s.resolvedColors(light = false)) { PlayerScreen(this) }
+            ZemuTheme(s.resolvedColors(light = false), s.uiZoom) { PlayerScreen(this) }
         }
         start(resumeMs)
         loadEpisodes()

@@ -278,7 +278,7 @@ fun AppShell() {
                 inMyList = myList.any { it.id == m.id },
                 inHistory = history.any { it.meta.id == m.id },
                 rowOptions = menuRowOptions != null,
-            ),
+            ).filter { it != CardAction.TRAILER || c.userStore.settings.value.trailers },
             onAction = { a -> resolving(context, scope, m) { m ->
                 when (a) {
                     CardAction.PLAY -> if (kids.on || !com.zemu.tv.player.Playback.resumeSaved(context, m)) nav.navigate(detailsRoute(m, play = true))

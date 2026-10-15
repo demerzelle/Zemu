@@ -119,6 +119,14 @@ data class AppSettings(
     /** Muted trailer replaces the hero backdrop after a title stays focused. */
     val heroTrailers: Boolean = true,
     val heroTrailerSound: Boolean = false,
+    /** Off: no trailers anywhere (no autoplay, no Trailer buttons or menu items). */
+    val trailers: Boolean = true,
+    /** Off: no backdrop pictures behind the title at the top of Home, Browse and Details. */
+    val heroArt: Boolean = true,
+    /** Off: titles are written out in plain text instead of their logo artwork. */
+    val logoArt: Boolean = true,
+    /** Size of everything on screen, in percent (posters, text, icons, the player's menu). */
+    val uiZoom: Int = 100,
     /** Decode Dolby Vision as its HDR10/HEVC base layer. Turned on automatically if DV fails to decode. */
     val avoidDolbyVision: Boolean = false,
     val preferSoftwareDecoders: Boolean = false,

@@ -198,7 +198,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                ZemuTheme(colors) {
+                ZemuTheme(colors, settings.uiZoom) {
                     Box(Modifier.fillMaxSize()) {
                         if (picking) {
                             ProfilePicker(profiles, profileId) { p ->

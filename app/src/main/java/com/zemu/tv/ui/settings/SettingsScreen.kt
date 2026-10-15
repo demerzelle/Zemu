@@ -288,6 +288,9 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Vibration" to SettingsCategory.APPEARANCE,
     "Sound effects (clicks, blips)" to SettingsCategory.APPEARANCE,
     "Trailers (autoplay, sound)" to SettingsCategory.APPEARANCE,
+    "UI zoom (poster, text and icon size)" to SettingsCategory.APPEARANCE,
+    "Title artwork, logo artwork (plain text titles)" to SettingsCategory.APPEARANCE,
+    "Turn off trailers completely" to SettingsCategory.APPEARANCE,
     "4K, HDR10, Dolby Vision, Atmos, DTS support" to SettingsCategory.DEVICE,
     "Reset to recommended settings for my TV" to SettingsCategory.DEVICE,
     "Play Dolby Vision as HDR10" to SettingsCategory.DEVICE,
@@ -529,11 +532,30 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             TvButton("Save", onClick = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
         }
     }
+    group("size", "Size & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu.") {
+        Text("UI zoom", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        // Wraps onto a second line at big zoom sizes.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(80, 90, 100, 110, 125, 150).forEach { z ->
+                TvChip("$z%", settings.uiZoom == z, { vm.update { it.copy(uiZoom = z) } })
+            }
+        }
+        ToggleRow("Title artwork", "The big picture behind the title at the top of Home, Browse and the title page.", settings.heroArt) {
+            vm.update { it.copy(heroArt = !it.heroArt) }
+        }
+        ToggleRow("Logo artwork", "Show titles as their logo artwork. Off: plain text.", settings.logoArt) {
+            vm.update { it.copy(logoArt = !it.logoArt) }
+        }
+    }
     group("trailers", "Trailers") {
-        ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
+        ToggleRow("Trailers", "Off: no trailers anywhere, no autoplay and no Trailer buttons.", settings.trailers) {
+            vm.update { it.copy(trailers = !it.trailers) }
+        }
+        if (settings.trailers) ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
             vm.update { it.copy(heroTrailers = !it.heroTrailers) }
         }
-        ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
+        if (settings.trailers) ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
             vm.update { it.copy(heroTrailerSound = !it.heroTrailerSound) }
         }
     }

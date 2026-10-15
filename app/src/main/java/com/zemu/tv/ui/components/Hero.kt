@@ -58,6 +58,8 @@ import com.zemu.tv.data.backdropUrl
 import com.zemu.tv.data.logoUrl
 import com.zemu.tv.data.runtimeLabel
 import com.zemu.tv.data.title
+import com.zemu.tv.container
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zemu.tv.data.trailerId
 import com.zemu.tv.player.YouTubeEmbed
 import com.zemu.tv.ui.theme.Palette
@@ -141,6 +143,10 @@ fun HeroTrailer(videoId: String, sound: Boolean, modifier: Modifier = Modifier, 
  */
 @Composable
 fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? = null, trailerSound: Boolean = false) {
+    // Settings can turn off the picture and trailers here for every screen at once.
+    val settings = LocalContext.current.container.userStore.settings.collectAsStateWithLifecycle().value
+    val art = meta?.backdropUrl()?.takeIf { settings.heroArt }
+    val trailerAfterMs = trailerAfterMs?.takeIf { settings.trailers }
     var showTrailer by remember(meta?.id) { mutableStateOf(false) }
     // Several official trailers play one after another; otherwise the single one.
     val playlist = remember(meta?.id) { meta?.officialTrailers.orEmpty() }
@@ -154,7 +160,7 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
         }
     }
     Box(modifier) {
-        Crossfade(targetState = meta?.backdropUrl(), label = "backdrop") { url ->
+        Crossfade(targetState = art, label = "backdrop") { url ->
             Box(Modifier.fillMaxSize()) {
                 RemoteImage(url, Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd), alignment = Alignment.TopCenter)
             }
@@ -171,7 +177,7 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
             }
         }
         // Scrims only over a picture; with nothing to show, the theme's scene shows through.
-        if (meta?.backdropUrl() != null) Box(
+        if (art != null) Box(
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to Palette.Background,
@@ -181,14 +187,14 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
                 ),
             ),
         )
-        if (meta?.backdropUrl() != null) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Palette.Background)))
+        if (art != null) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Palette.Background)))
     }
 }
 
 @Composable
 fun TitleLogo(meta: Meta, maxHeight: Int = 110) {
     var failed by remember(meta.id) { mutableStateOf(false) }
-    val logo = meta.logoUrl()
+    val logo = meta.logoUrl()?.takeIf { LocalContext.current.container.userStore.settings.collectAsStateWithLifecycle().value.logoArt }
     if (logo != null && !failed) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current).data(logo).crossfade(true).build(),

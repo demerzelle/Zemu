@@ -164,14 +164,16 @@ private fun LinkDialog(c: AppContainer, service: DebridService, phoneAddress: St
                         }
                     }
                     Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TvTextField(key, { key = it }, "${service.label} API key", Modifier.weight(1f))
-                        TvButton("Save", onClick = {
+                        val save = {
                             scope.launch {
                                 if (key.isBlank()) return@launch
                                 if (c.debridAuth.verify(service, key)) onLinked(c.linkDebrid(DebridAccount(service, key.trim())))
                                 else error = "${service.label} didn't accept that key. Copy it from ${service.keyPage}."
                             }
-                        })
+                            Unit
+                        }
+                        TvTextField(key, { key = it }, "${service.label} API key", Modifier.weight(1f), onSubmit = save)
+                        TvButton("Save", onClick = save)
                     }
                     if (!service.codeLogin) error?.let { Text(it, color = Palette.Cached, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }

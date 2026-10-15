@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -187,8 +188,11 @@ object Palette {
 }
 
 @Composable
-fun ZemuTheme(colors: ThemeColors, content: @Composable () -> Unit) {
+fun ZemuTheme(colors: ThemeColors, zoom: Int = 100, content: @Composable () -> Unit) {
     Palette.colors = colors
+    // UI zoom: scaling the density resizes every dp and sp, so layouts reflow instead of being stretched.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val zoomed = remember(density, zoom) { androidx.compose.ui.unit.Density(density.density * zoom / 100f, density.fontScale) }
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = colors.accent,
@@ -203,6 +207,7 @@ fun ZemuTheme(colors: ThemeColors, content: @Composable () -> Unit) {
         typography = styleTypography(colors.style, colors.variant),
     ) {
         CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides zoomed,
             LocalContentColor provides Palette.Text,
             androidx.tv.material3.LocalTextStyle provides styleTextStyle(colors.style, colors.variant),
             content = content,

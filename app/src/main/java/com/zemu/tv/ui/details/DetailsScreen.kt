@@ -264,7 +264,7 @@ fun DetailsScreen(
                         if (resume != null && (best != null || hasSaved)) {
                             TvButton("Start from beginning", onClick = { playSavedOrBest(fromStart = true) })
                         }
-                        m.officialTrailers.takeIf { it.isNotEmpty() }?.let { list ->
+                        m.officialTrailers.takeIf { it.isNotEmpty() && settings.trailers }?.let { list ->
                             TvButton(if (list.size > 1) "Trailers" else "Trailer", onClick = { TrailerActivity.start(context, list) })
                         }
                         TvButton("Streams", onClick = { scope.launch { listState.animateScrollToItem(streamsHeaderIndex) } })
