@@ -40,6 +40,10 @@ android {
     buildFeatures {
         compose = true
     }
+    // SoundPool reads sound effects straight out of the APK, so they must stay uncompressed.
+    androidResources {
+        noCompress += listOf("wav", "ogg", "mp3", "m4a")
+    }
     lint {
         abortOnError = false
         checkReleaseBuilds = false

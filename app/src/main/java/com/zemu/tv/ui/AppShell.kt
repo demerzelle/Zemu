@@ -141,6 +141,13 @@ fun AppShell() {
     var menuRowOptions by remember { mutableStateOf<(() -> Unit)?>(null) }
     var railOpen by remember { mutableStateOf(false) }
     LaunchedEffect(showRail) { if (!showRail) railOpen = false }
+    // A movie just finished: back to Home.
+    val goHome = com.zemu.tv.PendingOpen.goHome
+    LaunchedEffect(goHome) {
+        if (!goHome) return@LaunchedEffect
+        com.zemu.tv.PendingOpen.goHome = false
+        nav.popBackStack("home", inclusive = false)
+    }
     val pending = com.zemu.tv.PendingOpen.target
     LaunchedEffect(pending) {
         val (type, id) = pending ?: return@LaunchedEffect
@@ -306,7 +313,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
         when {
             logoTaps >= 10 -> {
                 logoTaps = 0
-                logoScope.launch { ctx.container.userStore.updateSettings { it.copy(catRaveUnlocked = true, dynamicTheme = "CATRAVE") } }
+                logoScope.launch { ctx.container.userStore.updateSettings { it.copy(catRaveUnlocked = true, dynamicTheme = "CATRAVE", themeBeforeRave = if (it.dynamicTheme == "CATRAVE") it.themeBeforeRave else it.dynamicTheme) } }
                 android.widget.Toast.makeText(ctx, "😼  CAT RAVE UNLOCKED  😼", android.widget.Toast.LENGTH_LONG).show()
             }
             logoTaps >= 7 -> android.widget.Toast.makeText(ctx, "${10 - logoTaps}…", android.widget.Toast.LENGTH_SHORT).show()

@@ -35,6 +35,9 @@ object PendingOpen {
     /** Start playing [target] right away (the screensaver's "Watch now"). */
     var play = false
 
+    /** Set when a movie finishes: the app returns to Home. */
+    var goHome by mutableStateOf(false)
+
     fun from(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme !in setOf("zemu") || uri.host != "details") return
@@ -109,6 +112,7 @@ class MainActivity : ComponentActivity() {
             }
             return true
         }
+        uiSound(event)
         if (event.keyCode == swallowKey) {
             if (event.action == android.view.KeyEvent.ACTION_UP) swallowKey = -1
             return true
@@ -116,7 +120,26 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private var holdPlayed = false
+
+    /** Sound effects for remote input: arrows move, OK selects (or holds), Back goes back. */
+    private fun uiSound(e: android.view.KeyEvent) {
+        val down = e.action == android.view.KeyEvent.ACTION_DOWN
+        when (e.keyCode) {
+            android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+            android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT ->
+                if (down) com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.MOVE)
+            android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER, android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> when {
+                down && e.repeatCount == 0 -> holdPlayed = false
+                down && e.repeatCount == 1 -> { holdPlayed = true; com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.HOLD) }
+                !down && !holdPlayed -> com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.SELECT)
+            }
+            android.view.KeyEvent.KEYCODE_BACK -> if (down && e.repeatCount == 0) com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.BACK)
+        }
+    }
+
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_UP && !screensaverOn) com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.SELECT)
         lastInput = android.os.SystemClock.uptimeMillis()
         if (screensaverOn && ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
             screensaverOn = false
@@ -154,6 +177,9 @@ class MainActivity : ComponentActivity() {
                 val base = settings.resolvedColors()
                 val colors = rgbAccent?.let { base.copy(accent = it) } ?: base
                 appColors = colors
+                // Sound effects follow the theme (each restyling theme has its own set).
+                com.zemu.tv.ui.SoundFx.enabled = settings.soundEffects
+                androidx.compose.runtime.SideEffect { com.zemu.tv.ui.SoundFx.use(this@MainActivity, com.zemu.tv.ui.SoundFx.setFor(colors.style)) }
                 // Dark status/navigation bar icons in light mode (phones and tablets).
                 androidx.compose.runtime.SideEffect {
                     androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -177,6 +203,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         DynamicThemeLayer(dynamic, settings.variantOf(dynamic), onAccent = { rgbAccent = it })
+                        // The Cat Rave is a 30-second party, then your theme comes back.
+                        LaunchedEffect(dynamic) {
+                            if (dynamic != DynamicTheme.CATRAVE) return@LaunchedEffect
+                            kotlinx.coroutines.delay(30_000)
+                            c.userStore.updateSettings { if (it.dynamicTheme == "CATRAVE") it.copy(dynamicTheme = it.themeBeforeRave) else it }
+                            android.widget.Toast.makeText(this@MainActivity, "The cats are tired. Party's over 😴", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         // PS2 theme: a short boot splash on a cold start (rows keep loading underneath).
                         var booted by remember { mutableStateOf(bootShown) }
                         if (dynamic == DynamicTheme.Y2K && !booted && !picking) com.zemu.tv.ui.theme.Ps2Boot { booted = true; bootShown = true }

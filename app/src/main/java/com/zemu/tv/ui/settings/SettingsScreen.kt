@@ -269,7 +269,7 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Preferred subtitle language" to SettingsCategory.STREAMS,
     "Turn on subtitles automatically" to SettingsCategory.STREAMS,
     "Prefer SDH subtitles (deaf / hard of hearing)" to SettingsCategory.SUBTITLES,
-    "Original subtitle formatting" to SettingsCategory.SUBTITLES,
+    "Original subtitle style / custom style on or off" to SettingsCategory.SUBTITLES,
     "Subtitle size, color, background, outline, position" to SettingsCategory.SUBTITLES,
     "Skip intro button" to SettingsCategory.SUBTITLES,
     "Light mode / dark mode" to SettingsCategory.APPEARANCE,
@@ -282,6 +282,7 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.APPEARANCE,
     "Screensaver" to SettingsCategory.APPEARANCE,
     "Vibration" to SettingsCategory.APPEARANCE,
+    "Sound effects (clicks, blips)" to SettingsCategory.APPEARANCE,
     "Trailers (autoplay, sound)" to SettingsCategory.APPEARANCE,
     "4K, HDR10, Dolby Vision, Atmos, DTS support" to SettingsCategory.DEVICE,
     "Reset to recommended settings for my TV" to SettingsCategory.DEVICE,
@@ -376,7 +377,7 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
         ToggleRow("Autoplay next episode", "Near the end of an episode, count down and start the next one.", settings.autoplayNext) {
             vm.update { it.copy(autoplayNext = !it.autoplayNext) }
         }
-        ToggleRow("Play something similar", "After a movie or a series finale, count down to a recommended title you haven't seen.", settings.autoplaySimilar) {
+        ToggleRow("Play something similar after a series", "After a series finale, count down to a recommended show. Movies never autoplay: when the credits start, Zemu goes back to Home.", settings.autoplaySimilar) {
             vm.update { it.copy(autoplaySimilar = !it.autoplaySimilar) }
         }
         if (settings.autoplayNext || settings.autoplaySimilar) {
@@ -424,12 +425,9 @@ private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: App
         ToggleRow("Prefer SDH subtitles", "Choose subtitles for the deaf and hard of hearing (with sound descriptions like [door slams]) when a language has them.", settings.preferSdh) {
             vm.update { it.copy(preferSdh = !it.preferSdh) }
         }
-        ToggleRow("Use original formatting", "Show subtitles with the file's own fonts, colors and positions. Turns off the custom appearance below.", settings.subtitleOriginalStyle) {
-            vm.update { it.copy(subtitleOriginalStyle = !it.subtitleOriginalStyle) }
-        }
     }
-    if (!settings.subtitleOriginalStyle) group("subtitle-style", "Subtitle appearance", "Also available in the player: hold OK on Subtitles → Subtitle style.") {
-        SubtitlePreview(settings)
+    group("subtitle-style", "Subtitle appearance", "Turn Custom style off to show subtitles exactly as the file styles them. Also in the player: hold OK on Subtitles → Subtitle style.") {
+        if (!settings.subtitleOriginalStyle) SubtitlePreview(settings)
         SubtitleStyleEditor(settings) { t -> vm.update(t) }
     }
     group("skip", "Skipping") {
@@ -455,7 +453,9 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
         val current = DynamicTheme.of(settings.dynamicTheme)
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(DynamicTheme.entries.filter { !it.hidden || settings.catRaveUnlocked }, key = { it.name }) { d ->
-                TvChip(d.label, selected = current == d, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
+                TvChip(d.label, selected = current == d, onClick = {
+                    vm.update { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
+                })
             }
         }
         // Sub-themes: the kind of weather, the holiday, the vintage desktop.
@@ -478,6 +478,11 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
         }
         ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
             vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
+        }
+    }
+    group("sounds", "Sound effects") {
+        ToggleRow("Sound effects", "Soft clicks when you move, select, hold OK and go back. PS2, Acidwave, Cybercore, Graffiti, Liquid Glass, Ethereal and the Cat Rave each have their own sounds.", settings.soundEffects) {
+            vm.update { it.copy(soundEffects = !it.soundEffects) }
         }
     }
     group("feedback", "Touch screens") {

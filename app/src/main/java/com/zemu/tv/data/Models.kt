@@ -132,6 +132,8 @@ data class AppSettings(
     val themeVariants: Map<String, String> = emptyMap(),
     /** Found the secret (click the logo ten times). */
     val catRaveUnlocked: Boolean = false,
+    /** The animated theme to return to when the 30-second Cat Rave ends. */
+    val themeBeforeRave: String = "NONE",
     /** Full-screen slideshow of library backdrops after the app sits idle. */
     val screensaver: Boolean = false,
     val screensaverIdleSec: Int = 60,
@@ -151,6 +153,8 @@ data class AppSettings(
     // Player
     /** "FIT", "ZOOM", "STRETCH" or "CENTER". */
     val aspectMode: String = "FIT",
+    /** Clicks and blips when moving, selecting, holding and going back (themed). */
+    val soundEffects: Boolean = true,
     /** Short vibrations on phones when changing pages and starting a video. */
     val vibration: Boolean = true,
     /** Selecting a title or an episode starts playing right away instead of opening its page. */

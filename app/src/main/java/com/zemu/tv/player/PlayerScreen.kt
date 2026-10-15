@@ -501,14 +501,15 @@ private fun MenuBar(
     }
     var focusedKey by remember { mutableStateOf<String?>(null) }
     Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
+        // Every button the same size, spread evenly across the bar.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             items.forEach { item ->
-                Column(Modifier.width(98.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     FocusSurface(
                         onClick = item.onClick,
                         onLongClick = item.onLongClick,
                         modifier = Modifier
-                            .size(54.dp)
+                            .size(42.dp)
                             .onFocusChanged { if (it.isFocused) focusedKey = item.key }
                             .then(if (item.key == "play") Modifier.focusRequester(playFocus) else Modifier),
                         shape = CircleShape,
@@ -517,13 +518,13 @@ private fun MenuBar(
                         contentColor = if (item.active) Palette.Accent else Color.White,
                         focusedScale = 1.12f,
                     ) {
-                        Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(26.dp))
+                        Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(20.dp))
                     }
                     val focused = focusedKey == item.key
-                    Text(item.label, fontSize = 12.sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
+                    Text(item.label, fontSize = 11.sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
                         color = if (focused) Color.White else Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 6.dp))
                     item.value?.let {
-                        Text(it, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        Text(it, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp),
                             color = if (item.active) Palette.Accent else Color.White.copy(alpha = 0.55f))
                     }
                 }
@@ -696,7 +697,7 @@ private fun SubtitleStyleDialog(
         Box(Modifier.fillMaxSize().padding(top = 24.dp), contentAlignment = Alignment.TopCenter) {
             Column(
                 Modifier
-                    .width(820.dp)
+                    .width(640.dp)
                     .background(Palette.Surface.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
                     .padding(horizontal = 24.dp, vertical = 14.dp),
             ) {

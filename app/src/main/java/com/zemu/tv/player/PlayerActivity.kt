@@ -679,6 +679,8 @@ class PlayerActivity : ComponentActivity() {
     /** Near the end of a movie or a series' last episode, pick a similar unwatched title. */
     private fun requestRecommendation() {
         val m = meta ?: return
+        // Nothing starts by itself after a movie; it goes back Home at the credits instead.
+        if (m.type != "series") return
         if (recommendationRequested || nextUp != null || !c.userStore.settings.value.autoplaySimilar) return
         if (durationMs <= 0 || durationMs - positionMs > 4 * 60_000L) return
         if (m.type == "series" && episodes.isEmpty()) return // still loading, or a next episode may exist
@@ -691,7 +693,23 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private var leftForHome = false
+
+    /** A movie is over once its credits start: save it as watched and go back to Home. */
+    private fun finishMovieToHome() {
+        if (leftForHome) return
+        leftForHome = true
+        saveProgress()
+        com.zemu.tv.PendingOpen.goHome = true
+        finish()
+    }
+
     private fun maybeShowNextUp() {
+        if (meta?.type != "series") {
+            val creditsAt = segments.firstOrNull { it.type == SegmentType.CREDITS && it.startMs > durationMs / 2 }?.startMs
+            if (creditsAt != null && durationMs > 0 && positionMs >= creditsAt && player?.isPlaying == true) finishMovieToHome()
+            return
+        }
         requestRecommendation()
         val next = upNext ?: return
         val settings = c.userStore.settings.value
@@ -730,6 +748,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun onEnded() {
+        if (meta?.type != "series") return finishMovieToHome()
         saveProgress()
         if (sleep == SleepTimer.END_OF_EPISODE) {
             // Sleep timer: stop here instead of rolling into the next episode.
