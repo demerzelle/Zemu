@@ -101,6 +101,7 @@ function defaultSettings() as Object
         skipIntroButton: true
         avoidDolbyVision: false
         theme: "CLASSIC"
+        dynamicTheme: "NONE"
         customAccent: "39FF14"
         customBackground: "07090A"
         metaProvider: ""

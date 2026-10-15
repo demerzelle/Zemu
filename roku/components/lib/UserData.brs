@@ -62,6 +62,11 @@ function historyEntry(id as String, videoId = "" as String) as Dynamic
     for each e in m.global.history
         if e.i = id and (videoId = "" or e.v = videoId) then return e
     end for
+    ' History keeps one entry per title; older episodes' positions live in the episode map.
+    if videoId <> "" and m.global.episodes <> invalid
+        ep = m.global.episodes.Lookup(videoId)
+        if isArr(ep) then return { i: id, v: videoId, ps: ep[0], d: ep[1] }
+    end if
     return invalid
 end function
 
@@ -77,7 +82,9 @@ end sub
 
 sub clearHistory()
     m.global.history = []
+    m.global.episodes = {}
     regDelete(pidSection(), "hist")
+    regDelete(pidSection(), "eps")
     bumpUser()
 end sub
 
@@ -95,6 +102,23 @@ sub recordProgress(meta as Object, videoId as String, label as String, positionS
     end for
     out = arrTake(out, 40)
     m.global.history = out
+    eps = invalid
+    if videoId <> "" and videoId <> meta.id and m.global.episodes <> invalid
+        eps = m.global.episodes
+        eps[videoId] = [positionSec, durationSec]
+        ' Roku's registry is 16 KB per channel, so keep the map small.
+        ' shortcut: drops arbitrary entries past 60; fine while the map is only a resume aid.
+        if eps.Count() > 60
+            extra = eps.Count() - 60
+            for each k in eps.Keys()
+                if extra > 0 and k <> videoId
+                    eps.Delete(k)
+                    extra = extra - 1
+                end if
+            end for
+        end if
+        m.global.episodes = eps
+    end if
     progress = 0
     if durationSec > 0 then progress = positionSec / durationSec
     done = durationSec > 0 and progress > 0.92 and meta.type <> "series"
@@ -105,6 +129,7 @@ sub recordProgress(meta as Object, videoId as String, label as String, positionS
         if flush then saveWatched(w)
     end if
     if flush
+        if eps <> invalid then regWrite(pidSection(), "eps", eps)
         regWrite(pidSection(), "hist", out)
         bumpUser()
     end if

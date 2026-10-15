@@ -1,6 +1,7 @@
 ' Port of PlayerActivity.kt + PlayerScreen.kt.
-' Menu hidden: OK pauses and opens the menu, Left/Right scrub (15 s, faster the longer you hold),
-' Up/Down open the menu, Back exits. Menu open: Back (or Up from the seek bar) closes it.
+' Menu hidden: OK pauses and opens the menu, Left/Right tap to jump (15 s, more when pressed quickly)
+' or hold to scrub smoothly (faster the longer you hold; seeks once on release), Up/Down open the
+' menu, Back exits. Menu open: Back (or Up from the seek bar) closes it.
 
 sub init()
     m.video = m.top.findNode("video")
@@ -23,6 +24,10 @@ sub init()
     m.tick = m.top.findNode("tick")
     m.hideTimer = m.top.findNode("hideTimer")
     m.seekTimer = m.top.findNode("seekTimer")
+    m.holdTimer = m.top.findNode("holdTimer")
+    m.okTimer = m.top.findNode("okTimer")
+    m.sleepTimer = m.top.findNode("sleepTimer")
+    m.labels = m.top.findNode("labels")
     m.top.focusable = true
 
     m.video.notificationInterval = 1
@@ -32,13 +37,21 @@ sub init()
     m.tick.observeField("fire", "onTick")
     m.hideTimer.observeField("fire", "onHideTimer")
     m.seekTimer.observeField("fire", "commitScrub")
+    m.holdTimer.observeField("fire", "onHoldTick")
+    m.okTimer.observeField("fire", "onOkHeld")
+    m.sleepTimer.observeField("fire", "onSleepTimer")
     m.seek.observeField("focusedChild", "onSeekFocus")
     m.skipBtn.observeField("pressed", "onSkip")
 
     m.segments = []
     m.scrubTarget = -1
+    m.holdDir = 0
+    m.holdClock = CreateObject("roTimespan")
+    m.seekPendingAt = -1
+    m.sleepIdx = 0
     m.scrubCount = 0
     m.lastScrubKey = CreateObject("roTimespan")
+    m.lastScrubDir = 0
     m.lastFlush = 0
     m.autoplayed = 0
     m.countdown = -1
@@ -78,7 +91,8 @@ sub onParams()
     m.label.visible = m.labelText <> ""
     m.nextVideo = findNextVideo()
     buildBar()
-    startCandidate(toInt(p.startSec))
+    beginResume(toInt(p.startSec))
+    startCandidate(m.resumeAt)
     m.tick.control = "start"
     m.top.setFocus(true)
 end sub
@@ -101,6 +115,37 @@ function iso3For(code as String) as String
     if v = invalid then return code
     return v
 end function
+
+' Resume: PlayStart asks Roku to start there, but some streams (Matroska without an index, many
+' debrid links) start at 0 anyway. Until playback has really begun at the saved spot, nothing is
+' saved, so a slow or failed start can't wipe the resume point; once playing, a missed start is fixed
+' with a seek.
+sub beginResume(startSec as Integer)
+    m.resumeAt = startSec
+    m.resumed = false
+end sub
+
+' Where playback is (or will be): the scrub/seek target, the pending resume point, or the position.
+function currentPos() as Float
+    if m.scrubTarget >= 0 then return m.scrubTarget
+    if m.seekPendingAt >= 0 then return m.seekPendingAt
+    if not m.resumed then return m.resumeAt
+    return m.video.position
+end function
+
+sub checkResume()
+    if m.resumed or m.video.state <> "playing" then return
+    m.resumed = true
+    if m.resumeAt > 5 and Abs(m.video.position - m.resumeAt) > 10
+        print "[zemu] start missed the resume point ("; m.video.position; " vs "; m.resumeAt; "), seeking"
+        seekTo(m.resumeAt)
+    end if
+end sub
+
+sub seekTo(t as Float)
+    m.seekPendingAt = t
+    m.video.seek = t
+end sub
 
 sub startCandidate(startSec as Integer, format = "" as String)
     c = m.candidates[m.candIdx]
@@ -144,6 +189,10 @@ sub onState()
     s = m.video.state
     m.buffering.visible = s = "buffering"
     if s = "playing" or s = "paused" then updatePlayIcon()
+    if s = "playing"
+        if m.seekPendingAt >= 0 then m.seekPendingAt = -1
+        checkResume()
+    end if
     if s = "paused" then saveProgress(true)
     if s = "playing"
         if m.menu.visible then m.hideTimer.control = "start"
@@ -158,11 +207,13 @@ end sub
 
 sub handleError()
     c = m.candidates[m.candIdx]
-    curPos = Int(m.video.position)
+    curPos = Int(currentPos())
+    m.seekPendingAt = -1
     print "[zemu] playback error "; m.video.errorCode; " "; m.video.errorMsg; " "; m.format
     ' 1) same stream with the other container guess
     for each f in ["mkv", "mp4"]
         if not m.formatTried.DoesExist(c.key + "|" + f)
+            beginResume(curPos)
             startCandidate(curPos, f)
             return
         end if
@@ -171,6 +222,7 @@ sub handleError()
     if m.candIdx + 1 < m.candidates.Count()
         m.candIdx = m.candIdx + 1
         toast("That stream couldn't play on this TV. Trying the next best one…")
+        beginResume(curPos)
         startCandidate(curPos)
         return
     end if
@@ -186,8 +238,13 @@ sub onDuration()
 end sub
 
 sub onPosition()
-    curPos = m.video.position
-    if m.menu.visible then m.seekBar.position = curPos
+    if m.seekPendingAt >= 0 and Abs(m.video.position - m.seekPendingAt) < 3 then m.seekPendingAt = -1
+    checkResume()
+    ' the scrub bar stays up until the seek lands
+    if m.scrub.visible and m.scrubTarget < 0 and m.seekPendingAt < 0 and m.holdDir = 0 then m.scrub.visible = false
+    curPos = currentPos()
+    ' while scrubbing or seeking, the bar keeps showing the target instead of jumping back
+    if m.menu.visible and m.scrubTarget < 0 then m.seekBar.position = curPos
     m.seekBar.duration = m.video.duration
     updateSkip(curPos)
     checkNextUp(curPos)
@@ -196,7 +253,7 @@ end sub
 sub onTick()
     if m.video.state = "playing"
         now = nowSec()
-        flush = now - m.lastFlush >= 60
+        flush = now - m.lastFlush >= 15
         saveProgress(flush)
         if m.countdown > 0
             m.countdown = m.countdown - 1
@@ -212,8 +269,10 @@ end sub
 
 sub saveProgress(flush as Boolean, finished = false as Boolean)
     if m.meta = invalid then return
+    ' never overwrite the resume point before playback has reached it
+    if not m.resumed and not finished then return
     d = Int(m.video.duration)
-    p = Int(m.video.position)
+    p = Int(currentPos())
     if finished then p = d
     if d <= 0 and p <= 0 then return
     recordProgress(m.meta, m.videoId, m.labelText, p, d, flush)
@@ -221,66 +280,240 @@ sub saveProgress(flush as Boolean, finished = false as Boolean)
 end sub
 
 ' ---- menu ----
+' Port of MenuBar (PlayerScreen.kt): every control in one row, each labeled with its current setting.
+' Speed and Picture (aspect) are left out: Roku's video player can't change either.
 
 sub buildBar()
     m.bar.callFunc("clearItems")
+    m.labels.removeChildrenIndex(m.labels.getChildCount(), 0)
     m.btns = {}
+    m.btnOrder = []
     items = [
-        { id: "play", icon: "pause", label: "Pause" }
-        { id: "back10", icon: "replay10", label: "Back 10 seconds" }
-        { id: "fwd10", icon: "forward10", label: "Forward 10 seconds" }
-        { id: "audio", icon: "audio", label: "Audio track" }
-        { id: "subs", icon: "subtitles", label: "Subtitles" }
-        { id: "like", icon: "thumbup", label: "Like" }
-        { id: "dislike", icon: "thumbdown", label: "Dislike" }
-        { id: "mylist", icon: "add", label: "My List" }
+        { id: "play", icon: "pause" }
+        { id: "back10", icon: "replay10" }
+        { id: "fwd10", icon: "forward10" }
     ]
-    if m.nextVideo <> invalid then items.Push({ id: "next", icon: "next", label: "Next episode" })
-    for each it in items
+    if m.nextVideo <> invalid then items.Push({ id: "next", icon: "next" })
+    items.Append([
+        { id: "audio", icon: "audio" }
+        { id: "subs", icon: "subtitles" }
+        { id: "sleep", icon: "bedtime" }
+        { id: "like", icon: "thumbup" }
+        { id: "dislike", icon: "thumbdown" }
+        { id: "mylist", icon: "heart_outline" }
+    ])
+    n = items.Count()
+    btnW = 54
+    slot = 1152 / n
+    m.bar.spacing = slot - btnW
+    for i = 0 to n - 1
+        it = items[i]
         b = CreateObject("roSGNode", "TvButton")
         b.variant = "icon"
+        b.iconSize = btnW
         b.icon = "pkg:/images/ic_" + it.icon + ".png"
-        b.data = it
+        b.data = { id: it.id }
         b.observeField("pressed", "onBarPressed")
         b.observeField("focusedChild", "onBarFocus")
         m.bar.callFunc("addItem", b)
         m.btns[it.id] = b
+        m.btnOrder.Push(it.id)
+        g = m.labels.createChild("Group")
+        g.translation = [i * slot + btnW / 2 - slot / 2, 0]
+        name = g.createChild("Label")
+        name.width = slot
+        name.horizAlign = "center"
+        name.font = "font:SmallestSystemFont"
+        valueLbl = g.createChild("Label")
+        valueLbl.width = slot - 6
+        valueLbl.translation = [3, 22]
+        valueLbl.horizAlign = "center"
+        valueLbl.font = "font:SmallestSystemFont"
+        it.name = name
+        it.value = valueLbl
     end for
+    m.barItems = items
     refreshBar()
 end sub
 
+' Label, value and "on" state of each button, as in Android's MenuItem.
 sub refreshBar()
+    if m.btns = invalid then return
     r = ratingOf(m.meta.id)
+    listed = inMyList(m.meta.id)
+    playing = m.video.state <> "paused"
+    if playing then m.btns.play.icon = "pkg:/images/ic_pause.png" else m.btns.play.icon = "pkg:/images/ic_play.png"
     m.btns.like.checked = r > 0
     m.btns.dislike.checked = r < 0
-    if inMyList(m.meta.id) then m.btns.mylist.icon = "pkg:/images/ic_check.png" else m.btns.mylist.icon = "pkg:/images/ic_add.png"
-    m.btns.mylist.checked = inMyList(m.meta.id)
-    updatePlayIcon()
+    if listed then m.btns.mylist.icon = "pkg:/images/ic_favorite.png" else m.btns.mylist.icon = "pkg:/images/ic_heart_outline.png"
+    m.btns.mylist.checked = listed
+    subText = subtitleLabel()
+    m.btns.subs.checked = subText <> "Off"
+    m.btns.sleep.checked = m.sleepIdx > 0
+    accent = m.global.theme.accent
+    for each it in m.barItems
+        id = it.id
+        label = ""
+        value = ""
+        if id = "play"
+            if playing then label = "Pause" else label = "Play"
+        else if id = "back10"
+            label = "−10s"
+        else if id = "fwd10"
+            label = "+10s"
+        else if id = "next"
+            label = "Next"
+            value = "episode"
+        else if id = "audio"
+            label = "Audio"
+            value = audioLabel()
+        else if id = "subs"
+            label = "Subtitles"
+            value = subText
+        else if id = "sleep"
+            label = "Sleep"
+            value = sleepShort()
+        else if id = "like"
+            if r > 0 then label = "Liked" else label = "Like"
+        else if id = "dislike"
+            if r < 0 then label = "Disliked" else label = "Dislike"
+        else if id = "mylist"
+            label = "My List"
+            if listed then value = "Added"
+        end if
+        focused = m.btns[id].hasFocus()
+        it.name.text = label
+        if focused then it.name.color = "0xFFFFFFFF" else it.name.color = "0xFFFFFFBF"
+        if focused then it.name.font = "font:SmallestBoldSystemFont" else it.name.font = "font:SmallestSystemFont"
+        it.value.text = value
+        if m.btns[id].checked and id <> "like" and id <> "dislike" then it.value.color = accent else it.value.color = "0xFFFFFF8C"
+    end for
 end sub
 
 sub updatePlayIcon()
-    if m.btns = invalid then return
-    if m.video.state = "paused" then m.btns.play.icon = "pkg:/images/ic_play.png" else m.btns.play.icon = "pkg:/images/ic_pause.png"
-    if m.btns.play.hasFocus()
-        if m.video.state = "paused" then m.hint.text = "Play" else m.hint.text = "Pause"
-    end if
+    refreshBar()
 end sub
 
 sub onBarFocus(e as Object)
     b = e.getRoSGNode()
     if b.hasFocus()
-        label = b.data.label
-        if b.data.id = "play" and m.video.state = "paused" then label = "Play"
-        if b.data.id = "next" and m.nextVideo <> invalid then label = "Next: " + episodeTitle(m.nextVideo)
-        m.hint.text = label
+        refreshBar()
         bumpMenu()
     end if
+end sub
+
+function audioLabel() as String
+    tracks = m.video.availableAudioTracks
+    if tracks = invalid or tracks.Count() = 0 then return "Default"
+    for each t in tracks
+        if tostr(t.Track) = tostr(m.video.currentAudioTrack) then return langName(langNormalize(tostr(t.Language)))
+    end for
+    return langName(langNormalize(tostr(tracks[0].Language)))
+end function
+
+function subtitleLabel() as String
+    if m.video.globalCaptionMode <> "On" then return "Off"
+    tracks = m.video.availableSubtitleTracks
+    if tracks <> invalid
+        for each t in tracks
+            if tostr(t.TrackName) = tostr(m.video.currentSubtitleTrack)
+                l = tostr(t.Language)
+                if l <> "" then return langName(langNormalize(l))
+                return tostr(t.Description)
+            end if
+        end for
+    end if
+    return "On"
+end function
+
+' OK on Audio or Subtitles switches to the next track; holding OK lists every track.
+sub cycleAudio()
+    tracks = m.video.availableAudioTracks
+    if tracks = invalid or tracks.Count() < 2
+        toast("This stream has a single audio track")
+        return
+    end if
+    i = 0
+    for j = 0 to tracks.Count() - 1
+        if tostr(tracks[j].Track) = tostr(m.video.currentAudioTrack) then i = j
+    end for
+    t = tracks[(i + 1) MOD tracks.Count()]
+    m.video.audioTrack = t.Track
+    toast("Audio: " + langName(langNormalize(tostr(t.Language))))
+end sub
+
+sub cycleSubs()
+    tracks = m.video.availableSubtitleTracks
+    if tracks = invalid or tracks.Count() = 0
+        toast("No subtitles for this stream")
+        return
+    end if
+    if m.video.globalCaptionMode <> "On"
+        m.video.subtitleTrack = tracks[0].TrackName
+        m.video.globalCaptionMode = "On"
+    else
+        i = -1
+        for j = 0 to tracks.Count() - 1
+            if tostr(tracks[j].TrackName) = tostr(m.video.currentSubtitleTrack) then i = j
+        end for
+        if i + 1 >= tracks.Count()
+            m.video.globalCaptionMode = "Off"
+        else
+            m.video.subtitleTrack = tracks[i + 1].TrackName
+        end if
+    end if
+    refreshBar()
+end sub
+
+' ---- sleep timer (port of SleepTimer) ----
+
+function SLEEP_OPTIONS() as Object
+    return [
+        { label: "Off", min: 0 }, { label: "15 min", min: 15 }, { label: "30 min", min: 30 }
+        { label: "1 hour", min: 60 }, { label: "90 min", min: 90 }, { label: "End of episode", min: -1 }
+    ]
+end function
+
+sub cycleSleepTimer()
+    opts = SLEEP_OPTIONS()
+    m.sleepIdx = (m.sleepIdx + 1) MOD opts.Count()
+    o = opts[m.sleepIdx]
+    m.sleepTimer.control = "stop"
+    if o.min > 0
+        m.sleepTimer.duration = o.min * 60
+        m.sleepTimer.control = "start"
+        m.sleepClock = CreateObject("roTimespan")
+    end if
+    if o.min = 0 then toast("Sleep timer off") else toast("Sleep: " + o.label)
+    refreshBar()
+end sub
+
+function sleepShort() as String
+    o = SLEEP_OPTIONS()[m.sleepIdx]
+    if o.min = 0 then return "Off"
+    if o.min < 0 then return "End of ep."
+    remain = o.min - Int(m.sleepClock.TotalSeconds() / 60)
+    if remain < 1 then remain = 1
+    return tostr(remain) + " min"
+end function
+
+sub onSleepTimer()
+    goToSleep()
+end sub
+
+sub goToSleep()
+    m.sleepIdx = 0
+    saveProgress(true)
+    m.video.control = "pause"
+    m.finished = true
+    toast("Sleep timer: stopped playback")
+    m.top.navigateTo = { to: "back" }
 end sub
 
 sub openMenu(target as String)
     m.menu.visible = true
     m.scrub.visible = false
-    m.seekBar.position = m.video.position
+    m.seekBar.position = currentPos()
     m.seekBar.duration = m.video.duration
     refreshBar()
     if target = "seek"
@@ -304,12 +537,12 @@ sub bumpMenu()
 end sub
 
 sub onHideTimer()
-    if m.menu.visible and m.video.state = "playing" then closeMenu()
+    if m.menu.visible and m.video.state = "playing" and m.holdDir = 0 then closeMenu()
 end sub
 
 sub onSeekFocus()
     m.seekBar.highlight = m.seek.hasFocus()
-    if m.seek.hasFocus() then m.hint.text = "Left/Right to seek · OK to play/pause"
+    m.hint.visible = m.seek.hasFocus()
 end sub
 
 sub togglePlay()
@@ -317,38 +550,58 @@ sub togglePlay()
 end sub
 
 sub seekBy(sec as Float)
-    t = m.video.position + sec
+    t = currentPos() + sec
     if t < 0 then t = 0
     if m.video.duration > 0 and t > m.video.duration - 2 then t = m.video.duration - 2
-    m.video.seek = t
+    seekTo(t)
+    if m.menu.visible then m.seekBar.position = t
 end sub
 
 sub onBarPressed(e as Object)
     id = e.getRoSGNode().data.id
     m.autoplayed = 0
     bumpMenu()
+    if id = "audio" or id = "subs"
+        ' decided on release: a tap cycles, a hold opens the full list
+        m.okTarget = id
+        m.okTimer.control = "start"
+        return
+    end if
     if id = "play"
         togglePlay()
     else if id = "back10"
         seekBy(-10)
     else if id = "fwd10"
         seekBy(10)
-    else if id = "audio"
-        chooseAudio()
-    else if id = "subs"
-        chooseSubs()
+    else if id = "sleep"
+        cycleSleepTimer()
     else if id = "like"
         if ratingOf(m.meta.id) > 0 then rateTitle(m.meta, 0) else rateTitle(m.meta, 1)
-        refreshBar()
     else if id = "dislike"
         if ratingOf(m.meta.id) < 0 then rateTitle(m.meta, 0) else rateTitle(m.meta, -1)
-        refreshBar()
     else if id = "mylist"
         toggleMyList(m.meta)
-        refreshBar()
     else if id = "next"
         loadNextStreams(true)
     end if
+    refreshBar()
+end sub
+
+sub onOkHeld()
+    id = m.okTarget
+    m.okTarget = invalid
+    if id = "audio" then chooseAudio()
+    if id = "subs" then chooseSubs()
+end sub
+
+sub onOkReleased()
+    if m.okTarget = invalid then return
+    m.okTimer.control = "stop"
+    id = m.okTarget
+    m.okTarget = invalid
+    if id = "audio" then cycleAudio()
+    if id = "subs" then cycleSubs()
+    refreshBar()
 end sub
 
 sub chooseAudio()
@@ -405,16 +658,26 @@ sub onSubChosen(e as Object)
     end if
 end sub
 
-' ---- scrubbing (menu hidden) ----
+' ---- scrubbing ----
+' Port of PlayerActivity.scrub / startHoldScrub. Roku sends one press and one release per key, so
+' holding is timed here: a tap jumps a step (15 s → 60 s when pressed quickly), holding moves the
+' preview smoothly (10 s → 5 min of video per second held) and seeks once on release.
 
 sub scrub(dir as Integer)
-    if m.lastScrubKey.TotalMilliseconds() < 450 then m.scrubCount = m.scrubCount + 1 else m.scrubCount = 0
+    if m.lastScrubKey.TotalMilliseconds() < 700 and dir = m.lastScrubDir then m.scrubCount = m.scrubCount + 1 else m.scrubCount = 0
     m.lastScrubKey.Mark()
-    stepSec = 15
-    if m.scrubCount >= 4 then stepSec = 30
-    if m.scrubCount >= 10 then stepSec = 60
-    if m.scrubTarget < 0 then m.scrubTarget = m.video.position
-    m.scrubTarget = m.scrubTarget + dir * stepSec
+    m.lastScrubDir = dir
+    steps = [15, 30, 60]
+    level = Int(m.scrubCount / 2)
+    if level > 2 then level = 2
+    moveScrub(dir * steps[level])
+    m.seekTimer.control = "stop"
+    m.seekTimer.control = "start"
+end sub
+
+sub moveScrub(delta as Float)
+    if m.scrubTarget < 0 then m.scrubTarget = currentPos()
+    m.scrubTarget = m.scrubTarget + delta
     if m.scrubTarget < 0 then m.scrubTarget = 0
     d = m.video.duration
     if d > 0 and m.scrubTarget > d - 2 then m.scrubTarget = d - 2
@@ -423,17 +686,61 @@ sub scrub(dir as Integer)
         bumpMenu()
     else
         m.scrub.visible = true
+        m.scrubBar.highlight = true
         m.scrubBar.duration = d
         m.scrubBar.position = m.scrubTarget
     end if
+end sub
+
+' Key down on Left/Right/FF/Rewind: one step now; if still held after 0.4 s, smooth scrubbing.
+sub startHold(dir as Integer)
+    if m.holdDir = dir then return
+    m.holdDir = dir
+    m.holdStarted = false
+    m.holdClock.Mark()
     m.seekTimer.control = "stop"
-    m.seekTimer.control = "start"
+    scrub(dir)
+    m.holdTimer.control = "start"
+end sub
+
+sub onHoldTick()
+    if m.holdDir = 0 then return
+    ms = m.holdClock.TotalMilliseconds()
+    if ms < 400 then return
+    if not m.holdStarted
+        m.holdStarted = true
+        m.lastHoldMs = ms
+    end if
+    held = (ms - 400) / 1000.0
+    rate = 10.0 * (1.75 ^ held)
+    if rate > 300 then rate = 300
+    moveScrub(m.holdDir * rate * (ms - m.lastHoldMs) / 1000.0)
+    m.lastHoldMs = ms
+end sub
+
+sub stopHold()
+    if m.holdDir = 0 then return
+    m.holdDir = 0
+    m.holdTimer.control = "stop"
+    if m.holdStarted
+        commitScrub()
+    else
+        m.seekTimer.control = "stop"
+        m.seekTimer.control = "start"
+    end if
 end sub
 
 sub commitScrub()
-    if m.scrubTarget >= 0 then m.video.seek = m.scrubTarget
-    m.scrubTarget = -1
-    m.scrub.visible = false
+    m.seekTimer.control = "stop"
+    if m.holdDir <> 0 then return
+    if m.scrubTarget >= 0
+        t = m.scrubTarget
+        m.scrubTarget = -1
+        seekTo(t)
+        if m.menu.visible then m.seekBar.position = t
+    else
+        m.scrub.visible = false
+    end if
 end sub
 
 ' ---- skip intro / recap ----
@@ -491,7 +798,7 @@ sub onSkip()
     if s = invalid then return
     en = s.end
     if en < 0 then en = m.video.duration - 1
-    m.video.seek = en
+    seekTo(en)
     m.skipBtn.visible = false
     m.top.setFocus(true)
 end sub
@@ -525,6 +832,7 @@ end function
 
 sub checkNextUp(curPos as Float)
     if m.nextVideo = invalid or not bool(m.settings.autoplayNext) then return
+    if SLEEP_OPTIONS()[m.sleepIdx].min < 0 then return
     d = m.video.duration
     if d <= 0 then return
     if curPos / d > 0.8 and m.nextTask = invalid then loadNextStreams(false)
@@ -653,6 +961,7 @@ sub playNext()
     m.nextVideo = findNextVideo()
     buildBar()
     m.video.control = "stop"
+    beginResume(0)
     startCandidate(0)
     m.top.setFocus(true)
 end sub
@@ -683,6 +992,10 @@ sub onStillChosen(e as Object)
 end sub
 
 sub onFinished()
+    if SLEEP_OPTIONS()[m.sleepIdx].min < 0
+        goToSleep()
+        return
+    end if
     if m.nextVideo <> invalid and bool(m.settings.autoplayNext)
         if not m.nextCard.visible then showNextCard()
         return
@@ -693,17 +1006,27 @@ end sub
 ' ---- keys ----
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
-    if not press then return false
+    if not press
+        if key = "left" or key = "right" or key = "rewind" or key = "fastforward"
+            if m.holdDir <> 0
+                stopHold()
+                return true
+            end if
+        else if key = "OK"
+            onOkReleased()
+        end if
+        return false
+    end if
     m.autoplayed = 0
     ' media keys work everywhere
     if key = "play"
         togglePlay()
         return true
     else if key = "rewind"
-        scrub(-1)
+        startHold(-1)
         return true
     else if key = "fastforward"
-        scrub(1)
+        startHold(1)
         return true
     else if key = "replay"
         seekBy(-10)
@@ -725,8 +1048,8 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
             return true
         end if
         if m.seek.hasFocus()
-            if key = "left" then scrub(-1)
-            if key = "right" then scrub(1)
+            if key = "left" then startHold(-1)
+            if key = "right" then startHold(1)
             if key = "OK" then togglePlay()
             if key = "up" then closeMenu()
             if key = "down" then m.bar.setFocus(true)
@@ -745,10 +1068,10 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         openMenu("play")
         return true
     else if key = "left"
-        scrub(-1)
+        startHold(-1)
         return true
     else if key = "right"
-        scrub(1)
+        startHold(1)
         return true
     else if key = "up" or key = "down" or key = "options"
         openMenu("play")

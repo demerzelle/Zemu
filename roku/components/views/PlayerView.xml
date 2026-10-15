@@ -34,13 +34,17 @@
         <Font role="font" uri="font:SystemFontFile" size="17" />
       </Label>
       <Poster uri="pkg:/images/grad_down.png" width="1280" height="300" translation="[0,420]" blendColor="0x000000E6" />
-      <Group id="seek" translation="[64,560]" focusable="true">
+      <Group id="seek" translation="[64,518]" focusable="true">
         <SeekBar id="seekBar" />
       </Group>
-      <Label id="hint" translation="[64,606]" width="1152" color="0xB8B8C2FF">
-        <Font role="font" uri="font:SystemFontFile" size="17" />
+      <Label id="hint" translation="[64,550]" width="1152" horizAlign="center" visible="false" color="0x80808CFF" text="◀ ▶ to scrub (hold to go faster)  ·  ▲ to hide">
+        <Font role="font" uri="font:SystemFontFile" size="14" />
       </Label>
-      <FocusRow id="bar" translation="[64,634]" spacing="16" />
+      <FocusRow id="bar" translation="[64,580]" />
+      <Group id="labels" translation="[64,640]" />
+      <Label translation="[64,684]" width="1152" color="0xFFFFFF73" text="Hold OK on Audio or Subtitles to see every track">
+        <Font role="font" uri="font:SystemFontFile" size="13" />
+      </Label>
     </Group>
     <TvButton id="skipBtn" visible="false" text="Skip intro" />
     <Group id="nextCard" visible="false">
@@ -55,6 +59,9 @@
     </Group>
     <Timer id="tick" duration="1" repeat="true" />
     <Timer id="hideTimer" duration="5" />
-    <Timer id="seekTimer" duration="0.6" />
+    <Timer id="seekTimer" duration="0.7" />
+    <Timer id="holdTimer" duration="0.05" repeat="true" />
+    <Timer id="okTimer" duration="0.6" />
+    <Timer id="sleepTimer" duration="900" />
   </children>
 </component>

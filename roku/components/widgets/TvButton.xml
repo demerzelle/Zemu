@@ -9,6 +9,8 @@
     <field id="primary" type="boolean" value="false" onChange="restyle" />
     <!-- chips: selected (accent + check); icon buttons: active -->
     <field id="checked" type="boolean" value="false" onChange="layout" />
+    <!-- icon buttons: diameter -->
+    <field id="iconSize" type="integer" value="61" onChange="layout" />
     <field id="minWidth" type="integer" value="0" onChange="layout" />
     <field id="fontSize" type="integer" value="20" onChange="layout" />
     <field id="dim" type="boolean" value="false" onChange="restyle" />

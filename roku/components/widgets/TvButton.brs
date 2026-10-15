@@ -18,13 +18,14 @@ sub layout()
     if v = "chip" and m.top.checked then iconUri = "pkg:/images/ic_check.png"
     hasIcon = iconUri <> ""
     if v = "icon"
-        h = 61
-        w = 61
+        h = m.top.iconSize
+        w = h
         m.bg.uri = "pkg:/images/circle.png"
         m.iconPoster.uri = m.top.icon
-        m.iconPoster.width = 29
-        m.iconPoster.height = 29
-        m.iconPoster.translation = [16, 16]
+        isz = Int(h * 0.48)
+        m.iconPoster.width = isz
+        m.iconPoster.height = isz
+        m.iconPoster.translation = [(w - isz) / 2, (h - isz) / 2]
         m.label.visible = false
     else
         m.label.visible = true
