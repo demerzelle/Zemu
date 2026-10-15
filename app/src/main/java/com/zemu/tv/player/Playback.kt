@@ -72,6 +72,14 @@ object Playback {
         return true
     }
 
+    /** Plays a downloaded file (no network needed), from where it was left. */
+    fun playDownload(context: Context, item: com.zemu.tv.data.DownloadItem) {
+        val start = context.container.userStore.history.value
+            .firstOrNull { it.meta.id == item.meta.id && it.videoId == item.videoId }
+            ?.takeIf { it.progress in 0.02f..0.95f }?.positionMs ?: 0L
+        launch(context, item.meta, item.videoId, item.label, listOf(PlayCandidate(Uri.fromFile(java.io.File(item.path)).toString(), "Downloaded")), emptyList(), start)
+    }
+
     private fun launch(context: Context, meta: Meta, videoId: String, label: String?, candidates: List<PlayCandidate>, subs: List<SubtitleTrack>, startMs: Long) {
         val c = context.container
         val json = c.json

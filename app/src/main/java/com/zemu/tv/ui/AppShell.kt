@@ -120,6 +120,7 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     SERIES("series", "Series", AppIcons.Tv),
     ANIME("anime", "Anime", AppIcons.Anime),
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
+    DOWNLOADS("downloads", "Downloads", AppIcons.Download),
     /** Plays a random title picked for you (from Home's suggestions). */
     SURPRISE("@surprise", "Surprise me", AppIcons.Dice),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
@@ -224,6 +225,7 @@ fun AppShell() {
             composable("services/{type}") { e -> com.zemu.tv.ui.browse.ServicesScreen(e.arguments?.getString("type") ?: "movie", onBrowse = browse) }
             composable("search") { SearchScreen(onOpen = open) }
             composable("mylist") { MyListScreen(onOpen = open) }
+            composable("downloads") { com.zemu.tv.ui.downloads.DownloadsScreen() }
             composable("settings") { com.zemu.tv.ui.kids.ParentLock { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }, onManageRows = { nav.navigate("rows/$it") }) } }
             composable("rows/{page}") { e -> com.zemu.tv.ui.kids.ParentLock { com.zemu.tv.ui.settings.RowsManagerScreen(e.arguments?.getString("page") ?: "home") } }
             composable("addons") { com.zemu.tv.ui.kids.ParentLock { AddonBrowserScreen() } }
@@ -323,6 +325,8 @@ private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground().the
         com.zemu.tv.ui.theme.UiStyle.CATRAVE -> com.zemu.tv.ui.theme.CatRaveBackdrop()
         com.zemu.tv.ui.theme.UiStyle.SPACE -> com.zemu.tv.ui.theme.SpaceBackdrop()
         com.zemu.tv.ui.theme.UiStyle.OCEAN -> com.zemu.tv.ui.theme.OceanBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.NIGHT -> com.zemu.tv.ui.theme.NightSkyBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.ALIEN -> com.zemu.tv.ui.theme.AlienBackdrop()
         com.zemu.tv.ui.theme.UiStyle.POCKET -> com.zemu.tv.ui.theme.PocketBackdrop()
         com.zemu.tv.ui.theme.UiStyle.SIXTEEN -> com.zemu.tv.ui.theme.SixteenBackdrop()
         else -> {}

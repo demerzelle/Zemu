@@ -99,10 +99,11 @@ private fun langList(codes: Set<String>, multi: Boolean): String? {
 }
 
 @Composable
-fun StreamRow(r: RankedStream, externalSubLangs: Set<String>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun StreamRow(r: RankedStream, externalSubLangs: Set<String>, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
     val s = r.stream
     FocusSurface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier.fillMaxWidth().padding(horizontal = 48.dp),
         shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
         containerColor = Palette.Surface.copy(alpha = 0.92f),

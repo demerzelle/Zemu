@@ -140,13 +140,17 @@ private enum class SettingsDialog { AUDIO, SUBS, MAX_SIZE, COUNTDOWN, STILL_EPIS
 private enum class SettingsCategory(val label: String, val blurb: String) {
     SEARCH("Search settings", "Type what you're looking for, then pick a result."),
     QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look."),
-    ADDONS("Addons & accounts", "Stream addons, your debrid service, title details and cast info."),
+    ACCOUNTS("Accounts & keys", "Your debrid service, Trakt, and the free TMDB and OMDb keys that add cast, logos, ratings and critic scores."),
+    ADDONS("Addons & catalogs", "Stream addons, the metadata provider and your streaming services."),
     PROFILES("Profiles", "Who's watching, pictures and the profile picker."),
     KIDS("Kids", "Parental controls: kid profiles, the ratings a kid may watch and the parent code."),
-    PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
-    STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
-    SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
-    APPEARANCE("Appearance", "Light mode, glass style, color themes and custom colors, PS2 and Acidwave styles, Home rows, screensaver, vibration and trailers."),
+    PLAYBACK("Playback", "Starting playback, autoplay, skipping intros, trailers, players and history."),
+    STREAMS("Streams & languages", "Which cached streams are shown and preferred, and your languages."),
+    SUBTITLES("Subtitles", "Which subtitles are picked and how they look."),
+    THEMES("Themes & colors", "Light mode, glass, color themes, animated themes, your own colors and saved palettes."),
+    DISPLAY("Display & text", "UI zoom, font, text size, title artwork and the rows on each page."),
+    SOUND("Sounds & touch", "Sound effects and vibration."),
+    SCREENSAVER("Screensaver", "A slideshow of titles picked for you when Zemu sits idle."),
     DEVICE("This TV", "What this TV can play, used to pick \"Best for this TV\" streams. Change anything that was detected wrong."),
 }
 
@@ -202,13 +206,17 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
             when (category) {
                 SettingsCategory.SEARCH -> searchCategory { category = it }
                 SettingsCategory.QUICK -> quickCategory(vm, settings, remote, onOpenServices)
+                SettingsCategory.ACCOUNTS -> accountsCategory(vm, settings, remote)
                 SettingsCategory.ADDONS -> addonsCategory(vm, settings, remote, onOpenAddons, onOpenServices)
                 SettingsCategory.PROFILES -> item(key = "profiles") { ProfilesSection(remote) }
                 SettingsCategory.KIDS -> item(key = "kids") { KidsSection() }
                 SettingsCategory.PLAYBACK -> playbackCategory(vm, settings) { dialog = it }
                 SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
                 SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings)
-                SettingsCategory.APPEARANCE -> appearanceCategory(vm, settings, onManageRows)
+                SettingsCategory.THEMES -> themesCategory(vm, settings)
+                SettingsCategory.DISPLAY -> displayCategory(vm, settings, onManageRows)
+                SettingsCategory.SOUND -> soundsCategory(vm, settings)
+                SettingsCategory.SCREENSAVER -> screensaverCategory(vm, settings)
                 SettingsCategory.DEVICE -> deviceCategory(vm, settings)
             }
         }
@@ -284,12 +292,12 @@ private fun LazyListScope.group(key: String, title: String, note: String? = null
 
 /** Where each setting lives, for Search settings. */
 private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
-    "Debrid account (Real-Debrid, AllDebrid, Premiumize, TorBox)" to SettingsCategory.ADDONS,
+    "Debrid account (Real-Debrid, AllDebrid, Premiumize, TorBox)" to SettingsCategory.ACCOUNTS,
     "Manage addons" to SettingsCategory.ADDONS,
     "Metadata provider" to SettingsCategory.ADDONS,
-    "TMDB key (cast, studios, streaming services)" to SettingsCategory.ADDONS,
-    "OMDb key (Rotten Tomatoes, Metacritic scores)" to SettingsCategory.ADDONS,
-    "Trakt (watchlist, history, scrobbling)" to SettingsCategory.ADDONS,
+    "TMDB key (cast, studios, streaming services)" to SettingsCategory.ACCOUNTS,
+    "OMDb key (Rotten Tomatoes, Metacritic scores)" to SettingsCategory.ACCOUNTS,
+    "Trakt (watchlist, history, scrobbling)" to SettingsCategory.ACCOUNTS,
     "My streaming services" to SettingsCategory.ADDONS,
     "Profiles and profile pictures" to SettingsCategory.PROFILES,
     "Kid profiles, parental controls, allowed ratings, parent code" to SettingsCategory.KIDS,
@@ -308,22 +316,26 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Prefer SDH subtitles (deaf / hard of hearing)" to SettingsCategory.SUBTITLES,
     "Original subtitle style / custom style on or off" to SettingsCategory.SUBTITLES,
     "Subtitle size, color, background, outline, position" to SettingsCategory.SUBTITLES,
-    "Skip intro button" to SettingsCategory.SUBTITLES,
-    "Light mode / dark mode" to SettingsCategory.APPEARANCE,
-    "Glass style" to SettingsCategory.APPEARANCE,
-    "Color theme" to SettingsCategory.APPEARANCE,
-    "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.APPEARANCE,
-    "Customize colors (background, buttons, text, accent)" to SettingsCategory.APPEARANCE,
-    "Hide watched titles in rows" to SettingsCategory.APPEARANCE,
-    "Manage rows (pin, move, remove, add categories)" to SettingsCategory.APPEARANCE,
-    "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.APPEARANCE,
-    "Screensaver" to SettingsCategory.APPEARANCE,
-    "Vibration" to SettingsCategory.APPEARANCE,
-    "Sound effects (clicks, blips)" to SettingsCategory.APPEARANCE,
-    "Trailers (autoplay, sound)" to SettingsCategory.APPEARANCE,
-    "UI zoom (poster, text and icon size)" to SettingsCategory.APPEARANCE,
-    "Title artwork, logo artwork (plain text titles)" to SettingsCategory.APPEARANCE,
-    "Turn off trailers completely" to SettingsCategory.APPEARANCE,
+    "Skip intro button" to SettingsCategory.PLAYBACK,
+    "Light mode / dark mode" to SettingsCategory.THEMES,
+    "Glass style" to SettingsCategory.THEMES,
+    "Color theme" to SettingsCategory.THEMES,
+    "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.THEMES,
+    "Customize colors (background, buttons, text, accent)" to SettingsCategory.THEMES,
+    "Hide watched titles in rows" to SettingsCategory.DISPLAY,
+    "Manage rows (pin, move, remove, add categories)" to SettingsCategory.DISPLAY,
+    "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.THEMES,
+    "Screensaver" to SettingsCategory.SCREENSAVER,
+    "Vibration" to SettingsCategory.SOUND,
+    "Sound effects (clicks, blips)" to SettingsCategory.SOUND,
+    "Trailers (autoplay, sound)" to SettingsCategory.PLAYBACK,
+    "UI zoom (poster, text and icon size)" to SettingsCategory.DISPLAY,
+    "Title artwork, logo artwork (plain text titles)" to SettingsCategory.DISPLAY,
+    "Turn off trailers completely" to SettingsCategory.PLAYBACK,
+    "Font, text size" to SettingsCategory.DISPLAY,
+    "Saved palettes, palette editor" to SettingsCategory.THEMES,
+    "Mouse pointer color, size and position (Cybercore)" to SettingsCategory.THEMES,
+    "Downloads (offline playback)" to SettingsCategory.PLAYBACK,
     "4K, HDR10, Dolby Vision, Atmos, DTS support" to SettingsCategory.DEVICE,
     "Reset to recommended settings for my TV" to SettingsCategory.DEVICE,
     "Play Dolby Vision as HDR10" to SettingsCategory.DEVICE,
@@ -364,33 +376,14 @@ private fun LazyListScope.quickCategory(vm: SettingsViewModel, settings: AppSett
     }
 }
 
-private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit, onOpenServices: () -> Unit) {
-    group("addons", "Stream addons", "Zemu uses Stremio addons. Install a debrid-enabled one (AIOStreams, Torrentio, Comet, MediaFusion, …). Only cached streams are shown.") {
-        val addons by vm.addons.collectAsStateWithLifecycle()
-        val streamAddons = addons.count { it.manifest.hasResource("stream") }
-        ValueRow("Manage addons", "${addons.size} installed · $streamAddons with streams") { onOpenAddons() }
-    }
-    group("services", "My streaming services", "The services you subscribe to come first on Home, Movies and Series and get their own rows.") {
-        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "None picked: showing the popular ones" }) { onOpenServices() }
-    }
+private fun LazyListScope.accountsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?) {
     group("debrid", "Debrid account") {
         DebridSection(vm.container, remote)
     }
-    group("meta", "Metadata provider") {
-        val addons by vm.addons.collectAsStateWithLifecycle()
-        val providers = addons.filter { a -> a.manifest.hasResource("meta") || a.manifest.catalogs.any { it.type in setOf("movie", "series") } }
-        Text(
-            if (providers.isEmpty()) "No metadata provider installed: catalogs and title details won't load. Install Cinemeta or another metadata addon."
-            else "Used first for title details and the Movies and Series pages. Others fill in when it has nothing.",
-            color = if (providers.isEmpty()) Palette.Cached else Palette.TextSecondary, fontSize = 13.sp,
-        )
-        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { TvChip("Automatic", selected = settings.metaProvider.isEmpty() || providers.none { it.manifest.id == settings.metaProvider }, onClick = { vm.update { it.copy(metaProvider = "") } }) }
-            items(providers, key = { it.manifest.id }) { a ->
-                TvChip(a.manifest.name, selected = settings.metaProvider == a.manifest.id, onClick = { vm.update { it.copy(metaProvider = a.manifest.id) } })
-            }
-        }
-    }
+    group(
+        "trakt", "Trakt",
+        "Syncs your Trakt watchlist with My List (both ways), brings in movies you've watched, and scrobbles what you play. Make a free API app at trakt.tv/oauth/applications (redirect URI: urn:ietf:wg:oauth:2.0:oob), then enter its Client ID and Client Secret here.",
+    ) { TraktSection(vm, settings) }
     group(
         "tmdb", "Cast & studio info (TMDB)",
         "A free TMDB API key adds cast photos, studios and each actor's other titles: themoviedb.org → Settings → API." +
@@ -415,10 +408,32 @@ private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSet
             if (settings.omdbApiKey.isNotBlank()) TvButton("Remove", onClick = { vm.update { it.copy(omdbApiKey = "") } })
         }
     }
-    group(
-        "trakt", "Trakt",
-        "Syncs your Trakt watchlist with My List (both ways), brings in movies you've watched, and scrobbles what you play. Make a free API app at trakt.tv/oauth/applications (redirect URI: urn:ietf:wg:oauth:2.0:oob), then enter its Client ID and Client Secret here.",
-    ) { TraktSection(vm, settings) }
+}
+
+private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit, onOpenServices: () -> Unit) {
+    group("addons", "Stream addons", "Zemu uses Stremio addons. Install a debrid-enabled one (AIOStreams, Torrentio, Comet, MediaFusion, …). Only cached streams are shown.") {
+        val addons by vm.addons.collectAsStateWithLifecycle()
+        val streamAddons = addons.count { it.manifest.hasResource("stream") }
+        ValueRow("Manage addons", "${addons.size} installed · $streamAddons with streams") { onOpenAddons() }
+    }
+    group("meta", "Metadata provider") {
+        val addons by vm.addons.collectAsStateWithLifecycle()
+        val providers = addons.filter { a -> a.manifest.hasResource("meta") || a.manifest.catalogs.any { it.type in setOf("movie", "series") } }
+        Text(
+            if (providers.isEmpty()) "No metadata provider installed: catalogs and title details won't load. Install Cinemeta or another metadata addon."
+            else "Used first for title details and the Movies and Series pages. Others fill in when it has nothing.",
+            color = if (providers.isEmpty()) Palette.Cached else Palette.TextSecondary, fontSize = 13.sp,
+        )
+        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { TvChip("Automatic", selected = settings.metaProvider.isEmpty() || providers.none { it.manifest.id == settings.metaProvider }, onClick = { vm.update { it.copy(metaProvider = "") } }) }
+            items(providers, key = { it.manifest.id }) { a ->
+                TvChip(a.manifest.name, selected = settings.metaProvider == a.manifest.id, onClick = { vm.update { it.copy(metaProvider = a.manifest.id) } })
+            }
+        }
+    }
+    group("services", "My streaming services", "The services you subscribe to come first on Home, Movies and Series and get their own rows.") {
+        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "None picked: showing the popular ones" }) { onOpenServices() }
+    }
 }
 
 @Composable
@@ -508,6 +523,22 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
             }
         }
     }
+    group("skip", "Skipping") {
+        ToggleRow("Skip intro button", "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", settings.skipIntroButton) {
+            vm.update { it.copy(skipIntroButton = !it.skipIntroButton) }
+        }
+    }
+    group("trailers", "Trailers") {
+        ToggleRow("Trailers", "Off: no trailers anywhere, no autoplay and no Trailer buttons.", settings.trailers) {
+            vm.update { it.copy(trailers = !it.trailers) }
+        }
+        if (settings.trailers) ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
+            vm.update { it.copy(heroTrailers = !it.heroTrailers) }
+        }
+        if (settings.trailers) ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
+            vm.update { it.copy(heroTrailerSound = !it.heroTrailerSound) }
+        }
+    }
     group("player", "Player") {
         ToggleRow("Use external player", "Open streams in VLC, Just Player, MX Player, etc. instead of the built-in player.", settings.useExternalPlayer) {
             vm.update { it.copy(useExternalPlayer = !it.useExternalPlayer) }
@@ -546,14 +577,9 @@ private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: App
         if (!settings.subtitleOriginalStyle) SubtitlePreview(settings)
         SubtitleStyleEditor(settings) { t -> vm.update(t) }
     }
-    group("skip", "Skipping") {
-        ToggleRow("Skip intro button", "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", settings.skipIntroButton) {
-            vm.update { it.copy(skipIntroButton = !it.skipIntroButton) }
-        }
-    }
 }
 
-private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
+private fun LazyListScope.themesCategory(vm: SettingsViewModel, settings: AppSettings) {
     group("mode", "Look") {
         ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
             vm.updateLook { it.copy(lightMode = !it.lightMode) }
@@ -606,59 +632,9 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("colors", "Customize colors", "Every color the theme uses, as a palette: pick one to change it. Each theme keeps its own, separately for light and dark mode. Save palettes to reuse them, for every theme or just this one.") {
         ColorCustomizer(settings, vm::updateLook) { t -> vm.update(t) }
     }
-    group("rows", "Home & browsing", "Change, reorder, remove or add the rows on each page.") {
-        listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
-            ValueRow("Manage $label rows", "Pin · move · remove · add") { onManageRows(page) }
-        }
-        ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
-            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
-        }
-    }
-    group("sounds", "Sound effects") {
-        ToggleRow("Sound effects", "Soft clicks when you move, select, hold OK and go back. PS2, Acidwave, Cybercore, Graffiti, Liquid Glass, Ethereal and the Cat Rave each have their own sounds.", settings.soundEffects) {
-            vm.update { it.copy(soundEffects = !it.soundEffects) }
-        }
-    }
-    group("feedback", "Touch screens") {
-        ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {
-            vm.update { it.copy(vibration = !it.vibration) }
-        }
-    }
-    group(
-        "screensaver", "Screensaver",
-        "After Zemu sits idle, a full-screen slideshow of titles picked for you, from the same suggestions and catalogs as Home (a new mix every time). OK plays the title showing; any other button returns to where you were.",
-    ) {
-        ToggleRow("Screensaver", "Off by default. Needs a TMDB or fanart.tv key below to find backdrops and title logos.", settings.screensaver) {
-            vm.update { it.copy(screensaver = !it.screensaver) }
-        }
-        ToggleRow("Show title and Watch now", "The title's logo, year and genres, with a Watch now button.", settings.screensaverShowTitle) {
-            vm.update { it.copy(screensaverShowTitle = !it.screensaverShowTitle) }
-        }
-        // Idle timeout: 15 s to 10 min in 15 s steps. Image duration: 3–60 s.
-        TvSlider(
-            "Idle timeout (s)", (settings.screensaverIdleSec - 15) / 585f, 15f / 585f,
-            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverIdleSec}s",
-        ) { v -> vm.update { it.copy(screensaverIdleSec = (15 + Math.round(v * 585 / 15f) * 15).coerceIn(15, 600)) } }
-        TvSlider(
-            "Time per title (s)", (settings.screensaverImageSec - 3) / 57f, 1f / 57f,
-            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverImageSec}s",
-        ) { v -> vm.update { it.copy(screensaverImageSec = (3 + Math.round(v * 57)).coerceIn(3, 60)) } }
-        // Fade: 0.3–5 s in tenths.
-        TvSlider(
-            "Fade between titles", (settings.screensaverFadeTenths - 3) / 47f, 1f / 47f,
-            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "%.1fs".format(settings.screensaverFadeTenths / 10f),
-        ) { v -> vm.update { it.copy(screensaverFadeTenths = (3 + Math.round(v * 47)).coerceIn(3, 50)) } }
-        var tmdbKey by remember { mutableStateOf("") }
-        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvTextField(tmdbKey, { tmdbKey = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API Key" else "TMDB key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
-            TvButton("Save", onClick = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
-        }
-        var fanartKey by remember { mutableStateOf("") }
-        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvTextField(fanartKey, { fanartKey = it }, if (settings.fanartApiKey.isBlank()) "fanart.tv API Key" else "fanart.tv key saved (••••${settings.fanartApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
-            TvButton("Save", onClick = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
-        }
-    }
+}
+
+private fun LazyListScope.displayCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
     group("size", "Size, text & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu. Font and text size change only the text, in any theme.") {
         Text("UI zoom", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         // Wraps onto a second line at big zoom sizes.
@@ -693,15 +669,63 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             vm.update { it.copy(logoArt = !it.logoArt) }
         }
     }
-    group("trailers", "Trailers") {
-        ToggleRow("Trailers", "Off: no trailers anywhere, no autoplay and no Trailer buttons.", settings.trailers) {
-            vm.update { it.copy(trailers = !it.trailers) }
+    group("rows", "Home & browsing", "Change, reorder, remove or add the rows on each page.") {
+        listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
+            ValueRow("Manage $label rows", "Pin · move · remove · add") { onManageRows(page) }
         }
-        if (settings.trailers) ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
-            vm.update { it.copy(heroTrailers = !it.heroTrailers) }
+        ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
+            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
         }
-        if (settings.trailers) ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
-            vm.update { it.copy(heroTrailerSound = !it.heroTrailerSound) }
+    }
+}
+
+private fun LazyListScope.soundsCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group("sounds", "Sound effects") {
+        ToggleRow("Sound effects", "Soft clicks when you move, select, hold OK and go back. PS2, Acidwave, Cybercore, Graffiti, Liquid Glass, Ethereal and the Cat Rave each have their own sounds.", settings.soundEffects) {
+            vm.update { it.copy(soundEffects = !it.soundEffects) }
+        }
+    }
+    group("feedback", "Touch screens") {
+        ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {
+            vm.update { it.copy(vibration = !it.vibration) }
+        }
+    }
+}
+
+private fun LazyListScope.screensaverCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group(
+        "screensaver", "Screensaver",
+        "After Zemu sits idle, a full-screen slideshow of titles picked for you, from the same suggestions and catalogs as Home (a new mix every time). OK plays the title showing; any other button returns to where you were.",
+    ) {
+        ToggleRow("Screensaver", "Off by default. Needs a TMDB or fanart.tv key below to find backdrops and title logos.", settings.screensaver) {
+            vm.update { it.copy(screensaver = !it.screensaver) }
+        }
+        ToggleRow("Show title and Watch now", "The title's logo, year and genres, with a Watch now button.", settings.screensaverShowTitle) {
+            vm.update { it.copy(screensaverShowTitle = !it.screensaverShowTitle) }
+        }
+        // Idle timeout: 15 s to 10 min in 15 s steps. Image duration: 3–60 s.
+        TvSlider(
+            "Idle timeout (s)", (settings.screensaverIdleSec - 15) / 585f, 15f / 585f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverIdleSec}s",
+        ) { v -> vm.update { it.copy(screensaverIdleSec = (15 + Math.round(v * 585 / 15f) * 15).coerceIn(15, 600)) } }
+        TvSlider(
+            "Time per title (s)", (settings.screensaverImageSec - 3) / 57f, 1f / 57f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "${settings.screensaverImageSec}s",
+        ) { v -> vm.update { it.copy(screensaverImageSec = (3 + Math.round(v * 57)).coerceIn(3, 60)) } }
+        // Fade: 0.3–5 s in tenths.
+        TvSlider(
+            "Fade between titles", (settings.screensaverFadeTenths - 3) / 47f, 1f / 47f,
+            androidx.compose.ui.graphics.SolidColor(Palette.SurfaceHigh), "%.1fs".format(settings.screensaverFadeTenths / 10f),
+        ) { v -> vm.update { it.copy(screensaverFadeTenths = (3 + Math.round(v * 47)).coerceIn(3, 50)) } }
+        var tmdbKey by remember { mutableStateOf("") }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(tmdbKey, { tmdbKey = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API Key" else "TMDB key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
+            TvButton("Save", onClick = { vm.saveTmdbKey(tmdbKey); tmdbKey = "" })
+        }
+        var fanartKey by remember { mutableStateOf("") }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(fanartKey, { fanartKey = it }, if (settings.fanartApiKey.isBlank()) "fanart.tv API Key" else "fanart.tv key saved (••••${settings.fanartApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
+            TvButton("Save", onClick = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
         }
     }
 }

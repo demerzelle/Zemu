@@ -61,6 +61,10 @@ private val ICONS = mapOf(
         "............", ".kkk...kkk..", "krrrk.krrrk.", "krwrrkrrrrk.", "krrrrrrrrrk.", "krrrrrrrrrk.",
         ".krrrrrrrk..", "..krrrrrk...", "...krrrk....", "....krk.....", ".....k......",
     ),
+    "DOWNLOADS" to sprite(
+        "....kkkk....", "....kbbk....", "....kbbk....", "....kbbk....", ".kkkkbbkkkk.", "..kbbbbbbk..",
+        "...kbbbbk...", "....kbbk....", "k....kk....k", "kwwwwwwwwwwk", "kkkkkkkkkkkk",
+    ),
     "SURPRISE" to sprite(
         "kkkkkkkkkkkk", "kwwwwwwwwwwk", "kwkkwwwwkkwk", "kwkkwwwwkkwk", "kwwwwwwwwwwk", "kwwwwkkwwwwk",
         "kwwwwkkwwwwk", "kwwwwwwwwwwk", "kwkkwwwwkkwk", "kwkkwwwwkkwk", "kwwwwwwwwwwk", "kkkkkkkkkkkk",

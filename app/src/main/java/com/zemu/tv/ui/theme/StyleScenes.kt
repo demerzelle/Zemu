@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -538,8 +539,24 @@ fun SpaceBackdrop(modifier: Modifier = Modifier) {
     Canvas(modifier.fillMaxSize()) {
         val t = clock.floatValue
         drawRect(Brush.verticalGradient(listOf(Color(0xFF05071A), Color(0xFF0B1030), Color(0xFF1B1446))))
+        // Nebulas drifting slowly, and a spiral galaxy far off.
+        listOf(Triple(0.3f, 0.3f, Color(0x55B57BFF)), Triple(0.62f, 0.7f, Color(0x4430C8D8)), Triple(0.15f, 0.55f, Color(0x40FF7AC6))).forEachIndexed { i, (x, y, c) ->
+            val o = Offset(size.width * (x + 0.03f * sin(t * 0.05f + i)), size.height * y)
+            drawCircle(Brush.radialGradient(listOf(c, Color.Transparent), o, size.minDimension * 0.45f), size.minDimension * 0.45f, o)
+        }
+        val g = Offset(size.width * 0.66f, size.height * 0.16f)
+        rotate(t * 2f, g) {
+            repeat(2) { arm -> for (k in 0 until 40) {
+                val a = k * 0.25f + arm * PI.toFloat(); val d = k * 2.6f
+                drawCircle(Color.White.copy(alpha = 0.5f - k * 0.011f), 2.4f - k * 0.04f, g + Offset(kotlin.math.cos(a) * d, sin(a) * d * 0.55f))
+            } }
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF4D6), Color.Transparent), g, 22f), 22f, g)
+        }
         val r = Random(5)
-        repeat(90) { drawCircle(Color.White.copy(alpha = 0.25f + 0.4f * r.nextFloat()), 1f + r.nextFloat() * 1.4f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height)) }
+        repeat(140) { i ->
+            val tw = 0.5f + 0.5f * sin(t * (1f + i % 5) + i)
+            drawCircle(Color.White.copy(alpha = (0.2f + 0.5f * r.nextFloat()) * (0.6f + 0.4f * tw)), 1f + r.nextFloat() * 1.4f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height))
+        }
         // Ringed planet.
         val p = Offset(size.width * 0.84f, size.height * 0.22f)
         drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB86B), Color(0xFFE0663B)), p - Offset(30f, 30f), 140f), 95f, p)
@@ -559,6 +576,109 @@ fun SpaceBackdrop(modifier: Modifier = Modifier) {
             drawPath(Path().apply { moveTo(c.x - 18f, c.y + 20f); lineTo(c.x - 30f, c.y + 34f); lineTo(c.x - 12f, c.y + 20f); close() }, Color(0xFFE5484D))
             drawPath(Path().apply { moveTo(c.x + 18f, c.y + 20f); lineTo(c.x + 30f, c.y + 34f); lineTo(c.x + 12f, c.y + 20f); close() }, Color(0xFFE5484D))
             drawOval(Color(0xFFFFB13B), Offset(c.x - 9f, c.y + 22f), Size(18f, 22f + sin(t * 30f) * 6f))
+        }
+    }
+}
+
+/** Night Sky: a deep blue dusk over hills and pines, a glowing moon, twinkling stars, a soft aurora and shooting stars. */
+@Composable
+fun NightSkyBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(24)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(listOf(Color(0xFF040817), Color(0xFF0A1630), Color(0xFF1C2A55), Color(0xFF3A3466))))
+        // Aurora ribbons.
+        repeat(2) { i ->
+            val path = Path()
+            val base = size.height * (0.28f + i * 0.08f)
+            path.moveTo(0f, base)
+            var x = 0f
+            while (x <= size.width) { path.lineTo(x, base + sin(x / 180f + t * 0.4f + i) * 30f); x += 24f }
+            drawPath(path, Brush.verticalGradient(listOf(Color(0x5544FFAA), Color.Transparent), base - 60f, base + 80f), style = Stroke(70f))
+        }
+        val r = Random(11)
+        repeat(220) { i ->
+            val tw = 0.5f + 0.5f * sin(t * (0.8f + i % 7 * 0.4f) + i)
+            drawCircle(Color.White.copy(alpha = (0.15f + 0.6f * r.nextFloat()) * tw), 0.8f + r.nextFloat() * 1.6f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height * 0.75f))
+        }
+        // Shooting stars every few seconds.
+        repeat(2) { i ->
+            val cycle = ((t + i * 3.7f) % 7f) / 1.1f
+            if (cycle < 1f) {
+                val start = Offset(size.width * (0.2f + 0.5f * ((i * 0.37f + (t / 7f).toInt() * 0.29f) % 1f)), size.height * (0.08f + i * 0.1f))
+                val head = start + Offset(cycle * 420f, cycle * 160f)
+                drawLine(Brush.linearGradient(listOf(Color.Transparent, Color.White), head - Offset(140f, 53f), head), head - Offset(140f, 53f), head, 3f)
+            }
+        }
+        // Moon with its halo.
+        val m = Offset(size.width * 0.82f, size.height * 0.2f)
+        drawCircle(Brush.radialGradient(listOf(Color(0x55FFE8A3), Color.Transparent), m, 230f), 230f, m)
+        drawCircle(Color(0xFFFFF3CF), 70f, m)
+        drawCircle(Color(0xFFEADFB8), 13f, m + Offset(-22f, -10f)); drawCircle(Color(0xFFEADFB8), 8f, m + Offset(20f, 22f))
+        // Hills and pines in silhouette.
+        fun hill(color: Color, top: Float, amp: Float, period: Float) {
+            val p = Path(); p.moveTo(0f, size.height)
+            var x = 0f
+            while (x <= size.width) { p.lineTo(x, top + sin(x / period) * amp); x += 20f }
+            p.lineTo(size.width, size.height); p.close(); drawPath(p, color)
+        }
+        hill(Color(0xFF141C38), size.height * 0.76f, 40f, 260f)
+        hill(Color(0xFF0A0F22), size.height * 0.86f, 26f, 170f)
+        val pr = Random(3)
+        repeat(26) {
+            val x = pr.nextFloat() * size.width; val h = 60f + pr.nextFloat() * 90f
+            val b = size.height * 0.88f + sin(x / 170f) * 26f
+            drawPath(Path().apply { moveTo(x, b - h); lineTo(x + h * 0.28f, b); lineTo(x - h * 0.28f, b); close() }, Color(0xFF060914))
+        }
+    }
+}
+
+/** Alien Abduction: a moonlit farm at night; a flying saucer sweeps its beam and lifts a cow, then lets it down. */
+@Composable
+fun AlienBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(24)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(listOf(Color(0xFF02050C), Color(0xFF07121F), Color(0xFF10261F))))
+        val r = Random(21)
+        repeat(160) { i ->
+            val tw = 0.5f + 0.5f * sin(t * (1f + i % 4) + i)
+            drawCircle(Color.White.copy(alpha = (0.2f + 0.5f * r.nextFloat()) * tw), 0.8f + r.nextFloat() * 1.3f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height * 0.7f))
+        }
+        val ground = size.height * 0.8f
+        // Fields and a barn with a lit window.
+        drawRect(Color(0xFF0C1E14), Offset(0f, ground), Size(size.width, size.height - ground))
+        repeat(9) { i -> drawLine(Color(0xFF143022), Offset(0f, ground + i * 18f), Offset(size.width, ground + i * 26f), 2f) }
+        val barn = Offset(size.width * 0.1f, ground)
+        drawRect(Color(0xFF3A1414), Offset(barn.x, barn.y - 120f), Size(170f, 120f))
+        drawPath(Path().apply { moveTo(barn.x - 12f, barn.y - 120f); lineTo(barn.x + 85f, barn.y - 190f); lineTo(barn.x + 182f, barn.y - 120f); close() }, Color(0xFF2A0E0E))
+        drawRect(Color(0xFFFFD27A), Offset(barn.x + 70f, barn.y - 100f), Size(30f, 30f))
+        // Fence.
+        var fx = size.width * 0.3f
+        while (fx < size.width * 0.95f) { drawRect(Color(0xFF1E3A2A), Offset(fx, ground - 30f), Size(5f, 34f)); fx += 60f }
+        drawRect(Color(0xFF1E3A2A), Offset(size.width * 0.3f, ground - 22f), Size(size.width * 0.65f, 4f))
+        // The saucer drifts and bobs; its beam pulses and the cow rises and falls inside it.
+        val ux = size.width * (0.6f + 0.12f * sin(t * 0.25f))
+        val uy = size.height * 0.3f + sin(t * 1.2f) * 10f
+        val beam = 0.55f + 0.25f * sin(t * 2f)
+        drawPath(Path().apply { moveTo(ux - 40f, uy + 20f); lineTo(ux + 40f, uy + 20f); lineTo(ux + 150f, ground + 10f); lineTo(ux - 150f, ground + 10f); close() },
+            Brush.verticalGradient(listOf(Color(0xAA9BFF7A).copy(alpha = beam), Color(0x229BFF7A)), uy, ground))
+        drawOval(Color(0x559BFF7A), Offset(ux - 160f, ground - 6f), Size(320f, 30f))
+        val lift = ((sin(t * 0.35f) + 1f) / 2f)
+        val cy = ground - 20f - lift * (ground - uy - 90f)
+        rotate(sin(t * 1.5f) * 12f, Offset(ux, cy)) {
+            drawOval(Color.White, Offset(ux - 34f, cy - 18f), Size(68f, 36f))
+            drawCircle(Color.Black, 9f, Offset(ux - 8f, cy - 4f)); drawCircle(Color.Black, 7f, Offset(ux + 16f, cy + 4f))
+            drawOval(Color.White, Offset(ux + 26f, cy - 26f), Size(26f, 22f))
+            drawOval(Color(0xFFFFB3C1), Offset(ux + 38f, cy - 16f), Size(14f, 10f))
+            listOf(-24f, -10f, 10f, 22f).forEach { lx -> drawRect(Color.White, Offset(ux + lx, cy + 14f), Size(6f, 18f)) }
+        }
+        // The saucer: a metal disc, a glass dome and chasing lights.
+        drawOval(Brush.verticalGradient(listOf(Color(0xFFDCE3EA), Color(0xFF6E7A86)), uy - 10f, uy + 26f), Offset(ux - 120f, uy - 10f), Size(240f, 40f))
+        drawOval(Brush.radialGradient(listOf(Color(0xCCB8FFE0), Color(0x667CFF6B)), Offset(ux, uy - 20f), 60f), Offset(ux - 52f, uy - 50f), Size(104f, 60f))
+        repeat(7) { i ->
+            val on = ((t * 6).toInt() + i) % 7 < 2
+            drawCircle(if (on) Color(0xFF7CFF6B) else Color(0xFF2C5A30), 6f, Offset(ux - 90f + i * 30f, uy + 12f))
         }
     }
 }

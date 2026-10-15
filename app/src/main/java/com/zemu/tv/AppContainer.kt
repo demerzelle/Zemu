@@ -43,6 +43,7 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
 
     val client = AddonClient(http, json)
     val userStore = UserStore(context, json, appScope, profileId)
+    val downloads = com.zemu.tv.data.Downloads(context, json)
     val addons = AddonRepository(client, userStore, json, appScope)
     val streams = StreamRepository(addons, client, userStore)
     val recommender = Recommender(addons)

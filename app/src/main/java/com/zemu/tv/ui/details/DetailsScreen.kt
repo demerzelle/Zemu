@@ -121,6 +121,8 @@ fun DetailsScreen(
     val extras by vm.extras.collectAsStateWithLifecycle()
     val castPeople by vm.cast.collectAsStateWithLifecycle()
     var showCast by remember { mutableStateOf(false) }
+    // Hold OK on a stream: play it or download it for offline playback.
+    var streamMenu by remember { mutableStateOf<RankedStream?>(null) }
     val castFocus = remember { FocusRequester() }
     val inMyList by vm.inMyList.collectAsStateWithLifecycle()
     val ratings by c.userStore.ratings.collectAsStateWithLifecycle()
@@ -396,7 +398,7 @@ fun DetailsScreen(
                     }
                 }
                 else -> items(streams.streams, key = { "s-" + it.stream.key }) { rs ->
-                    StreamRow(rs, streams.externalSubLangs, onClick = { play(rs, picked = true) }, modifier = Modifier.padding(vertical = 5.dp))
+                    StreamRow(rs, streams.externalSubLangs, onClick = { play(rs, picked = true) }, modifier = Modifier.padding(vertical = 5.dp), onLongClick = { streamMenu = rs })
                 }
             }
 
@@ -420,6 +422,20 @@ fun DetailsScreen(
         }
     }
 
+    streamMenu?.let { rs ->
+        val downloads = c.downloads
+        ActionSheet(
+            title = rs.stream.title,
+            onDismiss = { streamMenu = null },
+            actions = buildList {
+                add(SheetAction("Play") { play(rs, picked = true) })
+                if (downloads.available) add(SheetAction("Download for offline", rs.stream.sizeLabel) {
+                    val err = downloads.start(m, vm.currentVideoId(), vm.episodeLabel(), rs.stream.raw.url.orEmpty(), rs.stream.raw.behaviorHints?.proxyHeaders?.request.orEmpty(), rs.stream.raw.behaviorHints?.filename, rs.stream.sizeBytes)
+                    Toast.makeText(context, err ?: "Downloading. Find it under Downloads in the menu.", Toast.LENGTH_LONG).show()
+                })
+            },
+        )
+    }
     if (moreOpen) {
         val watched = m.id in watchedIds
         ActionSheet(

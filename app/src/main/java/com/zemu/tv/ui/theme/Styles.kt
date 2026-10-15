@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,9 @@ fun styleTextStyle(style: UiStyle, variant: String): TextStyle = when (style) {
     // Space: wide lettering with a starlight glow; Ocean: soft, with a watery shimmer.
     UiStyle.SPACE -> TextStyle(letterSpacing = sp(0.8f), shadow = Shadow(Color(0x668AB4FF), Offset.Zero, 12f))
     UiStyle.OCEAN -> TextStyle(letterSpacing = sp(0.3f), shadow = Shadow(Color(0x554FE3C1), Offset.Zero, 10f))
+    // Night Sky: a quiet serif under moonlight; Alien Abduction: green terminal glow.
+    UiStyle.NIGHT -> TextStyle(fontFamily = FontFamily.Serif, letterSpacing = sp(0.4f), shadow = Shadow(Color(0x55FFE8A3), Offset.Zero, 10f))
+    UiStyle.ALIEN -> TextStyle(fontFamily = FontFamily.Monospace, letterSpacing = sp(0.5f), shadow = Shadow(Color(0x887CFF6B), Offset.Zero, 10f))
     // Consoles: chunky monospace, like bitmap fonts; 16-bit text gets a hard drop shadow.
     UiStyle.POCKET -> TextStyle(fontFamily = PixelFont, letterSpacing = sp(0.4f))
     UiStyle.SIXTEEN -> TextStyle(fontFamily = PixelFont, shadow = Shadow(Color(0xFF181028), Offset(2f, 2f), 0f))
@@ -128,6 +132,8 @@ fun styledShape(shape: Shape): Shape {
         UiStyle.GRAFFITI -> RoundedCornerShape(3.dp)
         UiStyle.SPACE -> RoundedCornerShape(16.dp)
         UiStyle.OCEAN -> RoundedCornerShape(24.dp)
+        UiStyle.NIGHT -> RoundedCornerShape(18.dp)
+        UiStyle.ALIEN -> androidx.compose.foundation.shape.CutCornerShape(10.dp)
         else -> shape
     }
 }
@@ -154,6 +160,11 @@ fun Modifier.stylePanel(shape: Shape, solid: Color): Modifier? = when (Palette.S
     }
     UiStyle.OCEAN -> RoundedCornerShape(24.dp).let { s ->
         background(solid.copy(alpha = 0.85f), s).border(2.dp, Brush.verticalGradient(listOf(Color(0xFFB8FFF0), Color(0xFF4FE3C1))), s)
+    }
+    // Night Sky: a dark pane with a thin moonlit rim; Alien Abduction: a clipped hull with a glowing green edge.
+    UiStyle.NIGHT -> RoundedCornerShape(18.dp).let { s -> background(solid.copy(alpha = 0.9f), s).border(1.dp, Color(0x99FFE8A3), s) }
+    UiStyle.ALIEN -> androidx.compose.foundation.shape.CutCornerShape(12.dp).let { s ->
+        background(solid.copy(alpha = 0.92f), s).border(2.dp, Color(0xFF7CFF6B), s).border(6.dp, Color(0x227CFF6B), s)
     }
     UiStyle.CATRAVE -> {
         val s = RoundedCornerShape(22.dp)
@@ -444,8 +455,12 @@ fun rememberStyleScope() = rememberCoroutineScope()
 fun boxy(shape: Shape): Shape =
     if (Palette.Style in setOf(UiStyle.RETRO, UiStyle.POCKET, UiStyle.SIXTEEN)) androidx.compose.ui.graphics.RectangleShape else shape
 
-/** Text fields drawn per style: sunken 98 boxes, XP's blue-edged field, Kawaii pink, console frames. */
-fun styleField(): Modifier = when (Palette.Style) {
+/**
+ * Text fields drawn per style: sunken 98 boxes, XP's blue-edged field, Kawaii pink, console
+ * frames, PS2's glowing rim, Acidwave's bracketed readout, Graffiti's marker outline, liquid glass,
+ * rainbow rave, a nebula edge for Space and sea glass for Ocean. [shape] is the field's own.
+ */
+fun styleField(shape: Shape = androidx.compose.ui.graphics.RectangleShape): Modifier = when (Palette.Style) {
     UiStyle.RETRO -> when (Palette.colors.variant) {
         "XP" -> Modifier.border(1.dp, Color(0xFF7F9DB9))
         "KAWAII" -> Modifier.border(2.dp, Color(0xFFFF9AD5))
@@ -453,7 +468,27 @@ fun styleField(): Modifier = when (Palette.Style) {
     }
     UiStyle.POCKET -> Modifier.border(3.dp, Color(0xFF0F380F))
     UiStyle.SIXTEEN -> Modifier.border(2.dp, Color.White)
-    else -> Modifier
+    UiStyle.PS2 -> Modifier.border(1.dp, Color(0xFF6FB4FF).copy(alpha = 0.7f), shape).drawBehind {
+        drawRect(Brush.verticalGradient(listOf(Color(0x336FB4FF), Color.Transparent)))
+    }
+    // A readout: accent corner brackets and a ruled baseline.
+    UiStyle.ACID -> Modifier.drawWithContent {
+        drawContent()
+        val a = Palette.Accent; val l = 10.dp.toPx(); val w = 2.dp.toPx()
+        drawRect(a, Offset(0f, size.height - w), Size(size.width, w))
+        drawRect(a, Offset.Zero, Size(l, w)); drawRect(a, Offset.Zero, Size(w, l))
+        drawRect(a, Offset(size.width - l, 0f), Size(l, w)); drawRect(a, Offset(size.width - w, 0f), Size(w, l))
+    }
+    UiStyle.ETHEREAL -> Modifier.border(1.dp, Brush.horizontalGradient(listOf(Color(0x80E9E4FF), Color(0x40C4B5FD), Color(0x80E9E4FF))), shape)
+    // A fat black marker outline with an accent drop shadow.
+    UiStyle.GRAFFITI -> Modifier.drawBehind { drawRect(Palette.Accent, Offset(4.dp.toPx(), 4.dp.toPx()), size) }.border(3.dp, Color.Black, shape)
+    UiStyle.LIQUID -> Modifier.liquidGlass(shape)
+    UiStyle.CATRAVE -> Modifier.border(2.dp, Brush.sweepGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) }), shape)
+    UiStyle.SPACE -> Modifier.border(1.5.dp, Brush.linearGradient(listOf(Color(0xFF8AB4FF), Color(0xFFB57BFF), Color(0xFFFF7AC6))), shape)
+    UiStyle.OCEAN -> Modifier.border(2.dp, Brush.verticalGradient(listOf(Color(0xFFB8FFF0), Color(0xFF4FE3C1))), shape)
+    UiStyle.NIGHT -> Modifier.border(1.dp, Color(0x99FFE8A3), shape)
+    UiStyle.ALIEN -> Modifier.border(1.5.dp, Color(0xFF7CFF6B), shape).drawBehind { drawRect(Color(0x147CFF6B)) }
+    UiStyle.NORMAL -> Modifier
 }
 
 /** Title-bar height of the current desktop's windows. */

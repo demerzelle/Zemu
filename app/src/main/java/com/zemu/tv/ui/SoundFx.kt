@@ -29,6 +29,8 @@ object SoundFx {
         UiStyle.CATRAVE -> "catrave"
         UiStyle.SPACE -> "space"
         UiStyle.OCEAN -> "ocean"
+        UiStyle.NIGHT -> "ethereal"
+        UiStyle.ALIEN -> "space"
         UiStyle.POCKET -> "pocket"
         UiStyle.SIXTEEN -> "sixteen"
         UiStyle.NORMAL -> "default"

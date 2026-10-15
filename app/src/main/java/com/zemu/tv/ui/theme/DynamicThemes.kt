@@ -65,8 +65,12 @@ enum class DynamicTheme(
     SIXTEEN("16-Bit", 0xFFB8A9F0, 0xFF101848, UiStyle.SIXTEEN),
     /** Shh. */
     CATRAVE("Cat Rave", 0xFFFF00E6, 0xFF07000F, UiStyle.CATRAVE, hidden = true),
-    /** Deep space: a starfield, a ringed planet, comets and a rocket drifting by. */
-    SPACE("Space", 0xFF8AB4FF, 0xFF0B1030, UiStyle.SPACE),
+    /** Outer space: nebulas, a turning galaxy, twinkling stars, a ringed planet and a rocket on a loop. */
+    SPACE("Outer Space", 0xFF8AB4FF, 0xFF0B1030, UiStyle.SPACE),
+    /** A night sky over pine hills: moon, aurora, twinkling stars and shooting stars. */
+    NIGHT_SKY("Night Sky", 0xFFFFE8A3, 0xFF0A1028, UiStyle.NIGHT),
+    /** A flying saucer beams a cow up from a farm at night. */
+    ALIEN("Alien Abduction", 0xFF7CFF6B, 0xFF07100C, UiStyle.ALIEN),
     /** Under the sea: sun rays, swaying kelp, fish and rising bubbles. */
     OCEAN("Ocean", 0xFF4FE3C1, 0xFF0C4A70, UiStyle.OCEAN),
     ;

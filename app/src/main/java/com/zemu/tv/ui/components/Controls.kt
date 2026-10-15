@@ -290,7 +290,7 @@ fun TvTextField(
             }
             .background(if (active) Palette.SurfaceHigh else Palette.Surface, com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp))))
             .border(2.dp, if (active) Palette.FocusBorder else Color.Transparent, com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp))))
-            .then(com.zemu.tv.ui.theme.styleField())
+            .then(com.zemu.tv.ui.theme.styleField(com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp)))))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         BasicTextField(
