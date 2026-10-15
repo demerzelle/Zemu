@@ -139,6 +139,8 @@ data class AppSettings(
     val font: String = "",
     /** Text size in percent, on top of [uiZoom]. */
     val fontSize: Int = 100,
+    /** Downloads for offline playback: the menu entry and "Download for offline" on streams. Off by default. */
+    val downloads: Boolean = false,
     /** Decode Dolby Vision as its HDR10/HEVC base layer. Turned on automatically if DV fails to decode. */
     val avoidDolbyVision: Boolean = false,
     val preferSoftwareDecoders: Boolean = false,

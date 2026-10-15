@@ -544,6 +544,11 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
             vm.update { it.copy(useExternalPlayer = !it.useExternalPlayer) }
         }
     }
+    group("downloads", "Downloads") {
+        ToggleRow("Downloads", "Save titles on this device to watch without internet: adds Downloads to the menu and \"Download for offline\" when you hold OK on a stream. Titles already downloaded stay until you delete them.", settings.downloads) {
+            vm.update { it.copy(downloads = !it.downloads) }
+        }
+    }
     group("history", "History") {
         ValueRow("Clear watch history", "Resets Continue Watching and recommendations") { vm.clearHistory() }
     }

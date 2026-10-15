@@ -355,7 +355,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
     // Labels fade in as the menu widens, so nothing pokes out past its edge mid-animation.
     val progress = ((width - RAIL_WIDTH) / (RAIL_OPEN_WIDTH - RAIL_WIDTH)).coerceIn(0f, 1f)
     // Settings is for grown-ups; in Kids Mode it's off the menu.
-    val main = Dest.entries.filter { !it.bottom && !(kidsOn && it == Dest.SETTINGS) }
+    val downloadsOn = LocalContext.current.container.userStore.settings.collectAsStateWithLifecycle().value.downloads
+    val main = Dest.entries.filter { !it.bottom && !(kidsOn && it == Dest.SETTINGS) && (downloadsOn || it != Dest.DOWNLOADS) }
     val bottom = Dest.entries.filter { it.bottom && (kidsOn || it != Dest.THEME) }
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val requesters = remember { Dest.entries.associateWith { FocusRequester() } }
