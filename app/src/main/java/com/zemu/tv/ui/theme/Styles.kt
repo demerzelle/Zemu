@@ -67,23 +67,42 @@ fun styleTextStyle(style: UiStyle, variant: String): TextStyle = when (style) {
     )
     UiStyle.LIQUID -> TextStyle(letterSpacing = sp(-0.2f))
     UiStyle.CATRAVE -> TextStyle(fontFamily = FontFamily.Cursive, shadow = Shadow(Color(0xCCFF00E6), Offset(2f, 2f), 4f))
-    // Kids: chunky and friendly; Grade School is hand-lettered (Android's "casual" face); Young Adult is clean and wide.
-    UiStyle.TODDLER -> TextStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = sp(0.4f))
-    UiStyle.GRADE -> TextStyle(fontFamily = FontFamily(android.graphics.Typeface.create("casual", android.graphics.Typeface.NORMAL)))
-    UiStyle.TEEN -> TextStyle(letterSpacing = sp(0.6f), shadow = Shadow(Color(0x667CFFCB), Offset.Zero, 12f))
+    // Space: wide lettering with a starlight glow; Ocean: soft, with a watery shimmer.
+    UiStyle.SPACE -> TextStyle(letterSpacing = sp(0.8f), shadow = Shadow(Color(0x668AB4FF), Offset.Zero, 12f))
+    UiStyle.OCEAN -> TextStyle(letterSpacing = sp(0.3f), shadow = Shadow(Color(0x554FE3C1), Offset.Zero, 10f))
     // Consoles: chunky monospace, like bitmap fonts; 16-bit text gets a hard drop shadow.
     UiStyle.POCKET -> TextStyle(fontFamily = PixelFont, letterSpacing = sp(0.4f))
     UiStyle.SIXTEEN -> TextStyle(fontFamily = PixelFont, shadow = Shadow(Color(0xFF181028), Offset(2f, 2f), 0f))
     UiStyle.NORMAL -> TextStyle.Default
 }
 
+/** Fonts you can pick in Appearance → Text (key to label); "" keeps the theme's own. */
+val FONT_CHOICES = listOf(
+    "" to "Theme's own", "SANS" to "Sans serif", "SERIF" to "Serif", "MONO" to "Monospace",
+    "CONDENSED" to "Condensed", "CURSIVE" to "Handwritten", "PIXEL" to "Pixel",
+)
+
+fun fontFamilyOf(key: String): FontFamily? = when (key) {
+    "SANS" -> FontFamily.SansSerif
+    "SERIF" -> FontFamily.Serif
+    "MONO" -> FontFamily.Monospace
+    "CONDENSED" -> FontFamily(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL))
+    "CURSIVE" -> FontFamily.Cursive
+    "PIXEL" -> PixelFont
+    else -> null
+}
+
+/** A style's lettering with your chosen font (if any) in place of its own. */
+fun styleTextStyle(style: UiStyle, variant: String, font: String): TextStyle =
+    fontFamilyOf(font)?.let { styleTextStyle(style, variant).merge(TextStyle(fontFamily = it)) } ?: styleTextStyle(style, variant)
+
 private val typographies = HashMap<String, androidx.tv.material3.Typography>()
 
 /** The Material typography with a style's lettering merged in (cached per style). */
-fun styleTypography(style: UiStyle, variant: String): androidx.tv.material3.Typography = typographies.getOrPut("$style/$variant") {
+fun styleTypography(style: UiStyle, variant: String, font: String = ""): androidx.tv.material3.Typography = typographies.getOrPut("$style/$variant/$font") {
     val t = androidx.tv.material3.Typography()
-    if (style == UiStyle.NORMAL) return@getOrPut t
-    val extra = styleTextStyle(style, variant)
+    if (style == UiStyle.NORMAL && font.isEmpty()) return@getOrPut t
+    val extra = styleTextStyle(style, variant, font)
     fun TextStyle.x() = merge(extra)
     t.copy(
         displayLarge = t.displayLarge.x(), displayMedium = t.displayMedium.x(), displaySmall = t.displaySmall.x(),
@@ -107,9 +126,8 @@ fun styledShape(shape: Shape): Shape {
         UiStyle.LIQUID, UiStyle.CATRAVE -> RoundedCornerShape(50)
         UiStyle.RETRO -> androidx.compose.ui.graphics.RectangleShape
         UiStyle.GRAFFITI -> RoundedCornerShape(3.dp)
-        UiStyle.TODDLER -> RoundedCornerShape(26.dp)
-        UiStyle.GRADE -> RoundedCornerShape(12.dp)
-        UiStyle.TEEN -> RoundedCornerShape(16.dp)
+        UiStyle.SPACE -> RoundedCornerShape(16.dp)
+        UiStyle.OCEAN -> RoundedCornerShape(24.dp)
         else -> shape
     }
 }
@@ -130,11 +148,12 @@ fun Modifier.stylePanel(shape: Shape, solid: Color): Modifier? = when (Palette.S
     }
     UiStyle.GRAFFITI -> background(solid, androidx.compose.ui.graphics.RectangleShape)
         .border(3.dp, Palette.Accent, androidx.compose.ui.graphics.RectangleShape)
-    // Toddler: a white bubble with a thick sunny border; Grade School: a sheet of paper with a pencil outline.
-    UiStyle.TODDLER -> RoundedCornerShape(30.dp).let { s -> background(solid, s).border(4.dp, Color(0xFFFFC93C), s) }
-    UiStyle.GRADE -> RoundedCornerShape(10.dp).let { s -> background(solid, s).border(2.dp, Color(0xFF1F2937), s) }
-    UiStyle.TEEN -> RoundedCornerShape(22.dp).let { s ->
-        background(solid.copy(alpha = 0.9f), s).border(1.5.dp, Brush.linearGradient(listOf(Color(0xFF7CFFCB), Color(0xFFB57BFF), Color(0xFFFF7AC6))), s)
+    // Space: a ship's console panel with a nebula-edged frame; Ocean: a rounded bubble of sea glass.
+    UiStyle.SPACE -> RoundedCornerShape(16.dp).let { s ->
+        background(solid.copy(alpha = 0.9f), s).border(1.5.dp, Brush.linearGradient(listOf(Color(0xFF8AB4FF), Color(0xFFB57BFF), Color(0xFFFF7AC6))), s)
+    }
+    UiStyle.OCEAN -> RoundedCornerShape(24.dp).let { s ->
+        background(solid.copy(alpha = 0.85f), s).border(2.dp, Brush.verticalGradient(listOf(Color(0xFFB8FFF0), Color(0xFF4FE3C1))), s)
     }
     UiStyle.CATRAVE -> {
         val s = RoundedCornerShape(22.dp)

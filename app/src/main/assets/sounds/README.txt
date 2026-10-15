@@ -18,9 +18,8 @@ Folders (which theme uses them):
   liquid/      Liquid Glass
   ethereal/    Ethereal · Aurora
   catrave/     the secret Cat Rave
-  toddler/     Kids Mode · Toddler
-  gradeschool/ Kids Mode · Grade School
-  youngadult/  Kids Mode · Young Adult
+  space/       Space
+  ocean/       Ocean
   pocket/      Pocket LCD (handheld)
   sixteen/     16-Bit (console)
 

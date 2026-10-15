@@ -568,7 +568,7 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
         val current = DynamicTheme.of(settings.dynamicTheme)
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(DynamicTheme.entries.filter { !it.kids && (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
+            items(DynamicTheme.entries.filter { (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
                 TvChip(d.label, selected = current == d, onClick = {
                     vm.updateLook { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
                 })
@@ -659,13 +659,31 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             TvButton("Save", onClick = { vm.update { s -> s.copy(fanartApiKey = fanartKey.trim()) }; fanartKey = "" })
         }
     }
-    group("size", "Size & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu.") {
+    group("size", "Size, text & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu. Font and text size change only the text, in any theme.") {
         Text("UI zoom", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         // Wraps onto a second line at big zoom sizes.
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(80, 90, 100, 110, 125, 150).forEach { z ->
                 TvChip("$z%", settings.uiZoom == z, { vm.update { it.copy(uiZoom = z) } })
+            }
+        }
+        Text("Font", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.zemu.tv.ui.theme.FONT_CHOICES.forEach { (k, label) ->
+                // Each chip is written in its own font.
+                val f = com.zemu.tv.ui.theme.fontFamilyOf(k)
+                FocusSurface(onClick = { vm.update { it.copy(font = k) } }, shape = com.zemu.tv.ui.theme.styledShape(RoundedCornerShape(50)), containerColor = if (settings.font == k) Palette.SurfaceHigh else Palette.Surface) {
+                    Text((if (settings.font == k) "✓ " else "") + label, fontFamily = f, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
+            }
+        }
+        Text("Text size", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(85, 100, 115, 130, 150).forEach { z ->
+                TvChip("$z%", settings.fontSize == z, { vm.update { it.copy(fontSize = z) } })
             }
         }
         ToggleRow("Title artwork", "The big picture behind the title at the top of Home, Browse and the title page.", settings.heroArt) {

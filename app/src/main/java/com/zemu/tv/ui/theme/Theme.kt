@@ -77,7 +77,7 @@ data class ThemeColors(
 }
 
 /** Whole-app looks that go beyond colors: shapes, type, panels and a backdrop scene. */
-enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE, TODDLER, GRADE, TEEN, POCKET, SIXTEEN }
+enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE, SPACE, OCEAN, POCKET, SIXTEEN }
 
 /** Colors the user can set per theme and per light/dark mode. */
 enum class ColorRole(val key: String, val label: String) {
@@ -235,11 +235,12 @@ object Palette {
 }
 
 @Composable
-fun ZemuTheme(colors: ThemeColors, zoom: Int = 100, content: @Composable () -> Unit) {
+fun ZemuTheme(colors: ThemeColors, zoom: Int = 100, font: String = "", fontSize: Int = 100, content: @Composable () -> Unit) {
     Palette.colors = colors
     // UI zoom: scaling the density resizes every dp and sp, so layouts reflow instead of being stretched.
+    // Text size scales only sp (text), on top of the zoom.
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val zoomed = remember(density, zoom) { androidx.compose.ui.unit.Density(density.density * zoom / 100f, density.fontScale) }
+    val zoomed = remember(density, zoom, fontSize) { androidx.compose.ui.unit.Density(density.density * zoom / 100f, density.fontScale * fontSize / 100f) }
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = colors.accent,
@@ -251,12 +252,12 @@ fun ZemuTheme(colors: ThemeColors, zoom: Int = 100, content: @Composable () -> U
             surfaceVariant = colors.surface,
             onSurfaceVariant = Palette.TextSecondary,
         ),
-        typography = styleTypography(colors.style, colors.variant),
+        typography = styleTypography(colors.style, colors.variant, font),
     ) {
         CompositionLocalProvider(
             androidx.compose.ui.platform.LocalDensity provides zoomed,
             LocalContentColor provides Palette.Text,
-            androidx.tv.material3.LocalTextStyle provides styleTextStyle(colors.style, colors.variant),
+            androidx.tv.material3.LocalTextStyle provides styleTextStyle(colors.style, colors.variant, font),
             content = content,
         )
     }

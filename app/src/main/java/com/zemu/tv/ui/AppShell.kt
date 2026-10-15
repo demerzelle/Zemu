@@ -310,18 +310,9 @@ fun AppShell() {
     }
 }
 
-/** The page's background plus the whole-app style's animated scene (PS2 towers, kids' sky, …). */
+/** The page's background plus the whole-app style's animated scene (PS2 towers, outer space, …). */
 @Composable
 private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground().then(Modifier.sceneTint())) {
-    // Kids themes' sub-themes have their own scenes, whatever the age.
-    val kidsScene = com.zemu.tv.ui.theme.Palette.colors.variant.takeIf {
-        com.zemu.tv.ui.theme.Palette.Style in setOf(com.zemu.tv.ui.theme.UiStyle.TODDLER, com.zemu.tv.ui.theme.UiStyle.GRADE, com.zemu.tv.ui.theme.UiStyle.TEEN)
-    }
-    when (kidsScene) {
-        "DINOS" -> return@Box com.zemu.tv.ui.theme.DinoBackdrop()
-        "SPACE" -> return@Box com.zemu.tv.ui.theme.SpaceBackdrop()
-        "OCEAN" -> return@Box com.zemu.tv.ui.theme.OceanBackdrop()
-    }
     when (com.zemu.tv.ui.theme.Palette.Style) {
         com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
         com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()
@@ -330,9 +321,8 @@ private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground().the
         com.zemu.tv.ui.theme.UiStyle.GRAFFITI -> com.zemu.tv.ui.theme.GraffitiBackdrop()
         com.zemu.tv.ui.theme.UiStyle.LIQUID -> com.zemu.tv.ui.theme.LiquidBackdrop()
         com.zemu.tv.ui.theme.UiStyle.CATRAVE -> com.zemu.tv.ui.theme.CatRaveBackdrop()
-        com.zemu.tv.ui.theme.UiStyle.TODDLER -> com.zemu.tv.ui.theme.ToddlerBackdrop()
-        com.zemu.tv.ui.theme.UiStyle.GRADE -> com.zemu.tv.ui.theme.GradeSchoolBackdrop()
-        com.zemu.tv.ui.theme.UiStyle.TEEN -> com.zemu.tv.ui.theme.YoungAdultBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.SPACE -> com.zemu.tv.ui.theme.SpaceBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.OCEAN -> com.zemu.tv.ui.theme.OceanBackdrop()
         com.zemu.tv.ui.theme.UiStyle.POCKET -> com.zemu.tv.ui.theme.PocketBackdrop()
         com.zemu.tv.ui.theme.UiStyle.SIXTEEN -> com.zemu.tv.ui.theme.SixteenBackdrop()
         else -> {}

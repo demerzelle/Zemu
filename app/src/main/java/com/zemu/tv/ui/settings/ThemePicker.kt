@@ -164,6 +164,7 @@ private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, o
         focusedContentColor = colors.customText ?: Palette.Text,
         focusedBorder = Palette.FocusBorder,
         focusedScale = 1.06f,
+        bevel = false,
     ) {
         Column(
             Modifier
@@ -308,7 +309,7 @@ fun ColorCustomizer(settings: AppSettings, updateLook: ((AppSettings) -> AppSett
 /** One color of the palette: its swatch, name and hex. */
 @Composable
 private fun PaletteSwatch(label: String, color: Color, selected: Boolean, edited: Boolean, onClick: () -> Unit) {
-    FocusSurface(onClick = onClick, shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.05f) {
+    FocusSurface(onClick = onClick, shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.05f, bevel = false) {
         Column(
             Modifier
                 .width(118.dp)
@@ -324,7 +325,7 @@ private fun PaletteSwatch(label: String, color: Color, selected: Boolean, edited
 
 @Composable
 private fun SavedPaletteSwatch(p: SavedPalette, where: String, onClick: () -> Unit) {
-    FocusSurface(onClick = onClick, shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.05f) {
+    FocusSurface(onClick = onClick, shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.05f, bevel = false) {
         Column(Modifier.width(150.dp).padding(8.dp)) {
             Row(Modifier.fillMaxWidth().height(30.dp)) {
                 ColorRole.entries.mapNotNull { p.colors[it.key] }.forEach { Box(Modifier.weight(1f).height(30.dp).background(Color(it.toInt()))) }

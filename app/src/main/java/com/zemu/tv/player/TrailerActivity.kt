@@ -89,9 +89,10 @@ class TrailerActivity : ComponentActivity() {
         YouTubeEmbed.load(view, trailers[current].id, muted = false, controls = true, cover = false, startSeconds = intent.getIntExtra(EXTRA_START, 0))
         if (trailers.size > 1) hintUntil = System.currentTimeMillis() + 5_000
 
-        val colors = container.userStore.settings.value.resolvedColors(light = false)
+        val s = container.userStore.settings.value
+        val colors = s.resolvedColors(light = false)
         setContent {
-            ZemuTheme(colors) {
+            ZemuTheme(colors, s.uiZoom, s.font, s.fontSize) {
                 if (com.zemu.tv.ui.theme.Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) {
                     // Cybercore: the trailer plays in a window on the desktop, with the taskbar below.
                     val variant = com.zemu.tv.ui.theme.Palette.colors.variant

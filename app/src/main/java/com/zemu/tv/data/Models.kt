@@ -135,6 +135,10 @@ data class AppSettings(
     val logoArt: Boolean = true,
     /** Size of everything on screen, in percent (posters, text, icons, the player's menu). */
     val uiZoom: Int = 100,
+    /** Font for all text: a key of FONT_CHOICES, "" = the theme's own. */
+    val font: String = "",
+    /** Text size in percent, on top of [uiZoom]. */
+    val fontSize: Int = 100,
     /** Decode Dolby Vision as its HDR10/HEVC base layer. Turned on automatically if DV fails to decode. */
     val avoidDolbyVision: Boolean = false,
     val preferSoftwareDecoders: Boolean = false,

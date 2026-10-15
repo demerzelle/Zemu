@@ -151,8 +151,6 @@ fun ParentCheck(title: String, onDismiss: () -> Unit, onUnlocked: () -> Unit) {
     }
 }
 
-val KIDS_THEMES = listOf("TODDLER" to "Toddler", "GRADE_SCHOOL" to "Grade School", "YOUNG_ADULT" to "Young Adult")
-
 /** A new parent code, entered twice; [onDone] runs once it's saved. */
 @Composable
 fun CreateParentCode(onDismiss: () -> Unit, onDone: () -> Unit) {
@@ -170,42 +168,29 @@ fun CreateParentCode(onDismiss: () -> Unit, onDone: () -> Unit) {
     }
 }
 
-/** The kid's own theme picker: changes only the look, and it's remembered for this profile. */
+/** The kid's own theme picker (Settings is locked): changes only the look, remembered for this profile. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun KidsThemePicker(onDismiss: () -> Unit) {
     val c = LocalContext.current.container
     val settings = c.userStore.settings.collectAsStateWithLifecycle().value
-    val current = settings.dynamicTheme
+    val current = com.zemu.tv.ui.theme.DynamicTheme.of(settings.dynamicTheme)
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         DialogBackdropBlur()
-        Column(Modifier.glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(24.dp))).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(860.dp).glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(24.dp))).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("🎨  Pick your theme", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                KIDS_THEMES.forEachIndexed { i, (key, label) ->
-                    FocusSurface(
-                        onClick = { c.appScope.launch { c.userStore.updateSettings { it.copy(dynamicTheme = key) } } },
-                        modifier = Modifier.size(170.dp, 110.dp).then(if (key == current || (i == 0 && KIDS_THEMES.none { it.first == current })) Modifier.focusRequester(first) else Modifier),
-                        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(20.dp)),
-                    ) {
-                        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(listOf("🎈", "✏️", "🌙")[i], fontSize = 34.sp)
-                            Text((if (key == current) "✓ " else "") + label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            // Sub-themes: the same scenes for every age.
-            val theme = com.zemu.tv.ui.theme.DynamicTheme.of(current)
-            if (theme.kids) {
-                val scene = settings.themeVariants[theme.name] ?: "CLASSIC"
-                Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    theme.variants.forEach { (key, label) ->
-                        val emoji = mapOf("CLASSIC" to "⭐", "DINOS" to "🦕", "SPACE" to "🚀", "OCEAN" to "🐠")[key].orEmpty()
-                        com.zemu.tv.ui.components.TvChip("$emoji $label", key == scene, {
-                            c.appScope.launch { c.userStore.updateSettings { it.copy(themeVariants = it.themeVariants + (theme.name to key)) } }
-                        })
-                    }
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.padding(top = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                com.zemu.tv.ui.theme.DynamicTheme.entries.filter { !it.hidden }.forEach { d ->
+                    com.zemu.tv.ui.components.TvChip(
+                        d.label, d == current,
+                        { c.appScope.launch { c.userStore.updateSettings { it.copy(dynamicTheme = d.name) } } },
+                        modifier = if (d == current) Modifier.focusRequester(first) else Modifier,
+                    )
                 }
             }
         }

@@ -176,13 +176,8 @@ class MainActivity : ComponentActivity() {
             key(profileId) {
                 val c = app.container
                 val savedSettings by c.userStore.settings.collectAsStateWithLifecycle()
-                // Kid profiles wear a kids theme (a random one the first time, then the kid's pick) and
-                // have no screensaver (it shows any title).
-                val kidsTheme = savedSettings.dynamicTheme.takeIf { DynamicTheme.of(it).kids } ?: remember { com.zemu.tv.ui.kids.KIDS_THEMES.random().first }
-                LaunchedEffect(kids.on, kidsTheme) {
-                    if (kids.on && savedSettings.dynamicTheme != kidsTheme) c.userStore.updateSettings { it.copy(dynamicTheme = kidsTheme) }
-                }
-                val settings = if (kids.on) savedSettings.copy(dynamicTheme = kidsTheme, screensaver = false) else savedSettings
+                // Kid profiles have no screensaver (it shows any title).
+                val settings = if (kids.on) savedSettings.copy(screensaver = false) else savedSettings
                 val dynamic = DynamicTheme.of(settings.dynamicTheme)
                 var rgbAccent by remember { mutableStateOf<Color?>(null) }
                 val base = settings.resolvedColors()
@@ -202,7 +197,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                ZemuTheme(colors, settings.uiZoom) {
+                ZemuTheme(colors, settings.uiZoom, settings.font, settings.fontSize) {
                     Box(Modifier.fillMaxSize()) {
                         if (picking) {
                             ProfilePicker(profiles, profileId) { p ->

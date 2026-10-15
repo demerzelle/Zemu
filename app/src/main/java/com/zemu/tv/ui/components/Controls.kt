@@ -86,6 +86,8 @@ fun FocusSurface(
     focusedContainerColor: Color = Palette.Focus,
     focusedContentColor: Color = Palette.OnFocus,
     focusedBorder: Color? = null,
+    /** False keeps Cybercore's button edge and gloss off the content (color swatches show true colors). */
+    bevel: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     // Whole-app styles reshape buttons and outline them; Cybercore shows a pointer instead of a
@@ -115,7 +117,7 @@ fun FocusSurface(
         onLongClick = onLongClick,
         modifier = modifier
             .then(if (liquid) Modifier.liquidGlass(shape) else Modifier)
-            .styleDecor(seed = remember { (Math.random() * 1000).toInt() }, bevel = solid)
+            .styleDecor(seed = remember { (Math.random() * 1000).toInt() }, bevel = solid && bevel)
             .graffitiDrips(spray)
             .touchClick(click, onLongClick),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
