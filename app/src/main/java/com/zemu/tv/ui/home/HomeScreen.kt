@@ -55,6 +55,9 @@ import com.zemu.tv.ui.components.TvButton
 import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 
+/** Where "See more", a service tile or a studio tile leads: the grid for that type, filtered. */
+data class BrowseTarget(val type: String, val service: String? = null, val serviceLabel: String? = null, val studio: String? = null)
+
 /**
  * Home, and the Movies / Series / Anime pages ([page] "movie", "series", "anime"), which add a bar
  * to browse everything or one streaming service or studio. [onBrowse] opens that grid.
@@ -65,7 +68,10 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onPlay: (Meta) -> Unit = onOpen,
     page: String = "home",
-    onBrowse: (type: String, service: String?, studio: String?) -> Unit = { _, _, _ -> },
+    onBrowse: (BrowseTarget) -> Unit = {},
+    /** Opens the list of every streaming service. */
+    onAllServices: (type: String) -> Unit = {},
+    onSearch: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val c = context.container
@@ -126,7 +132,7 @@ fun HomeScreen(
         Backdrop(
             hero,
             Modifier.fillMaxWidth().fillMaxHeight(0.62f),
-            trailerAfterMs = if (settings.heroTrailers) 3_500L else null,
+            trailerAfterMs = if (settings.heroTrailers) 6_000L else null,
             trailerSound = settings.heroTrailerSound,
         )
         Column(Modifier.fillMaxSize()) {
@@ -158,7 +164,7 @@ fun HomeScreen(
                     }
                 }
                 if (page != "home") item(key = "page-bar") {
-                    PageBar(page, onBrowse = { onBrowse(if (page == "anime") "anime" else page, null, null) }, onPick = { pageDialog = it }, tmdb = c.tmdb.enabled)
+                    PageBar(page, onBrowse = { onBrowse(BrowseTarget(page)) }, onPick = { which -> if (which == "service") onAllServices(page) else pageDialog = which }, tmdb = c.tmdb.enabled)
                 }
                 items(state.rows, key = { it.key }) { row ->
                     val requesters = buildMap {
@@ -175,7 +181,11 @@ fun HomeScreen(
                     val more = row.service != null || row.studio != null
                     MediaRow(
                         title = row.title,
-                        items = if (more) row.items + Meta(id = "seemore:${row.key}", name = "See more") else row.items,
+                        items = when {
+                            more -> row.items + Meta(id = "seemore:${row.key}", name = "See more")
+                            row.style == RowStyle.SERVICES -> row.items + Meta(id = "service:all", name = "View more")
+                            else -> row.items
+                        },
                         key = { it.id },
                         requesters = requesters,
                         favorite = row.favorite,
@@ -183,15 +193,24 @@ fun HomeScreen(
                     ) { _, m, mod ->
                         when (row.style) {
                             RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = {
-                                // In Progress replays the same file from where it stopped.
-                                if (row.key != "continue" || !com.zemu.tv.player.Playback.resumeSaved(context, m)) {
+                                // In Progress replays the same file from where it stopped; a finished
+                                // episode's card starts the next one instead.
+                                val next = row.badges[m.id] == NEXT_BADGE
+                                if (row.key != "continue" || next || !com.zemu.tv.player.Playback.resumeSaved(context, m)) {
                                     if (row.key == "continue") onPlay(m) else onOpen(m)
                                 }
                             }, modifier = mod, onFocused = onFocus)
-                            RowStyle.SERVICES -> ServiceCard(m, modifier = mod, onFocused = onFocus) {
-                                onBrowse(if (page == "series") "series" else "movie", m.id.removePrefix("service:"), null)
+                            RowStyle.SERVICES -> if (m.id == "service:all") ViewMoreTile("View all", "streaming services", mod, onFocus = { onFocus(m) }) { onAllServices(if (page == "series") "series" else "movie") }
+                            else com.zemu.tv.ui.components.ServiceCard(m, modifier = mod, onFocused = onFocus) {
+                                onBrowse(BrowseTarget(if (page == "series") "series" else "movie", m.id.removePrefix("service:"), m.name))
                             }
-                            RowStyle.POSTER -> if (m.id.startsWith("seemore:")) SeeMoreCard(row.title, mod, onFocus = { onFocus(m) }) { onBrowse(rowType, row.service, row.studio) }
+                            RowStyle.STUDIOS -> com.zemu.tv.ui.components.StudioCard(m, modifier = mod, onFocused = onFocus) {
+                                onBrowse(BrowseTarget(page, studio = m.id.removePrefix("studio:")))
+                            }
+                            RowStyle.POSTER -> if (m.id.startsWith("seemore:")) SeeMoreCard(row.title, mod, onFocus = { onFocus(m) }) {
+                                val p = com.zemu.tv.data.StreamingService.providerFor(row.service, row.serviceLabel)
+                                onBrowse(BrowseTarget(rowType, p?.ids, p?.label, row.studio))
+                            }
                             else PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
                         }
                     }
@@ -201,17 +220,26 @@ fun HomeScreen(
             }
             }
         }
+        // Search and Surprise me sit at the top right, above the hero (Up from the rows reaches them).
+        if (page == "home") androidx.compose.foundation.layout.Row(
+            Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 40.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        ) {
+            com.zemu.tv.ui.components.TvChip("🔍  Search", selected = false, onClick = onSearch)
+            com.zemu.tv.ui.components.TvChip("🎲  Surprise me", selected = false, onClick = {
+                vm.surprise()?.let(onPlay) ?: android.widget.Toast.makeText(context, "Still loading suggestions…", android.widget.Toast.LENGTH_SHORT).show()
+            })
+        }
     }
     pageDialog?.let { which ->
         val type = if (page == "series") "series" else "movie"
-        val options = if (which == "service") com.zemu.tv.data.StreamingService.entries.map { com.zemu.tv.ui.components.ChoiceOption(it.name, it.label) }
-        else com.zemu.tv.data.Studio.forType(type).map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) }
+        val options = com.zemu.tv.data.Studio.forType(type).map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) }
         com.zemu.tv.ui.components.ChoiceDialog(
-            title = if (which == "service") "Streaming service" else if (type == "series") "Network" else "Studio",
+            title = if (type == "series") "Network" else "Studio",
             options = options,
             selected = emptySet(),
             multiSelect = false,
-            onToggle = { v -> if (which == "service") onBrowse(type, v, null) else onBrowse(type, null, v) },
+            onToggle = { v -> onBrowse(BrowseTarget(type, studio = v)) },
             onDismiss = { pageDialog = null },
         )
     }
@@ -286,22 +314,19 @@ private fun PageBar(page: String, onBrowse: () -> Unit, onPick: (String) -> Unit
     }
 }
 
-/** A streaming service tile: its logo (or name), opening everything on that service. */
+/** "View all …" at the end of the services row. */
 @Composable
-private fun ServiceCard(m: Meta, modifier: Modifier, onFocused: (Meta) -> Unit, onClick: () -> Unit) {
+private fun ViewMoreTile(title: String, subtitle: String, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
     com.zemu.tv.ui.components.FocusSurface(
         onClick = onClick,
-        modifier = modifier.size(width = 168.dp, height = 96.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        modifier = modifier.size(width = 168.dp, height = 168.dp).onFocusChanged { if (it.isFocused) onFocus() },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
         focusedScale = 1.08f,
     ) {
-        if (m.poster != null) {
-            com.zemu.tv.ui.components.RemoteImage(
-                m.poster, Modifier.align(Alignment.Center).padding(14.dp).fillMaxSize()
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)),
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            )
-        } else Text(m.name.orEmpty(), fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.align(Alignment.Center))
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Text(subtitle, fontSize = 12.sp, color = androidx.tv.material3.LocalContentColor.current.copy(alpha = 0.7f))
+        }
     }
 }
 

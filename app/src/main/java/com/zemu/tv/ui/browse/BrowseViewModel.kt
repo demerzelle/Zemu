@@ -33,8 +33,9 @@ data class BrowseFilters(
     /** Decade start year, e.g. 1990. -1 = before 1970. */
     val decade: Int? = null,
     val sort: BrowseSort = BrowseSort.DEFAULT,
-    /** A [com.zemu.tv.data.StreamingService] name: list what's on that service (TMDB). */
+    /** TMDB provider ids ("8", or "1899|384"): list what's on that service. */
     val service: String? = null,
+    val serviceLabel: String? = null,
     /** A [com.zemu.tv.data.Studio] key: list that studio's / network's titles (TMDB). */
     val studio: String? = null,
     /** Movies or series, when browsing a service. */
@@ -61,6 +62,7 @@ class BrowseViewModel(
     val type: String,
     initialService: String? = null,
     initialStudio: String? = null,
+    initialServiceLabel: String? = null,
 ) : ViewModel() {
     val isAnime = type == "anime"
 
@@ -68,6 +70,7 @@ class BrowseViewModel(
     private val filters = MutableStateFlow(
         BrowseFilters(
             service = initialService,
+            serviceLabel = initialServiceLabel,
             studio = initialStudio,
             tmdbType = com.zemu.tv.data.Studio.of(initialStudio)?.type ?: if (type == "series") "series" else "movie",
         ),
@@ -241,7 +244,7 @@ class BrowseViewModel(
         val f = filters.value
         val t = f.tmdbType
         val params = buildMap {
-            com.zemu.tv.data.StreamingService.of(f.service)?.let { putAll(com.zemu.tv.data.DiscoverParams.service(it)) }
+            f.service?.let { putAll(com.zemu.tv.data.DiscoverParams.service(it)) }
             com.zemu.tv.data.Studio.of(f.studio)?.let { put(it.param.first, it.param.second) }
             putAll(
                 when (f.sort) {

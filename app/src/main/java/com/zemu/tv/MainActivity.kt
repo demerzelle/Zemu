@@ -59,10 +59,33 @@ class MainActivity : ComponentActivity() {
         screensaverOn = false
     }
 
+    // ---- "Who's watching?" again after a long break ----
+    private var stoppedAt = 0L
+    private var askProfile by mutableStateOf(false)
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = android.os.SystemClock.elapsedRealtime()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val away = android.os.SystemClock.elapsedRealtime() - stoppedAt
+        if (stoppedAt > 0 && away >= PROFILE_ASK_AFTER_MS && app.profiles.profiles.value.size > 1 && !app.profiles.skipPicker.value) askProfile = true
+    }
+
+    private companion object {
+        /** Away this long (TV off, other apps), multi-profile households are asked who's watching. */
+        const val PROFILE_ASK_AFTER_MS = 4 * 60 * 60_000L
+    }
+
     // ---- Library screensaver: idle tracking ----
     private var resumed by mutableStateOf(false)
     private var lastInput by androidx.compose.runtime.mutableLongStateOf(0L)
     private var screensaverOn by mutableStateOf(false)
+
+    /** The PS2 boot splash plays once per app process. */
+    private var bootShown = false
 
     /** The screensaver slide showing now, for "Watch now". */
     private var saverCurrent: com.zemu.tv.data.ScreensaverSlide? = null
@@ -120,6 +143,7 @@ class MainActivity : ComponentActivity() {
             val realProfiles by app.profiles.profiles.collectAsStateWithLifecycle()
             val profiles = realProfiles
             var picking by remember { mutableStateOf(profiles.size > 1 && !app.profileChosen && !app.profiles.skipPicker.value) }
+            LaunchedEffect(askProfile) { if (askProfile) { picking = true; askProfile = false } }
 
             key(profileId) {
                 val c = app.container
@@ -152,6 +176,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         DynamicThemeLayer(dynamic, onAccent = { rgbAccent = it })
+                        // PS2 theme: a short boot splash on a cold start (rows keep loading underneath).
+                        var booted by remember { mutableStateOf(bootShown) }
+                        if (dynamic == DynamicTheme.Y2K && !booted && !picking) com.zemu.tv.ui.theme.Ps2Boot { booted = true; bootShown = true }
                         // Library screensaver: an overlay, so the app underneath stays as it was.
                         var saverSlides by remember { mutableStateOf<List<com.zemu.tv.data.ScreensaverSlide>>(emptyList()) }
                         LaunchedEffect(settings.screensaver, resumed) {

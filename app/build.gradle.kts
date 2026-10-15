@@ -20,7 +20,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Shrunk and optimized: noticeably faster on low-end TV boxes.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Signed with the debug key so `assembleRelease` produces an installable APK.
             // Replace with your own signing config before distributing.
             signingConfig = signingConfigs.getByName("debug")
@@ -73,6 +76,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.5.1")
     // Android TV home screen "Play Next" row.
     implementation("androidx.tvprovider:tvprovider:1.1.0")
+    // Applies the bundled startup profiles (Compose, the app) on sideloaded installs, so ART precompiles hot code.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // Software audio decoding (DTS, TrueHD, E-AC3, ...) for TVs without those decoders. Built by Jellyfin from media3's ffmpeg extension.
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
 

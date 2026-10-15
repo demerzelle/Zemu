@@ -22,11 +22,19 @@ enum class StreamingService(val label: String, val ids: String) {
     ;
 
     val logoId: Int get() = ids.substringBefore('|').toInt()
+    val provider: Provider get() = Provider(ids, label)
 
     companion object {
         fun of(name: String?) = entries.firstOrNull { it.name == name }
+
+        /** A row's service: older saved rows stored the enum name, newer ones the provider ids. */
+        fun providerFor(service: String?, label: String?): Provider? =
+            of(service)?.provider ?: service?.let { Provider(it, label ?: "this service") }
     }
 }
+
+/** Any streaming service: TMDB provider [ids] ("|" = any of them), its name and logo. */
+data class Provider(val ids: String, val label: String, val logo: String? = null)
 
 /** A studio (movies, TMDB company id) or a network (series, TMDB network id). */
 data class Studio(val key: String, val label: String, val type: String, val id: Int) {
@@ -98,8 +106,9 @@ data class RowSpec(
     val catalogId: String? = null,
     val extra: Map<String, String> = emptyMap(),
     val limit: Int = 40,
-    /** "See more" opens the grid for this service / studio. */
+    /** "See more" opens the grid for this service (provider ids) / studio. */
     val service: String? = null,
+    val serviceLabel: String? = null,
     val studio: String? = null,
 )
 
@@ -113,8 +122,11 @@ object DiscoverParams {
 
     fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    fun service(s: StreamingService) = mapOf(
-        "with_watch_providers" to s.ids,
+    fun service(s: StreamingService) = service(s.ids)
+    fun service(p: Provider) = service(p.ids)
+
+    fun service(ids: String) = mapOf(
+        "with_watch_providers" to ids,
         "watch_region" to region,
         "with_watch_monetization_types" to "flatrate",
     )
@@ -139,16 +151,17 @@ object Categories {
      * @param page "home", "movie" or "series".
      * @param taste the viewer's top genres, which come up more often.
      */
-    fun tmdbRows(page: String, seed: Long, taste: List<String>): List<RowSpec> {
+    fun tmdbRows(page: String, seed: Long, taste: List<String>, mine: List<Provider> = emptyList()): List<RowSpec> {
         val rnd = Random(seed)
         val out = mutableListOf<RowSpec>()
         val types = if (page == "home") listOf("movie", "series") else listOf(page)
-        val services = StreamingService.entries.filter { it != StreamingService.CRUNCHYROLL }.shuffled(rnd)
+        // Your own services when you've picked them, else the big ones.
+        val services = mine.ifEmpty { StreamingService.entries.filter { it != StreamingService.CRUNCHYROLL }.map { it.provider } }.shuffled(rnd)
         var p = 20
-        fun add(type: String, key: String, title: String, params: Map<String, String>, limit: Int = 40, service: StreamingService? = null, studio: Studio? = null) {
-            out += RowSpec("$type/$key", title, p++, type, tmdb = params, limit = limit, service = service?.name, studio = studio?.key)
+        fun add(type: String, key: String, title: String, params: Map<String, String>, limit: Int = 40, service: Provider? = null, studio: Studio? = null) {
+            out += RowSpec("$type/$key", title, p++, type, tmdb = params, limit = limit, service = service?.ids, serviceLabel = service?.label, studio = studio?.key)
         }
-        val providerRows = if (page == "home") 3 else 4
+        val providerRows = (if (page == "home") 3 else 4).coerceAtMost(services.size)
         services.take(providerRows).forEachIndexed { i, s ->
             val type = types[i % types.size]
             val kinds = listOf(
@@ -158,7 +171,7 @@ object Categories {
                 Triple("rated", "Top Rated on ${s.label}", DiscoverParams.topRated()),
             )
             val (k, title, params) = kinds[rnd.nextInt(kinds.size)]
-            add(type, "svc-${s.name}-$k", if (page == "home") "$title · ${if (type == "series") "Series" else "Movies"}" else title, DiscoverParams.service(s) + params, if (k == "top") 20 else 40, service = s)
+            add(type, "svc-${s.ids}-$k", if (page == "home") "$title · ${if (type == "series") "Series" else "Movies"}" else title, DiscoverParams.service(s) + params, if (k == "top") 20 else 40, service = s)
         }
         types.forEach { type ->
             Studio.forType(type).shuffled(rnd).take(if (page == "home") 1 else 3).forEach { st ->
@@ -175,8 +188,8 @@ object Categories {
             val type = page
             val genres = (taste.filter { it in (if (type == "series") SERIES_GENRES else MOVIE_GENRES) } + (if (type == "series") SERIES_GENRES else MOVIE_GENRES).shuffled(rnd)).distinct()
             // A genre on a service, e.g. "Horror on Shudder".
-            val s = services[providerRows % services.size]
-            genres.getOrNull(0)?.let { g -> Tmdb.genreId(type, g)?.let { id -> add(type, "svcgenre-${s.name}-$g", "$g on ${s.label}", DiscoverParams.service(s) + DiscoverParams.popular() + ("with_genres" to id.toString()), service = s) } }
+            val s = services[providerRows % services.size.coerceAtLeast(1)]
+            genres.getOrNull(0)?.let { g -> Tmdb.genreId(type, g)?.let { id -> add(type, "svcgenre-${s.ids}-$g", "$g on ${s.label}", DiscoverParams.service(s) + DiscoverParams.popular() + ("with_genres" to id.toString()), service = s) } }
             genres.getOrNull(1)?.let { g -> Tmdb.genreId(type, g)?.let { id -> add(type, "acclaimed-$g", "Acclaimed $g", DiscoverParams.topRated(1500) + ("with_genres" to id.toString())) } }
             val decade = listOf(1970, 1980, 1990, 2000, 2010)[rnd.nextInt(5)]
             val f = DiscoverParams.dateField(type)

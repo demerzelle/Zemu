@@ -364,6 +364,16 @@ class PlayerActivity : ComponentActivity() {
         else -> "Sleep timer: ${sleep.label} (${((sleepAt - android.os.SystemClock.uptimeMillis()) / 60_000 + 1).coerceAtLeast(1)} min left)"
     }
 
+    /** The sleep timer for the button's second line: "Off", "27 min", "End". */
+    fun sleepShort(): String = when {
+        sleep == SleepTimer.OFF -> "Off"
+        sleep == SleepTimer.END_OF_EPISODE -> "At end"
+        else -> "${((sleepAt - android.os.SystemClock.uptimeMillis()) / 60_000 + 1).coerceAtLeast(1)} min"
+    }
+
+    /** Skippable parts of this video (intro, recap, credits), marked on the seek bar. */
+    val markers: List<Segment> get() = segments
+
     private fun checkSleepTimer() {
         if (sleepAt == 0L || android.os.SystemClock.uptimeMillis() < sleepAt) return
         sleep = SleepTimer.OFF

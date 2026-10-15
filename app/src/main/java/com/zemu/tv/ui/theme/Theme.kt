@@ -20,8 +20,8 @@ import com.zemu.tv.data.AppSettings
 
 /**
  * The colors a theme controls. [light] flips to a light background with dark text; [glass] makes
- * panels and buttons translucent "frosted glass" over a soft colored backdrop; [y2k] switches the
- * whole look to the Y2K style (chrome buttons, PS2-style backdrop, chromatic aberration).
+ * panels and buttons translucent "frosted glass" over a soft colored backdrop; [style] switches the
+ * whole look (PS2, Acidwave).
  * The nullable colors are the user's own picks from Appearance → Customize colors.
  */
 data class ThemeColors(
@@ -29,7 +29,7 @@ data class ThemeColors(
     val background: Color,
     val light: Boolean = false,
     val glass: Boolean = false,
-    val y2k: Boolean = false,
+    val style: UiStyle = UiStyle.NORMAL,
     val customBase: Color? = null,
     val customPanel: Color? = null,
     val customButton: Color? = null,
@@ -63,6 +63,9 @@ data class ThemeColors(
         )
     }
 }
+
+/** Whole-app looks that go beyond colors: shapes, type, panels and a backdrop scene. */
+enum class UiStyle { NORMAL, PS2, ACID }
 
 /** Colors the user can set per theme and per light/dark mode. */
 enum class ColorRole(val key: String, val label: String) {
@@ -111,7 +114,8 @@ fun AppSettings.colorScope(light: Boolean = lightMode): String {
 /** Everything applied: color theme, animated theme, light/dark and the user's custom colors. */
 fun AppSettings.resolvedColors(light: Boolean = lightMode): ThemeColors {
     val d = DynamicTheme.of(dynamicTheme)
-    return d.applyTo(themeColors().copy(light = light)).copy(y2k = d == DynamicTheme.Y2K)
+    val style = when (d) { DynamicTheme.Y2K -> UiStyle.PS2; DynamicTheme.ACIDWAVE -> UiStyle.ACID; else -> UiStyle.NORMAL }
+    return d.applyTo(themeColors().copy(light = light)).copy(style = style)
         .withOverrides(colorOverrides, colorScope(light))
 }
 
@@ -128,7 +132,7 @@ object Palette {
     var blurSupported: Boolean = false
     val Light: Boolean get() = colors.light
     val Glass: Boolean get() = colors.glass
-    val Y2K: Boolean get() = colors.y2k
+    val Style: UiStyle get() = colors.style
     val Background: Color get() = colors.base
     val Surface: Color get() = colors.surface
     val SurfaceHigh: Color get() = colors.surfaceHigh
@@ -169,72 +173,70 @@ fun ZemuTheme(colors: ThemeColors, content: @Composable () -> Unit) {
             surfaceVariant = colors.surface,
             onSurfaceVariant = Palette.TextSecondary,
         ),
-        typography = if (colors.y2k) y2kTypography else androidx.tv.material3.Typography(),
+        typography = when (colors.style) { UiStyle.PS2 -> ps2Typography; UiStyle.ACID -> acidTypography; else -> androidx.tv.material3.Typography() },
     ) {
         CompositionLocalProvider(
             LocalContentColor provides Palette.Text,
-            androidx.tv.material3.LocalTextStyle provides if (colors.y2k) Y2K_TEXT else androidx.compose.ui.text.TextStyle.Default,
+            androidx.tv.material3.LocalTextStyle provides when (colors.style) {
+                UiStyle.PS2 -> PS2_TEXT
+                UiStyle.ACID -> ACID_TEXT
+                else -> androidx.compose.ui.text.TextStyle.Default
+            },
             content = content,
         )
     }
 }
 
-/** Y2K chromatic aberration on text: a cyan ghost a hair to the right of every glyph. */
-private val Y2K_SHADOW = androidx.compose.ui.graphics.Shadow(Color(0xB300E5FF), androidx.compose.ui.geometry.Offset(2.5f, 0f), 0f)
-private val Y2K_TEXT = androidx.compose.ui.text.TextStyle(shadow = Y2K_SHADOW, letterSpacing = androidx.compose.ui.unit.TextUnit(0.4f, androidx.compose.ui.unit.TextUnitType.Sp))
-private val y2kTypography: androidx.tv.material3.Typography by lazy {
+/** PS2: the soft blue glow of the PS2 system menus, slightly spaced. */
+private val PS2_TEXT = androidx.compose.ui.text.TextStyle(
+    shadow = androidx.compose.ui.graphics.Shadow(Color(0x996FB4FF), androidx.compose.ui.geometry.Offset.Zero, 10f),
+    letterSpacing = androidx.compose.ui.unit.TextUnit(0.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+)
+
+/** Acidwave: technical monospace, wide tracking, like an interface readout. */
+private val ACID_TEXT = androidx.compose.ui.text.TextStyle(
+    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+    letterSpacing = androidx.compose.ui.unit.TextUnit(0.6f, androidx.compose.ui.unit.TextUnitType.Sp),
+)
+
+private fun styled(extra: androidx.compose.ui.text.TextStyle): androidx.tv.material3.Typography {
     val t = androidx.tv.material3.Typography()
-    fun androidx.compose.ui.text.TextStyle.y2k() = merge(Y2K_TEXT)
-    t.copy(
-        displayLarge = t.displayLarge.y2k(), displayMedium = t.displayMedium.y2k(), displaySmall = t.displaySmall.y2k(),
-        headlineLarge = t.headlineLarge.y2k(), headlineMedium = t.headlineMedium.y2k(), headlineSmall = t.headlineSmall.y2k(),
-        titleLarge = t.titleLarge.y2k(), titleMedium = t.titleMedium.y2k(), titleSmall = t.titleSmall.y2k(),
-        bodyLarge = t.bodyLarge.y2k(), bodyMedium = t.bodyMedium.y2k(), bodySmall = t.bodySmall.y2k(),
-        labelLarge = t.labelLarge.y2k(), labelMedium = t.labelMedium.y2k(), labelSmall = t.labelSmall.y2k(),
+    fun androidx.compose.ui.text.TextStyle.x() = merge(extra)
+    return t.copy(
+        displayLarge = t.displayLarge.x(), displayMedium = t.displayMedium.x(), displaySmall = t.displaySmall.x(),
+        headlineLarge = t.headlineLarge.x(), headlineMedium = t.headlineMedium.x(), headlineSmall = t.headlineSmall.x(),
+        titleLarge = t.titleLarge.x(), titleMedium = t.titleMedium.x(), titleSmall = t.titleSmall.x(),
+        bodyLarge = t.bodyLarge.x(), bodyMedium = t.bodyMedium.x(), bodySmall = t.bodySmall.x(),
+        labelLarge = t.labelLarge.x(), labelMedium = t.labelMedium.x(), labelSmall = t.labelSmall.x(),
     )
 }
+private val ps2Typography by lazy { styled(PS2_TEXT) }
+private val acidTypography by lazy { styled(ACID_TEXT) }
 
-/**
- * Y2K brushed-chrome fill for buttons and rows: a metallic gradient with a bright top sheen and a
- * thin highlight edge. Gunmetal in dark mode (light text), silver in light mode (dark text). A
- * custom button color tints the chrome.
- */
-fun androidx.compose.ui.Modifier.y2kChrome(shape: androidx.compose.ui.graphics.Shape): androidx.compose.ui.Modifier {
-    val tint = Palette.colors.customButton
-    val stops = if (Palette.Light) listOf(Color(0xFFF7F9FC), Color(0xFFC9D0DB), Color(0xFFE9EDF3), Color(0xFFB4BCC9))
-    else listOf(Color(0xFF59647A), Color(0xFF232A38), Color(0xFF151A24), Color(0xFF2E3748))
-    val colors = if (tint == null) stops else stops.map { lerp(it, tint, 0.45f) }
-    return this.then(
-        androidx.compose.ui.Modifier
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(colors), shape)
-            .border(
-                1.dp,
-                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = if (Palette.Light) 0.95f else 0.55f), Color(0x5500E5FF), Color(0x55FF2A9D))),
-                shape,
-            ),
-    )
-}
-
+/** Acidwave's clipped corners (top-right and bottom-left), used for every button and panel. */
+val AcidShape = androidx.compose.foundation.shape.CutCornerShape(topStart = 0.dp, topEnd = 12.dp, bottomEnd = 0.dp, bottomStart = 12.dp)
 
 /**
  * Background for panels, dialogs and cards: solid normally; frosted glass (translucent fill, light
  * top sheen and a hairline edge) when the glass style is on.
  */
 fun androidx.compose.ui.Modifier.glassPanel(shape: androidx.compose.ui.graphics.Shape, solid: Color = Palette.Surface): androidx.compose.ui.Modifier =
-    if (Palette.Y2K) this.then(
-        // Y2K: translucent blue "memory card" panel with a chrome rim.
+    if (Palette.Style == UiStyle.PS2) this.then(
+        // PS2 system menu: deep translucent blue with a faint glowing rim.
         androidx.compose.ui.Modifier
             .background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
-                    if (Palette.Light) listOf(Color(0xF2F4F8FF), Color(0xF2D9E2F2)) else listOf(Color(0xF01A2448), Color(0xF00A0F24)),
+                    if (Palette.Light) listOf(Color(0xF2EEF3FF), Color(0xF2D5DEF2)) else listOf(Color(0xEE0E1A3A), Color(0xEE030818)),
                 ),
                 shape,
             )
-            .border(
-                1.5.dp,
-                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFE8EEF8), Color(0xFF7FD4FF), Color(0xFF9AA4B8), Color(0xFFFF7AD9))),
-                shape,
-            ),
+            .border(1.dp, Color(0xFF6FB4FF).copy(alpha = 0.55f), shape),
+    )
+    else if (Palette.Style == UiStyle.ACID) this.then(
+        // Acidwave: a solid slab with an accent rule and clipped corners.
+        androidx.compose.ui.Modifier
+            .background(solid, AcidShape)
+            .border(2.dp, Palette.Accent, AcidShape),
     )
     else if (!Palette.Glass) this.then(androidx.compose.ui.Modifier.background(solid, shape))
     else this.then(

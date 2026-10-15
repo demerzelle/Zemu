@@ -124,7 +124,7 @@ fun AppShell() {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val current = route
-    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person") && !route.startsWith("browse")
+    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person") && !route.startsWith("browse") && !route.startsWith("services")
     val context = LocalContext.current
     val c = context.container
     // With Instant play on, selecting a title starts it; the long-press menu's "Details" still opens the page.
@@ -151,39 +151,44 @@ fun AppShell() {
     CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
     FocusScrollMargins {
     Box(Modifier.fillMaxSize().appBackground()) {
-        if (com.zemu.tv.ui.theme.Palette.Y2K) com.zemu.tv.ui.theme.Y2kBackdrop()
+        when (com.zemu.tv.ui.theme.Palette.Style) {
+            com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
+            com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()
+            else -> {}
+        }
         NavHost(
             navController = nav,
             startDestination = "home",
             modifier = Modifier.fillMaxSize().padding(start = if (showRail) RAIL_WIDTH else 0.dp),
         ) {
-            composable("home") {
-                HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }, onBrowse = { type, service, studio ->
-                    nav.navigate("browse/$type?service=${service.orEmpty()}&studio=${studio.orEmpty()}")
-                })
+            val browse: (com.zemu.tv.ui.home.BrowseTarget) -> Unit = { t ->
+                nav.navigate("browse/${t.type}?service=${Uri.encode(t.service.orEmpty())}&label=${Uri.encode(t.serviceLabel.orEmpty())}&studio=${t.studio.orEmpty()}")
             }
-            val browse: (String, String?, String?) -> Unit = { type, service, studio ->
-                nav.navigate("browse/$type?service=${service.orEmpty()}&studio=${studio.orEmpty()}")
+            val allServices: (String) -> Unit = { type -> nav.navigate("services/$type") }
+            composable("home") {
+                HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { m -> resolving(context, scope, m) { nav.navigate(detailsRoute(it, play = true)) } }, onBrowse = browse, onAllServices = allServices, onSearch = { nav.navigateTop("search") })
             }
             listOf("movies" to "movie", "series" to "series", "anime" to "anime").forEach { (route, page) ->
                 composable(route) {
-                    HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }, page = page, onBrowse = browse)
+                    HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { m -> resolving(context, scope, m) { nav.navigate(detailsRoute(it, play = true)) } }, page = page, onBrowse = browse, onAllServices = allServices)
                 }
             }
             composable(
-                "browse/{type}?service={service}&studio={studio}",
-                arguments = listOf(navArgument("service") { defaultValue = "" }, navArgument("studio") { defaultValue = "" }),
+                "browse/{type}?service={service}&label={label}&studio={studio}",
+                arguments = listOf(navArgument("service") { defaultValue = "" }, navArgument("label") { defaultValue = "" }, navArgument("studio") { defaultValue = "" }),
             ) { e ->
                 BrowseScreen(
                     type = e.arguments?.getString("type") ?: "movie",
                     onOpen = open,
                     service = e.arguments?.getString("service")?.ifEmpty { null },
                     studio = e.arguments?.getString("studio")?.ifEmpty { null },
+                    serviceLabel = e.arguments?.getString("label")?.ifEmpty { null },
                 )
             }
+            composable("services/{type}") { e -> com.zemu.tv.ui.browse.ServicesScreen(e.arguments?.getString("type") ?: "movie", onBrowse = browse) }
             composable("search") { SearchScreen(onOpen = open) }
             composable("mylist") { MyListScreen(onOpen = open) }
-            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }) }
+            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }) }
             composable("addons") { AddonBrowserScreen() }
             composable("person/{key}") { e -> PersonScreen(key = Uri.decode(e.arguments?.getString("key").orEmpty()), onOpen = open) }
             composable(
@@ -230,6 +235,7 @@ fun AppShell() {
             ),
             onAction = { a -> resolving(context, scope, m) { m ->
                 when (a) {
+                    CardAction.PLAY -> if (!com.zemu.tv.player.Playback.resumeSaved(context, m)) nav.navigate(detailsRoute(m, play = true))
                     CardAction.DETAILS -> nav.navigate(detailsRoute(m))
                     CardAction.EPISODES -> nav.navigate(detailsRoute(m, "episodes"))
                     CardAction.TRAILER -> m.officialTrailers.takeIf { it.isNotEmpty() }?.let { TrailerActivity.start(context, it) }

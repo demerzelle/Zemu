@@ -111,24 +111,26 @@ private enum class SettingsDialog { AUDIO, SUBS, MAX_SIZE, COUNTDOWN, STILL_EPIS
 
 /** The groups shown in Settings' left-hand list. */
 private enum class SettingsCategory(val label: String, val blurb: String) {
+    SEARCH("Search settings", "Type what you're looking for, then pick a result."),
+    QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look."),
     ADDONS("Addons & accounts", "Stream addons, your debrid service, title details and cast info."),
     PROFILES("Profiles", "Who's watching, pictures and the profile picker."),
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
-    APPEARANCE("Appearance", "Light mode, glass style, color themes and custom colors, Y2K, screensaver, vibration and trailers."),
+    APPEARANCE("Appearance", "Light mode, glass style, color themes and custom colors, PS2 and Acidwave styles, Home rows, screensaver, vibration and trailers."),
     DEVICE("This TV", "What this TV can play, used to pick \"Best for this TV\" streams. Change anything that was detected wrong."),
 }
 
 @Composable
-fun SettingsScreen(onOpenAddons: () -> Unit) {
+fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}) {
     val context = LocalContext.current
     val c = context.container
     val vm: SettingsViewModel = viewModel { SettingsViewModel(c, context.app) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
-    var category by rememberSaveable { mutableStateOf(SettingsCategory.ADDONS) }
+    var category by rememberSaveable { mutableStateOf(SettingsCategory.QUICK) }
     val remote by vm.remoteAddress.collectAsStateWithLifecycle()
     DisposableEffect(Unit) {
         vm.startServer()
@@ -148,7 +150,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit) {
                 CategoryItem(
                     cat.label,
                     selected = cat == category,
-                    modifier = if (cat == SettingsCategory.ADDONS) Modifier.focusRequester(topFocus) else Modifier,
+                    modifier = if (cat == SettingsCategory.QUICK) Modifier.focusRequester(topFocus) else Modifier,
                     onFocused = { category = cat },
                     onClick = { category = cat },
                 )
@@ -168,7 +170,9 @@ fun SettingsScreen(onOpenAddons: () -> Unit) {
                 message?.let { Text(it, color = Palette.Cached, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp)) }
             }
             when (category) {
-                SettingsCategory.ADDONS -> addonsCategory(vm, settings, remote, onOpenAddons)
+                SettingsCategory.SEARCH -> searchCategory { category = it }
+                SettingsCategory.QUICK -> quickCategory(vm, settings, remote, onOpenServices)
+                SettingsCategory.ADDONS -> addonsCategory(vm, settings, remote, onOpenAddons, onOpenServices)
                 SettingsCategory.PROFILES -> item(key = "profiles") { ProfilesSection(remote) }
                 SettingsCategory.PLAYBACK -> playbackCategory(vm, settings) { dialog = it }
                 SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
@@ -244,11 +248,87 @@ private fun LazyListScope.group(key: String, title: String, note: String? = null
     }
 }
 
-private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit) {
+/** Where each setting lives, for Search settings. */
+private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
+    "Debrid account (Real-Debrid, AllDebrid, Premiumize, TorBox)" to SettingsCategory.ADDONS,
+    "Manage addons" to SettingsCategory.ADDONS,
+    "Metadata provider" to SettingsCategory.ADDONS,
+    "TMDB key (cast, studios, streaming services)" to SettingsCategory.ADDONS,
+    "My streaming services" to SettingsCategory.ADDONS,
+    "Profiles and profile pictures" to SettingsCategory.PROFILES,
+    "Instant play" to SettingsCategory.PLAYBACK,
+    "Autoplay next episode" to SettingsCategory.PLAYBACK,
+    "Play something similar" to SettingsCategory.PLAYBACK,
+    "Countdown" to SettingsCategory.PLAYBACK,
+    "Are you still watching?" to SettingsCategory.PLAYBACK,
+    "External player (VLC, Just Player)" to SettingsCategory.PLAYBACK,
+    "Clear watch history" to SettingsCategory.PLAYBACK,
+    "Treat direct links as cached" to SettingsCategory.STREAMS,
+    "Maximum file size" to SettingsCategory.STREAMS,
+    "Preferred audio language" to SettingsCategory.STREAMS,
+    "Preferred subtitle language" to SettingsCategory.STREAMS,
+    "Turn on subtitles automatically" to SettingsCategory.STREAMS,
+    "Prefer SDH subtitles (deaf / hard of hearing)" to SettingsCategory.SUBTITLES,
+    "Original subtitle formatting" to SettingsCategory.SUBTITLES,
+    "Subtitle size, color, background, outline, position" to SettingsCategory.SUBTITLES,
+    "Skip intro button" to SettingsCategory.SUBTITLES,
+    "Light mode / dark mode" to SettingsCategory.APPEARANCE,
+    "Glass style" to SettingsCategory.APPEARANCE,
+    "Color theme" to SettingsCategory.APPEARANCE,
+    "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.APPEARANCE,
+    "Customize colors (background, buttons, text, accent)" to SettingsCategory.APPEARANCE,
+    "Hide watched titles in rows" to SettingsCategory.APPEARANCE,
+    "Screensaver" to SettingsCategory.APPEARANCE,
+    "Vibration" to SettingsCategory.APPEARANCE,
+    "Trailers (autoplay, sound)" to SettingsCategory.APPEARANCE,
+    "4K, HDR10, Dolby Vision, Atmos, DTS support" to SettingsCategory.DEVICE,
+    "Reset to recommended settings for my TV" to SettingsCategory.DEVICE,
+    "Play Dolby Vision as HDR10" to SettingsCategory.DEVICE,
+    "Software video decoders" to SettingsCategory.DEVICE,
+)
+
+private fun LazyListScope.searchCategory(open: (SettingsCategory) -> Unit) {
+    item(key = "settings-search") {
+        var q by rememberSaveable { mutableStateOf("") }
+        TvTextField(q, { q = it }, "Search settings", Modifier.fillMaxWidth().padding(vertical = 6.dp))
+        val words = q.trim().lowercase().split(' ').filter { it.isNotEmpty() }
+        val hits = if (words.isEmpty()) emptyList() else SETTINGS_INDEX.filter { (t, c) -> words.all { w -> t.lowercase().contains(w) || c.label.lowercase().contains(w) } }
+        Column(Modifier.padding(top = 8.dp)) {
+            if (words.isNotEmpty() && hits.isEmpty()) Text("No settings match \"$q\".", color = Palette.TextSecondary, fontSize = 14.sp)
+            hits.forEach { (title, cat) -> ValueRow(title, cat.label) { open(cat) } }
+        }
+    }
+}
+
+/** The essentials in one place, for a first run. */
+private fun LazyListScope.quickCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenServices: () -> Unit) {
+    group("q-debrid", "1 · Debrid account", "Needed to play anything: link Real-Debrid, AllDebrid, Premiumize or TorBox.") {
+        DebridSection(vm.container, remote)
+    }
+    group("q-tmdb", "2 · TMDB key", "Free from themoviedb.org → Settings → API. Turns on streaming services, studios, cast photos and logos." + (remote?.let { " Or paste it from your phone at $it." } ?: "")) {
+        var key by remember { mutableStateOf("") }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(key, { key = it }, if (settings.tmdbApiKey.isBlank()) "TMDB API key" else "Key saved (••••${settings.tmdbApiKey.takeLast(4)})", Modifier.weight(1f), onSubmit = { vm.saveTmdbKey(key); key = "" })
+            TvButton("Save", onClick = { vm.saveTmdbKey(key); key = "" })
+        }
+    }
+    group("q-services", "3 · Your streaming services") {
+        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "Pick the ones you subscribe to" }) { onOpenServices() }
+    }
+    group("q-look", "4 · Look") {
+        ToggleRow("Light mode", "Light backgrounds with dark text.", settings.lightMode) { vm.update { it.copy(lightMode = !it.lightMode) } }
+        ThemePicker(settings) { t -> vm.update(t) }
+    }
+}
+
+private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit, onOpenServices: () -> Unit) {
     group("addons", "Stream addons", "Zemu uses Stremio addons. Install a debrid-enabled one (AIOStreams, Torrentio, Comet, MediaFusion, …). Only cached streams are shown.") {
         val addons by vm.addons.collectAsStateWithLifecycle()
         val streamAddons = addons.count { it.manifest.hasResource("stream") }
         ValueRow("Manage addons", "${addons.size} installed · $streamAddons with streams") { onOpenAddons() }
+    }
+    group("services", "My streaming services", "The services you subscribe to come first on Home, Movies and Series and get their own rows.") {
+        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "None picked: showing the popular ones" }) { onOpenServices() }
     }
     group("debrid", "Debrid account") {
         DebridSection(vm.container, remote)
@@ -369,7 +449,7 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("theme", "Color theme") {
         ThemePicker(settings) { t -> vm.update(t) }
     }
-    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk, Y2K and the other effect themes bring their own colors. Y2K restyles the whole app: chrome buttons, a PS2-style backdrop and chromatic aberration. RGB keeps your color theme.") {
+    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. PS2 · Y2K and Acidwave restyle the whole app; change any of their colors under Customize colors. RGB keeps your color theme.") {
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(DynamicTheme.entries.toList(), key = { it.name }) { d ->
                 TvChip(d.label, selected = settings.dynamicTheme == d.name, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
@@ -378,6 +458,11 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     }
     group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors — including the white of light mode and the black of dark mode. Each theme keeps its own, separately for light and dark mode.") {
         ColorCustomizer(settings) { t -> vm.update(t) }
+    }
+    group("rows", "Home & browsing") {
+        ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
+            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
+        }
     }
     group("feedback", "Touch screens") {
         ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {

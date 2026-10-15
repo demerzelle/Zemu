@@ -53,6 +53,7 @@ val LocalRowOptions = staticCompositionLocalOf<(() -> Unit)?> { null }
 val LocalWatched = compositionLocalOf<Set<String>> { emptySet() }
 
 enum class CardAction(val label: String) {
+    PLAY("Play"),
     DETAILS("Details"),
     EPISODES("Episodes"),
     TRAILER("View trailer"),
@@ -65,6 +66,7 @@ enum class CardAction(val label: String) {
 }
 
 fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Boolean, rowOptions: Boolean = false): List<CardAction> = buildList {
+    add(CardAction.PLAY)
     add(CardAction.DETAILS)
     if (meta.type == "series") add(CardAction.EPISODES)
     if (meta.trailerId != null) add(CardAction.TRAILER)

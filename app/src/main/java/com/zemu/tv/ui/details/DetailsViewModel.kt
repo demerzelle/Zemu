@@ -128,7 +128,7 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
     }
 
     /** Where to pick a show back up: the last episode watched, or the one after it if that was finished. */
-    private fun resumeEpisode(m: Meta): Video {
+    fun resumeEpisode(m: Meta): Video {
         val ordered = m.videos.filter { (it.season ?: 0) > 0 }.sortedWith(compareBy({ it.season }, { it.episodeNumber }))
             .ifEmpty { m.videos }
         val last = c.userStore.history.value.firstOrNull { it.meta.id == id }

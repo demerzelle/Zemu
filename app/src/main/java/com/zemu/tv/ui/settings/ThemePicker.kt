@@ -157,7 +157,7 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
 
 /**
  * Appearance → Customize colors: every color of the theme showing now, separately for light and
- * dark mode (and for animated themes with their own palette, like Y2K). Saved per theme and mode.
+ * dark mode (and for animated themes with their own palette, like PS2 or Acidwave). Saved per theme and mode.
  */
 @Composable
 fun ColorCustomizer(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {

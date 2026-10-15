@@ -21,7 +21,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +73,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class PlayerDialog { SUBTITLE_STYLE, AUDIO, SUBTITLES }
+
+/** Track panel opened from Audio (left column focused) or Subtitles (right column). */
 
 private const val STYLE_OPTION = "__style"
 
@@ -134,11 +140,17 @@ fun PlayerScreen(a: PlayerActivity) {
     // Hide the menu after a few idle seconds while playing.
     LaunchedEffect(menu, lastInteraction, a.isPlaying, dialog) {
         if (menu && a.isPlaying && dialog == null) {
-            delay(5_000)
+            delay(4_000)
             menu = false
         }
     }
     LaunchedEffect(aspect, a.playerView) { a.setAspect(aspect) }
+    // Paused and untouched for 10 minutes: dim to the title's artwork, like a screensaver.
+    var pauseSaver by remember { mutableStateOf(false) }
+    LaunchedEffect(a.isPlaying, a.buffering, lastInteraction) {
+        pauseSaver = false
+        if (!a.isPlaying && !a.buffering) { delay(10 * 60_000L); pauseSaver = true }
+    }
 
 
     Box(
@@ -147,6 +159,8 @@ fun PlayerScreen(a: PlayerActivity) {
             .background(Color.Black)
             .onPreviewKeyEvent { e ->
                 lastInteraction = SystemClock.uptimeMillis()
+                // The first button press only wakes the paused screen.
+                if (pauseSaver) return@onPreviewKeyEvent true
                 // Compose would otherwise use Back to move focus out of the menu instead of closing it.
                 if (e.key == Key.Back && dialog == null && (menu || cardVisible || skipVisible)) {
                     if (e.type == KeyEventType.KeyUp) {
@@ -204,15 +218,28 @@ fun PlayerScreen(a: PlayerActivity) {
         AnimatedVisibility(visible = menu, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
                 // Top: title
-                Column(
+                Row(
                     Modifier
                         .fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
                         .padding(horizontal = 48.dp, vertical = 28.dp),
                 ) {
-                    Text(a.title, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    a.label?.let { Text(it, fontSize = 16.sp, color = Palette.TextSecondary, maxLines = 1) }
-                    Text(a.streamLabel, fontSize = 13.sp, color = Palette.TextMuted, maxLines = 1)
+                    Column(Modifier.weight(1f)) {
+                        Text(a.title, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        a.label?.let { Text(it, fontSize = 16.sp, color = Palette.TextSecondary, maxLines = 1) }
+                        Text(a.streamLabel, fontSize = 13.sp, color = Palette.TextMuted, maxLines = 1)
+                    }
+                    // Clock and when this ends at the current speed.
+                    Column(horizontalAlignment = Alignment.End) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val fmt = remember { android.text.format.DateFormat.getTimeFormat(context) }
+                        val now = System.currentTimeMillis()
+                        Text(fmt.format(java.util.Date(now)), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        if (a.durationMs > 0) {
+                            val left = ((a.durationMs - a.positionMs) / a.speed).toLong()
+                            Text("Ends at ${fmt.format(java.util.Date(now + left))}", fontSize = 14.sp, color = Palette.TextSecondary)
+                        }
+                    }
                 }
                 // Bottom: seek bar + menu bar
                 Column(
@@ -281,39 +308,20 @@ fun PlayerScreen(a: PlayerActivity) {
         }
 
         if (a.stillWatchingPrompt) StillWatchingDialog(a)
+
+        androidx.compose.animation.AnimatedVisibility(pauseSaver, enter = fadeIn(androidx.compose.animation.core.tween(1500)), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            PausedSaver(a)
+        }
     }
 
     when (dialog) {
         PlayerDialog.SUBTITLE_STYLE -> SubtitleStyleDialog(settings, update = { t -> scope.launch { c.userStore.updateSettings(t) } }) { dialog = null }
-        PlayerDialog.AUDIO -> {
-            @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
-            val options = a.audioOptions()
-            com.zemu.tv.ui.components.ChoiceDialog(
-                title = "Audio",
-                options = options.map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) },
-                selected = options.filter { it.selected }.map { it.key }.toSet(),
-                multiSelect = false,
-                onToggle = { k -> options.firstOrNull { it.key == k }?.let { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_AUDIO) } },
-                onDismiss = { dialog = null },
-            )
-        }
-        PlayerDialog.SUBTITLES -> {
-            @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
-            val options = a.subtitleOptions()
-            com.zemu.tv.ui.components.ChoiceDialog(
-                title = "Subtitles",
-                options = options.map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) } +
-                    com.zemu.tv.ui.components.ChoiceOption(STYLE_OPTION, "Subtitle style…"),
-                selected = options.filter { it.selected }.map { it.key }.toSet(),
-                multiSelect = false,
-                onToggle = { k ->
-                    if (k == STYLE_OPTION) dialog = PlayerDialog.SUBTITLE_STYLE
-                    else options.firstOrNull { it.key == k }?.let { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_TEXT) }
-                },
-                // Picking "Subtitle style…" swaps dialogs; only close when this one is still showing.
-                onDismiss = { if (dialog == PlayerDialog.SUBTITLES) dialog = null },
-            )
-        }
+        PlayerDialog.AUDIO, PlayerDialog.SUBTITLES -> TrackPanel(
+            a,
+            focusSubtitles = dialog == PlayerDialog.SUBTITLES,
+            onStyle = { dialog = PlayerDialog.SUBTITLE_STYLE },
+            onDismiss = { dialog = null },
+        )
         null -> {}
     }
 }
@@ -405,7 +413,7 @@ private fun SeekBar(a: PlayerActivity, focused: Boolean) {
             Spacer(Modifier.height(6.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(formatTime(shown), fontSize = 14.sp, modifier = Modifier.width(76.dp))
+            Text(formatTime(shown), fontSize = if (target != null) 20.sp else 14.sp, fontWeight = if (target != null) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.width(96.dp))
             BoxWithConstraints(
                 Modifier
                     .weight(1f)
@@ -420,6 +428,12 @@ private fun SeekBar(a: PlayerActivity, focused: Boolean) {
                 Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(5.dp)))
                 Box(Modifier.width(w * (a.bufferedMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(5.dp)))
                 Box(Modifier.width(w * (a.positionMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Palette.Accent, RoundedCornerShape(5.dp)))
+                // Intro / recap / credits, so you can see where they are while scrubbing.
+                a.markers.forEach { seg ->
+                    val start = (seg.startMs.toFloat() / duration).coerceIn(0f, 1f)
+                    val end = ((seg.endMs ?: a.durationMs).toFloat() / duration).coerceIn(start, 1f)
+                    Box(Modifier.offset(x = w * start).width(w * (end - start)).fillMaxSize().background(Color(0xFFFFC94D).copy(alpha = 0.55f)))
+                }
                 val knob = if (focused || target != null) 18.dp else 12.dp
                 Box(
                     Modifier
@@ -441,13 +455,16 @@ private fun SeekBar(a: PlayerActivity, focused: Boolean) {
 
 private data class MenuItem(
     val key: String,
+    /** Short name under the button, and the current value (second line) if any. */
     val label: String,
+    val value: String? = null,
     val icon: ImageVector,
     val active: Boolean = false,
     val onLongClick: (() -> Unit)? = null,
     val onClick: () -> Unit,
 )
 
+/** Every player control in one row, each labeled with its current setting. */
 @Composable
 private fun MenuBar(
     a: PlayerActivity,
@@ -461,61 +478,124 @@ private fun MenuBar(
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion // re-read track labels when tracks change
-    // Main row keeps the essentials; the rest is one press away under "More".
-    var more by remember { mutableStateOf(false) }
-    val items = if (!more) buildList {
-        add(MenuItem("play", if (a.isPlaying) "Pause" else "Play", if (a.isPlaying) AppIcons.Pause else AppIcons.Play) { a.togglePlay() })
-        add(MenuItem("audio", "Audio: ${a.currentAudioLabel()}  ·  hold OK to choose", AppIcons.Audio, onLongClick = { onDialog(PlayerDialog.AUDIO) }) { a.cycleAudio() })
-        add(
-            MenuItem(
-                "subs",
-                "Subtitles: ${a.currentSubtitleLabel()}  ·  hold OK to choose or change the style",
-                AppIcons.Subtitles,
-                active = a.currentSubtitleLabel() != "Off",
-                onLongClick = { onDialog(PlayerDialog.SUBTITLES) },
-            ) { a.cycleSubtitles() },
-        )
-        if (a.nextUp != null) add(MenuItem("next", "Next episode", AppIcons.Next) { a.playNextNow() })
-        add(MenuItem("more", "More: speed, picture, sleep timer, rating, My List", AppIcons.More) { more = true })
-    } else buildList {
-        add(MenuItem("less", "Back", AppIcons.Back) { more = false })
-        add(MenuItem("speed", "Speed: $speedLabel", AppIcons.Speed, active = speedLabel != "1x") {
+    val sub = a.currentSubtitleLabel()
+    val items = buildList {
+        add(MenuItem("play", if (a.isPlaying) "Pause" else "Play", icon = if (a.isPlaying) AppIcons.Pause else AppIcons.Play) { a.togglePlay() })
+        add(MenuItem("back10", "−10s", icon = AppIcons.Rewind) { a.seekBy(-10_000) })
+        add(MenuItem("fwd10", "+10s", icon = AppIcons.Forward) { a.seekBy(10_000) })
+        if (a.nextUp != null) add(MenuItem("next", "Next", "episode", AppIcons.Next) { a.playNextNow() })
+        add(MenuItem("audio", "Audio", a.currentAudioLabel(), AppIcons.Audio, onLongClick = { onDialog(PlayerDialog.AUDIO) }) { a.cycleAudio() })
+        add(MenuItem("subs", "Subtitles", sub, AppIcons.Subtitles, active = sub != "Off", onLongClick = { onDialog(PlayerDialog.SUBTITLES) }) { a.cycleSubtitles() })
+        add(MenuItem("speed", "Speed", speedLabel, AppIcons.Speed, active = speedLabel != "1x") {
             val i = SPEEDS.indexOf(a.speed)
             a.changeSpeed(SPEEDS[(i + 1).mod(SPEEDS.size)])
         })
-        add(MenuItem("aspect", "Picture: ${aspect.label}", AppIcons.Aspect, active = aspect != AspectMode.FIT) {
+        add(MenuItem("aspect", "Picture", aspect.label, AppIcons.Aspect, active = aspect != AspectMode.FIT) {
             val next = AspectMode.entries[(aspect.ordinal + 1) % AspectMode.entries.size]
             scope.launch { a.container.userStore.updateSettings { it.copy(aspectMode = next.name) } }
         })
-        add(MenuItem("sleep", a.sleepLabel(), AppIcons.Sleep, active = a.sleep != SleepTimer.OFF) { a.cycleSleepTimer() })
-        add(MenuItem("like", if (rating > 0) "Liked" else "Like", AppIcons.ThumbUp, active = rating > 0) { a.rate(if (rating > 0) 0 else 1) })
-        add(MenuItem("dislike", if (rating < 0) "Disliked" else "Dislike", AppIcons.ThumbDown, active = rating < 0) { a.rate(if (rating < 0) 0 else -1) })
-        add(MenuItem("fav", if (inMyList) "In My List" else "Add to My List", if (inMyList) AppIcons.Heart else AppIcons.HeartOutline, active = inMyList) { onToggleMyList() })
+        add(MenuItem("sleep", "Sleep", a.sleepShort(), AppIcons.Sleep, active = a.sleep != SleepTimer.OFF) { a.cycleSleepTimer() })
+        add(MenuItem("like", if (rating > 0) "Liked" else "Like", icon = AppIcons.ThumbUp, active = rating > 0) { a.rate(if (rating > 0) 0 else 1) })
+        add(MenuItem("dislike", if (rating < 0) "Disliked" else "Dislike", icon = AppIcons.ThumbDown, active = rating < 0) { a.rate(if (rating < 0) 0 else -1) })
+        add(MenuItem("fav", "My List", if (inMyList) "Added" else null, if (inMyList) AppIcons.Heart else AppIcons.HeartOutline, active = inMyList) { onToggleMyList() })
     }
-    // Keep focus on the first button when switching rows.
-    LaunchedEffect(more) { delay(50); runCatching { playFocus.requestFocus() } }
     var focusedKey by remember { mutableStateOf<String?>(null) }
     Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
             items.forEach { item ->
-                FocusSurface(
-                    onClick = item.onClick,
-                    onLongClick = item.onLongClick,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .onFocusChanged { if (it.isFocused) focusedKey = item.key }
-                        .then(if (item.key == "play" || item.key == "less") Modifier.focusRequester(playFocus) else Modifier),
-                    shape = CircleShape,
-                    // Dark buttons; "on" shows as an accent icon, focus as the accent fill.
-                    containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
-                    contentColor = if (item.active) Palette.Accent else Color.White,
-                    focusedScale = 1.12f,
-                ) {
-                    Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(26.dp))
+                Column(Modifier.width(98.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    FocusSurface(
+                        onClick = item.onClick,
+                        onLongClick = item.onLongClick,
+                        modifier = Modifier
+                            .size(54.dp)
+                            .onFocusChanged { if (it.isFocused) focusedKey = item.key }
+                            .then(if (item.key == "play") Modifier.focusRequester(playFocus) else Modifier),
+                        shape = CircleShape,
+                        // Dark buttons; "on" shows as an accent icon, focus as the accent fill.
+                        containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
+                        contentColor = if (item.active) Palette.Accent else Color.White,
+                        focusedScale = 1.12f,
+                    ) {
+                        Icon(item.icon, contentDescription = item.label, modifier = Modifier.align(Alignment.Center).size(26.dp))
+                    }
+                    val focused = focusedKey == item.key
+                    Text(item.label, fontSize = 12.sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
+                        color = if (focused) Color.White else Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 6.dp))
+                    item.value?.let {
+                        Text(it, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = if (item.active) Palette.Accent else Color.White.copy(alpha = 0.55f))
+                    }
                 }
             }
         }
-        Text(items.firstOrNull { it.key == focusedKey }?.label ?: "", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp).height(22.dp))
+        Text("Hold OK on Audio or Subtitles to see every track", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+/**
+ * Audio and subtitle tracks side by side, so both can be changed in one place. Opened by holding OK
+ * on Audio or Subtitles; Back closes it.
+ */
+@Composable
+private fun TrackPanel(a: PlayerActivity, focusSubtitles: Boolean, onStyle: () -> Unit, onDismiss: () -> Unit) {
+    @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
+    val audio = a.audioOptions()
+    val subs = a.subtitleOptions()
+    val audioFocus = remember { FocusRequester() }
+    val subsFocus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+            Row(
+                Modifier
+                    .padding(end = 32.dp)
+                    .width(760.dp)
+                    .heightIn(max = 620.dp)
+                    .background(Palette.Surface.copy(alpha = 0.96f), RoundedCornerShape(16.dp))
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                TrackColumn("Audio", audio, Modifier.weight(1f), audioFocus) { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_AUDIO) }
+                TrackColumn("Subtitles", subs, Modifier.weight(1f), subsFocus, footer = "Subtitle style…" to onStyle) {
+                    a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_TEXT)
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) { delay(80); runCatching { (if (focusSubtitles) subsFocus else audioFocus).requestFocus() } }
+}
+
+@Composable
+private fun TrackColumn(
+    title: String,
+    options: List<TrackOption>,
+    modifier: Modifier,
+    focus: FocusRequester,
+    footer: Pair<String, () -> Unit>? = null,
+    onPick: (TrackOption) -> Unit,
+) {
+    Column(modifier) {
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp))
+        androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            itemsIndexed(options, key = { _, o -> o.key }) { i, o ->
+                val first = (options.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0) == i
+                FocusSurface(
+                    onClick = { onPick(o) },
+                    modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier),
+                    shape = RoundedCornerShape(10.dp),
+                    containerColor = if (o.selected) Palette.SurfaceHigh else Color.Transparent,
+                    focusedScale = 1.02f,
+                ) {
+                    Text((if (o.selected) "✓  " else "     ") + o.label, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
+            }
+            if (footer != null) item(key = "footer") {
+                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shape = RoundedCornerShape(10.dp), focusedScale = 1.02f) {
+                    Text(footer.first, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
+            }
+        }
     }
 }
 
@@ -623,6 +703,28 @@ private fun SubtitleStyleDialog(
                 Text("Subtitle style  ·  changes apply right away, Back to close", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 SubtitleStyleEditor(settings, update)
             }
+        }
+    }
+}
+
+/** Shown over a video paused for a long time: its artwork drifting slowly, dimmed. */
+@Composable
+private fun PausedSaver(a: PlayerActivity) {
+    val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "paused")
+    val scale by drift.animateFloat(1f, 1.12f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(40_000), androidx.compose.animation.core.RepeatMode.Reverse), label = "zoom")
+    val m = a.meta
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        coil.compose.AsyncImage(
+            model = m?.background ?: m?.poster,
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale; alpha = 0.45f },
+        )
+        Column(Modifier.align(Alignment.BottomStart).padding(64.dp)) {
+            Text("Paused", fontSize = 18.sp, color = Color.White.copy(alpha = 0.7f))
+            Text(a.title, fontSize = 40.sp, fontWeight = FontWeight.Black, color = Color.White)
+            a.label?.let { Text(it, fontSize = 18.sp, color = Color.White.copy(alpha = 0.8f)) }
+            Text("Press any button", fontSize = 14.sp, color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(top = 10.dp))
         }
     }
 }

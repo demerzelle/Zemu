@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class RowStyle { POSTER, LANDSCAPE, /** Streaming service logos. */ SERVICES }
+enum class RowStyle { POSTER, LANDSCAPE, /** Streaming service logos. */ SERVICES, /** Studio / network logos. */ STUDIOS }
 
 data class HomeRow(
     val key: String,
@@ -47,6 +47,7 @@ data class HomeRow(
     val favorite: Boolean = false,
     /** "See more" opens the grid for this streaming service or studio. */
     val service: String? = null,
+    val serviceLabel: String? = null,
     val studio: String? = null,
 )
 
@@ -64,6 +65,18 @@ fun arrangeRows(rows: List<HomeRow>, prefs: com.zemu.tv.data.RowPrefs): List<Hom
     }
     val favs = keys.filter { it in prefs.favorites }
     return (favs + keys.filterNot { it in prefs.favorites }).map { k -> byKey.getValue(k).let { if (k in prefs.favorites) it.copy(favorite = true) else it } }
+}
+
+/** Marks In Progress shows whose next episode is up (the last one was finished). */
+const val NEXT_BADGE = "NEXT"
+
+/** "Next · S2 E5" from an episode id like "tt123:2:4" (or "kitsu:1:4"). */
+fun nextEpisodeLabel(videoId: String): String? {
+    val parts = videoId.split(':')
+    val ep = parts.lastOrNull()?.toIntOrNull() ?: return null
+    // Kitsu ids are "kitsu:<show>:<episode>": no season part.
+    val season = parts.getOrNull(parts.size - 2)?.toIntOrNull()?.takeIf { parts.size >= 3 && !videoId.startsWith("kitsu:") }
+    return if (season != null) "Next · S$season E${ep + 1}" else "Next · Episode ${ep + 1}"
 }
 
 /** Titles from Home's suggestion rows ([recommended]) and catalog rows. */
@@ -87,7 +100,8 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
     private val isHome = page == "home"
     private val specRows = MutableStateFlow<List<HomeRow>>(emptyList())
     private val dailyRows = MutableStateFlow<List<HomeRow>>(emptyList())
-    private val serviceLogos = MutableStateFlow<Map<Int, String>>(emptyMap())
+    private val providers = MutableStateFlow<List<com.zemu.tv.data.Provider>>(emptyList())
+    private val studioLogos = MutableStateFlow<Map<String, String>>(emptyMap())
     private val status = MutableStateFlow(Status())
 
     /** Movies/series pages only show their own kind; anime pages show Kitsu titles. */
@@ -97,15 +111,24 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
         else -> type == page && !id.startsWith("kitsu:")
     }
 
-    private val extraRows = combine(dailyRows, c.newEpisodes.items, serviceLogos) { d, n, l -> Triple(d, n, l) }
+    private data class Extras(val daily: List<HomeRow>, val fresh: List<com.zemu.tv.data.NewEpisodesItem>, val providers: List<com.zemu.tv.data.Provider>, val studioLogos: Map<String, String>, val settings: com.zemu.tv.data.AppSettings)
 
-    private val baseRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { catalogs, (daily, freshAll, logos), history, myList, watched ->
+    private val extraRows = combine(dailyRows, c.newEpisodes.items, providers, studioLogos, c.userStore.settings) { d, n, p, l, st -> Extras(d, n, p, l, st) }
+
+    private val baseRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { specs, ex, history, myList, watched ->
+        val freshAll = ex.fresh
+        // Optionally keep watched titles out of suggestion and category rows.
+        val hide: (HomeRow) -> HomeRow = { r -> if (ex.settings.hideWatchedInRows) r.copy(items = r.items.filterNot { it.id in watched }) else r }
+        val catalogs = specs.map(hide).filter { it.items.isNotEmpty() }
+        val daily = ex.daily.map(hide).filter { it.items.isNotEmpty() }
         buildList {
             val fresh = freshAll.filter { it.meta.onPage() }
             if (fresh.isNotEmpty() && page != "movie") add(
                 HomeRow("new-episodes", "New Episodes", fresh.map { it.meta }, priority = -1, badges = fresh.associate { it.meta.id to it.badge }),
             )
-            val inProgress = history.filter { (it.progress in 0.01f..0.95f || it.durationMs == 0L) && it.meta.id !in watched && it.meta.onPage() }.distinctBy { it.meta.id }
+            // A show whose last episode was finished stays here, pointing at the next episode.
+            fun finishedEpisode(e: com.zemu.tv.data.WatchEntry) = e.meta.type == "series" && e.durationMs > 0 && e.progress > 0.9f
+            val inProgress = history.filter { (it.progress in 0.01f..0.95f || it.durationMs == 0L || finishedEpisode(it)) && it.meta.id !in watched && it.meta.onPage() }.distinctBy { it.meta.id }
             if (inProgress.isNotEmpty()) add(
                 HomeRow(
                     key = "continue",
@@ -113,16 +136,28 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
                     items = inProgress.map { it.meta },
                     priority = 0,
                     style = RowStyle.LANDSCAPE,
-                    subtitles = inProgress.mapNotNull { e -> e.label?.let { e.meta.id to it } }.toMap(),
-                    progress = inProgress.associate { it.meta.id to it.progress },
+                    subtitles = inProgress.mapNotNull { e -> (if (finishedEpisode(e)) nextEpisodeLabel(e.videoId) else e.label)?.let { e.meta.id to it } }.toMap(),
+                    progress = inProgress.associate { it.meta.id to if (finishedEpisode(it)) 0f else it.progress },
+                    badges = inProgress.filter(::finishedEpisode).associate { it.meta.id to NEXT_BADGE },
                 ),
             )
-            if (page != "anime" && c.tmdb.enabled) add(
+            if (page != "anime" && c.tmdb.enabled) {
+                // Your services first, then the most popular; "View more" lists all of them.
+                val mine = ex.settings.myServices.map { (id, name) -> com.zemu.tv.data.Provider(id, name, ex.providers.firstOrNull { it.ids == id }?.logo) }
+                val all = ex.providers.ifEmpty { StreamingService.entries.map { it.provider } }
+                add(
+                    HomeRow(
+                        "services", "Streaming Services",
+                        (mine + all).distinctBy { it.ids }.take(24).map { p -> Meta(id = "service:${p.ids}", name = p.label, poster = p.logo) },
+                        priority = 1, style = RowStyle.SERVICES,
+                    ),
+                )
+            }
+            if ((page == "movie" || page == "series") && c.tmdb.enabled) add(
                 HomeRow(
-                    "services", "Streaming Services",
-                    StreamingService.entries.filter { page == "series" || it != StreamingService.CRUNCHYROLL }
-                        .map { s -> Meta(id = "service:${s.name}", name = s.label, poster = logos[s.logoId]) },
-                    priority = 1, style = RowStyle.SERVICES,
+                    "studios", if (page == "series") "Networks" else "Studios",
+                    com.zemu.tv.data.Studio.forType(page).map { st -> Meta(id = "studio:${st.key}", name = st.label, poster = ex.studioLogos[st.key]) },
+                    priority = 2, style = RowStyle.STUDIOS,
                 ),
             )
             if (isHome) {
@@ -185,7 +220,15 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
                     loadDaily(c.tasteProfile(), c.userStore.history.value, c.userStore.myList.value)
                 }
         }
-        viewModelScope.launch { serviceLogos.value = runCatching { c.tmdb.providerLogos(DiscoverParams.region) }.getOrDefault(emptyMap()) }
+        if (page != "anime") viewModelScope.launch {
+            providers.value = runCatching { c.tmdb.allProviders(DiscoverParams.region) }.getOrDefault(emptyList())
+            if (page == "movie" || page == "series") {
+                val gate = kotlinx.coroutines.sync.Semaphore(4)
+                com.zemu.tv.data.Studio.forType(page).map { st ->
+                    async { gate.withPermit { st.key to runCatching { c.tmdb.studioLogo(st) }.getOrNull() } }
+                }.awaitAll().forEach { (k, v) -> if (v != null) studioLogos.value = studioLogos.value + (k to v) }
+            }
+        }
         // Reload catalogs when addons are installed/removed.
         viewModelScope.launch {
             c.addons.addons.map { list -> list.map { it.transportUrl } }.distinctUntilChanged().collect {
@@ -215,6 +258,17 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
 
     fun match(meta: Meta): Int = c.recommender.matchPercent(meta, c.tasteProfile())
 
+    /** "Surprise me": a random unwatched title from your best-matching suggestions. */
+    fun surprise(): Meta? {
+        val watched = c.userStore.watched.value
+        val seen = c.userStore.history.value.map { it.meta.id }.toSet()
+        val pool = (dailyRows.value.flatMap { it.items } + specRows.value.flatMap { it.items })
+            .filter { it.id !in watched && it.id !in seen && it.type in setOf("movie", "series") }
+            .distinctBy { it.id }
+        val profile = c.tasteProfile()
+        return pool.sortedByDescending { c.recommender.matchPercent(it, profile) }.take(30).randomOrNull()
+    }
+
     fun retry() {
         c.streams.invalidate()
         load(useSnapshot = false)
@@ -223,7 +277,7 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
     private var loadedFor: List<String>? = null
     private var loadJob: kotlinx.coroutines.Job? = null
 
-    private fun RowSpec.toRow(items: List<Meta>) = HomeRow(key, title, items, priority, service = service, studio = studio)
+    private fun RowSpec.toRow(items: List<Meta>) = HomeRow(key, title, items, priority, service = service, serviceLabel = serviceLabel, studio = studio)
 
     /**
      * Shows the saved rows right away (if any), then refreshes every row in parallel, each one
@@ -304,7 +358,7 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
             }
             if (c.tmdb.enabled) listOf(StreamingService.CRUNCHYROLL, StreamingService.NETFLIX, StreamingService.HULU).forEachIndexed { i, s ->
                 specs += RowSpec("anime/svc-${s.name}", "Anime on ${s.label}", 20 + i, "series",
-                    tmdb = DiscoverParams.service(s) + DiscoverParams.popular() + mapOf("with_genres" to "16", "with_original_language" to "ja"), service = s.name)
+                    tmdb = DiscoverParams.service(s) + DiscoverParams.popular() + mapOf("with_genres" to "16", "with_original_language" to "ja"), service = s.ids, serviceLabel = s.label)
             }
             return specs
         }
@@ -323,7 +377,8 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
                 specs += Categories.genreRows(cinemeta, type, seed, taste, count = if (isHome) (if (type == "movie") 2 else 1) else 3, priority = 30 + o * 5)
             }
         }
-        if (c.tmdb.enabled) specs += Categories.tmdbRows(page, seed, taste)
+        val mine = c.userStore.settings.value.myServices.map { (id, name) -> com.zemu.tv.data.Provider(id, name) }
+        if (c.tmdb.enabled) specs += Categories.tmdbRows(page, seed, taste, mine)
         // Catalogs from any other installed addon that don't need extra input.
         var p = 50
         addons.filter { it !== cinemeta && it.manifest.id != AddonRepository.KITSU_ID }.forEach { addon ->

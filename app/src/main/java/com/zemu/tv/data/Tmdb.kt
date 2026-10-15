@@ -130,7 +130,13 @@ data class TmdbItem(
 
 @Serializable private data class TmdbPage(val results: List<TmdbItem> = emptyList(), @SerialName("total_pages") val totalPages: Int = 0)
 
-@Serializable private data class TmdbProvider(@SerialName("provider_id") val id: Int = 0, @SerialName("logo_path") val logoPath: String? = null)
+@Serializable private data class TmdbProvider(
+    @SerialName("provider_id") val id: Int = 0,
+    @SerialName("provider_name") val name: String = "",
+    @SerialName("logo_path") val logoPath: String? = null,
+    @SerialName("display_priority") val priority: Int = 999,
+)
+@Serializable private data class TmdbLogoOnly(@SerialName("logo_path") val logoPath: String? = null)
 @Serializable private data class TmdbProviders(val results: List<TmdbProvider> = emptyList())
 
 /** Extra details shown on the Details page. */
@@ -265,18 +271,44 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         )
     }
 
-    private var providerLogos: Map<Int, String>? = null
+    private var providers: List<Provider>? = null
+
+    /**
+     * Every streaming service TMDB knows in [region] (movies and series), most popular first.
+     * Add-on channels ("… Amazon Channel", "… Apple TV channel") and ad tiers are left out: the
+     * service itself covers them.
+     */
+    suspend fun allProviders(region: String): List<Provider> {
+        providers?.let { return it }
+        if (!enabled) return emptyList()
+        val found = runCatching {
+            listOf("movie", "tv").flatMap { m ->
+                val body = get("/watch/providers/$m", "watch_region=$region")
+                withContext(Dispatchers.Default) { json.decodeFromString(TmdbProviders.serializer(), body).results }
+            }
+                .filter { p -> CHANNEL_WORDS.none { p.name.contains(it, ignoreCase = true) } }
+                .groupBy { it.id }.values.map { same -> same.minBy { it.priority } }
+                .sortedBy { it.priority }
+                .map { Provider(it.id.toString(), it.name, it.logoPath?.let { l -> "https://image.tmdb.org/t/p/w300$l" }) }
+        }.getOrDefault(emptyList())
+        if (found.isNotEmpty()) providers = found
+        return found
+    }
 
     /** Streaming service logos by TMDB provider id. */
-    suspend fun providerLogos(region: String): Map<Int, String> {
-        providerLogos?.let { return it }
-        if (!enabled) return emptyMap()
-        val found = runCatching {
-            json.decodeFromString(TmdbProviders.serializer(), get("/watch/providers/movie", "watch_region=$region")).results
-                .mapNotNull { p -> p.logoPath?.let { p.id to "https://image.tmdb.org/t/p/w154$it" } }.toMap()
-        }.getOrDefault(emptyMap())
-        if (found.isNotEmpty()) providerLogos = found
-        return found
+    suspend fun providerLogos(region: String): Map<Int, String> =
+        allProviders(region).mapNotNull { p -> p.logo?.let { p.ids.toInt() to it } }.toMap()
+
+    private val studioLogos = ConcurrentHashMap<String, String>()
+
+    /** A studio's or network's own logo (a wordmark on a transparent background). */
+    suspend fun studioLogo(studio: Studio): String? {
+        studioLogos[studio.key]?.let { return it }
+        if (!enabled) return null
+        val path = runCatching {
+            json.decodeFromString(TmdbLogoOnly.serializer(), get(if (studio.type == "series") "/network/${studio.id}" else "/company/${studio.id}")).logoPath
+        }.getOrNull() ?: return null
+        return "https://image.tmdb.org/t/p/w500${path.replace(".svg", ".png")}".also { studioLogos[studio.key] = it }
     }
 
     /** The IMDb id of a "tmdb:<movie|tv>:<id>" title. */
@@ -297,6 +329,8 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
     }
 
     companion object {
+        private val CHANNEL_WORDS = listOf(" Channel", " with Ads", "Amazon Video", "Apple TV Store", "Google Play", "YouTube", "Fandango", "Vudu", "Microsoft Store", "Spectrum On Demand", "DIRECTV")
+
         /** TMDB genre ids, named the way Cinemeta names them. */
         val MOVIE_GENRES = mapOf(
             28 to "Action", 12 to "Adventure", 16 to "Animation", 35 to "Comedy", 80 to "Crime", 99 to "Documentary",

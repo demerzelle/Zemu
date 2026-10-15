@@ -67,7 +67,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.zemu.tv.ui.theme.Palette
 import com.zemu.tv.ui.theme.glassPanel
-import com.zemu.tv.ui.theme.y2kChrome
 
 /** Focusable D-pad surface with TV-style scale + colour change on focus. */
 @Composable
@@ -84,15 +83,21 @@ fun FocusSurface(
     focusedBorder: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    // Y2K: solid buttons become brushed chrome (dark in dark mode, silver in light mode).
-    val chrome = Palette.Y2K && containerColor.alpha > 0.5f
+    // Acidwave clips every corner (round buttons stay round); PS2 and Acidwave outline buttons.
+    val style = Palette.Style
+    val shape = if (style == com.zemu.tv.ui.theme.UiStyle.ACID && shape != androidx.compose.foundation.shape.CircleShape) com.zemu.tv.ui.theme.AcidShape else shape
+    val outline = when (style) {
+        com.zemu.tv.ui.theme.UiStyle.PS2 -> Color(0xFF6FB4FF).copy(alpha = 0.45f)
+        com.zemu.tv.ui.theme.UiStyle.ACID -> Palette.Text.copy(alpha = 0.35f)
+        else -> null
+    }?.takeIf { containerColor.alpha > 0.3f }
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.then(if (chrome) Modifier.y2kChrome(shape) else Modifier).touchClick(onClick, onLongClick),
+        modifier = modifier.touchClick(onClick, onLongClick),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (chrome) Color.Transparent else containerColor,
+            containerColor = containerColor,
             contentColor = contentColor,
             focusedContainerColor = focusedContainerColor,
             focusedContentColor = focusedContentColor,
@@ -100,9 +105,10 @@ fun FocusSurface(
             pressedContentColor = focusedContentColor,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = focusedScale),
-        border = if (focusedBorder != null) {
-            ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, focusedBorder), shape = shape))
-        } else ClickableSurfaceDefaults.border(),
+        border = ClickableSurfaceDefaults.border(
+            border = outline?.let { Border(BorderStroke(1.dp, it), shape = shape) } ?: Border.None,
+            focusedBorder = focusedBorder?.let { Border(BorderStroke(2.dp, it), shape = shape) } ?: Border.None,
+        ),
         content = content,
     )
 }

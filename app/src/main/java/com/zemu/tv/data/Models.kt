@@ -176,6 +176,10 @@ data class AppSettings(
     val deviceOverrides: Map<String, Boolean> = emptyMap(),
     /** 0 = detected. */
     val maxResolutionOverride: Int = 0,
+    /** Streaming services you subscribe to (TMDB provider id to name); empty = show the popular ones. */
+    val myServices: Map<String, String> = emptyMap(),
+    /** Leave titles you've watched out of suggestion and category rows. */
+    val hideWatchedInRows: Boolean = true,
     /** Per-theme color overrides: "<theme>/<dark|light>/<role>" to ARGB. */
     val colorOverrides: Map<String, Long> = emptyMap(),
 )

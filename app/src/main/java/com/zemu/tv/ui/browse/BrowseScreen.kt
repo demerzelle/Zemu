@@ -61,9 +61,9 @@ private fun ratingLabel(r: Double?) = if (r == null) "Any" else "${if (r % 1.0 =
 
 /** Movies, Series and Anime pages: hero for the focused title, filter chips, then a poster grid. */
 @Composable
-fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, studio: String? = null) {
+fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, studio: String? = null, serviceLabel: String? = null) {
     val c = LocalContext.current.container
-    val vm: BrowseViewModel = viewModel(key = "browse-$type-$service-$studio") { BrowseViewModel(c, type, service, studio) }
+    val vm: BrowseViewModel = viewModel(key = "browse-$type-$service-$studio") { BrowseViewModel(c, type, service, studio, serviceLabel) }
     val ui by vm.state.collectAsStateWithLifecycle()
     val settings by c.userStore.settings.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<BrowseDialog?>(null) }
@@ -110,7 +110,7 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, 
         else -> emptyList()
     }
 
-    val svc = com.zemu.tv.data.StreamingService.of(f.service)
+    val svc = f.service?.let { com.zemu.tv.data.Provider(it, f.serviceLabel ?: com.zemu.tv.data.StreamingService.entries.firstOrNull { s -> s.ids == it }?.label ?: "Service") }
     val std = com.zemu.tv.data.Studio.of(f.studio)
     val title = listOfNotNull(svc?.label ?: std?.label, when (if (f.tmdbMode) f.tmdbType else type) { "series" -> "Series"; "anime" -> "Anime"; else -> "Movies" }).joinToString(" · ")
     val catalogLabel = ui.catalogs.firstOrNull { it.id == f.catalog }?.label ?: ""
@@ -120,7 +120,7 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, 
         Backdrop(
             hero,
             Modifier.fillMaxWidth().fillMaxHeight(0.62f),
-            trailerAfterMs = if (settings.heroTrailers) 4_000L else null,
+            trailerAfterMs = if (settings.heroTrailers) 6_000L else null,
             trailerSound = settings.heroTrailerSound,
         )
         Column(Modifier.fillMaxSize()) {
@@ -266,10 +266,15 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, 
         )
         BrowseDialog.SERVICE -> ChoiceDialog(
             title = "Streaming service",
-            options = listOf(ChoiceOption("", "Any")) + com.zemu.tv.data.StreamingService.entries.map { ChoiceOption(it.name, it.label) },
+            // Your services first, then the big ones.
+            options = listOf(ChoiceOption("", "Any")) + (settings.myServices.map { (id, name) -> ChoiceOption(id, name) } +
+                com.zemu.tv.data.StreamingService.entries.map { ChoiceOption(it.ids, it.label) }).distinctBy { it.value },
             selected = setOf(f.service.orEmpty()),
             multiSelect = false,
-            onToggle = { v -> vm.setFilters { it.copy(service = v.ifEmpty { null }, studio = null, tmdbType = if (type == "series") "series" else "movie") } },
+            onToggle = { v ->
+                val label = settings.myServices[v] ?: com.zemu.tv.data.StreamingService.entries.firstOrNull { it.ids == v }?.label
+                vm.setFilters { it.copy(service = v.ifEmpty { null }, serviceLabel = label, studio = null, tmdbType = if (type == "series") "series" else "movie") }
+            },
             onDismiss = { dialog = null },
         )
         BrowseDialog.STUDIO -> ChoiceDialog(

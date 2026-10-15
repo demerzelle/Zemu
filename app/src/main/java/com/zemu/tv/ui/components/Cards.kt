@@ -229,3 +229,44 @@ fun <T> MediaRow(
         }
     }
 }
+
+/** A streaming service: its square logo fills the whole tile. */
+@Composable
+fun ServiceCard(m: Meta, modifier: Modifier = Modifier, selected: Boolean = false, onLongClick: (() -> Unit)? = null, onFocused: (Meta) -> Unit = {}, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier.touchClick(onClick, onLongClick).size(168.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        border = ClickableSurfaceDefaults.border(
+            border = if (selected) Border(BorderStroke(3.dp, Palette.Accent), shape = shape) else Border.None,
+            focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
+        ),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Palette.SurfaceHigh, focusedContainerColor = Palette.SurfaceHigh),
+    ) {
+        Text(m.name.orEmpty(), modifier = Modifier.align(Alignment.Center).padding(10.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        RemoteImage(m.poster, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (selected) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).background(Palette.Accent, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+            Text("✓", color = Palette.OnAccent, fontSize = 12.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+/** A studio or network: its wordmark fills a light tile (logos are made for light backgrounds). */
+@Composable
+fun StudioCard(m: Meta, modifier: Modifier = Modifier, onFocused: (Meta) -> Unit = {}, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.touchClick(onClick, null).size(width = 260.dp, height = 146.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFFF2F2F4), focusedContainerColor = Color.White),
+    ) {
+        if (m.poster == null) Text(m.name.orEmpty(), modifier = Modifier.align(Alignment.Center), color = Color(0xFF121216), fontWeight = FontWeight.Black, fontSize = 20.sp)
+        RemoteImage(m.poster, Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp), contentScale = ContentScale.Fit)
+    }
+}

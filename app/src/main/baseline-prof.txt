@@ -1,0 +1,3 @@
+# Startup and browsing paths of the app itself; library profiles (Compose, Media3) are bundled by those libraries.
+HSPLcom/zemu/tv/**->**(**)**
+Lcom/zemu/tv/**;

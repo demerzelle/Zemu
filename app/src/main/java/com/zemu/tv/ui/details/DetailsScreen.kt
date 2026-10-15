@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -263,6 +264,9 @@ fun DetailsScreen(
                         if (resume != null && (best != null || hasSaved)) {
                             TvButton("Start from beginning", onClick = { playSavedOrBest(fromStart = true) })
                         }
+                        m.officialTrailers.takeIf { it.isNotEmpty() }?.let { list ->
+                            TvButton(if (list.size > 1) "Trailers" else "Trailer", onClick = { TrailerActivity.start(context, list) })
+                        }
                         TvButton("Streams", onClick = { scope.launch { listState.animateScrollToItem(streamsHeaderIndex) } })
                         TvButton(
                             if (inMyList) "In My List" else "My List",
@@ -299,6 +303,8 @@ fun DetailsScreen(
                         season = season,
                         episodes = vm.episodes(season),
                         selected = selectedVideo,
+                        nextUpId = remember(m.id, history) { vm.resumeEpisode(m).id },
+                        progress = history.firstOrNull { it.meta.id == m.id }?.let { mapOf(it.videoId to it.progress) }.orEmpty(),
                         onSeason = vm::selectSeason,
                         onEpisodeFocused = {
                             // Keep the season chips, the summary and the episode row all on screen.
@@ -405,9 +411,6 @@ fun DetailsScreen(
             title = m.title,
             onDismiss = { moreOpen = false },
             actions = buildList {
-                m.officialTrailers.takeIf { it.isNotEmpty() }?.let { list ->
-                    add(SheetAction(if (list.size > 1) "Watch trailers" else "Watch trailer", if (list.size > 1) "${list.size}" else null) { TrailerActivity.start(context, list) })
-                }
                 add(SheetAction(if (rating > 0) "Remove like" else "Like", if (rating > 0) "👍 Liked" else null) { vm.rate(if (rating > 0) 0 else 1) })
                 add(SheetAction(if (rating < 0) "Remove dislike" else "Not for me", if (rating < 0) "👎" else null) { vm.rate(if (rating < 0) 0 else -1) })
                 if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) add(SheetAction(if (showCast) "Hide cast" else "View cast") { showCastRow() })
@@ -455,6 +458,8 @@ private fun EpisodesSection(
     season: Int?,
     episodes: List<Video>,
     selected: Video?,
+    nextUpId: String?,
+    progress: Map<String, Float>,
     onSeason: (Int) -> Unit,
     onEpisodeFocused: () -> Unit,
     onEpisode: (Video) -> Unit,
@@ -494,14 +499,14 @@ private fun EpisodesSection(
             modifier = Modifier.onFocusChanged { if (!it.hasFocus) highlighted = null },
         ) {
             items(episodes, key = { it.id }) { v ->
-                EpisodeCard(v, v.id == selected?.id, onFocused = { highlighted = v; onEpisodeFocused() }) { onEpisode(v) }
+                EpisodeCard(v, v.id == selected?.id, nextUp = v.id == nextUpId, progress = progress[v.id] ?: 0f, onFocused = { highlighted = v; onEpisodeFocused() }) { onEpisode(v) }
             }
         }
     }
 }
 
 @Composable
-private fun EpisodeCard(video: Video, selected: Boolean, onFocused: () -> Unit = {}, onClick: () -> Unit) {
+private fun EpisodeCard(video: Video, selected: Boolean, nextUp: Boolean = false, progress: Float = 0f, onFocused: () -> Unit = {}, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.dp)
     Column(Modifier.width(230.dp)) {
         Surface(
@@ -519,10 +524,17 @@ private fun EpisodeCard(video: Video, selected: Boolean, onFocused: () -> Unit =
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))))
             Text(
                 "E${video.episodeNumber}" + if (selected) "  ▶ selected" else "",
-                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 12.dp),
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
             )
+            if (nextUp) Box(Modifier.align(Alignment.TopStart).padding(6.dp).background(Palette.Accent, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                Text("NEXT UP", color = Palette.OnAccent, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            }
+            // How far you got in this episode.
+            if (progress in 0.01f..0.97f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.25f))) {
+                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Palette.Accent))
+            }
         }
         Spacer(Modifier.size(6.dp))
         Text(video.displayTitle, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
