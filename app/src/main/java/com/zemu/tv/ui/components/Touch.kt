@@ -24,8 +24,9 @@ fun Modifier.touchClick(onClick: () -> Unit, onLongClick: (() -> Unit)? = null):
     focusRequester(focus).pointerInput(Unit) {
         detectTapGestures(
             onPress = { runCatching { focus.requestFocus() } },
-            onTap = { click() },
-            onLongPress = { long?.invoke() ?: click() },
+            // Taps on things that do something get the select / hold sound.
+            onTap = { com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.SELECT); click() },
+            onLongPress = { com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.HOLD); long?.invoke() ?: click() },
         )
     }
 }

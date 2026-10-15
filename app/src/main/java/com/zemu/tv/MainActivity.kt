@@ -112,12 +112,14 @@ class MainActivity : ComponentActivity() {
             }
             return true
         }
-        uiSound(event)
         if (event.keyCode == swallowKey) {
             if (event.action == android.view.KeyEvent.ACTION_UP) swallowKey = -1
             return true
         }
-        return super.dispatchKeyEvent(event)
+        // Sounds only when the key did something: focus moved, a button was pressed, a page went back.
+        val handled = super.dispatchKeyEvent(event)
+        if (handled) uiSound(event)
+        return handled
     }
 
     private var holdPlayed = false
@@ -139,7 +141,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        if (ev.actionMasked == android.view.MotionEvent.ACTION_UP && !screensaverOn) com.zemu.tv.ui.SoundFx.play(com.zemu.tv.ui.SoundFx.Event.SELECT)
         lastInput = android.os.SystemClock.uptimeMillis()
         if (screensaverOn && ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
             screensaverOn = false
