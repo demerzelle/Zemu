@@ -1,9 +1,47 @@
-# Zemu
+<p align="center"><img src="branding/zemu-wordmark.png" alt="Zemu" width="320"></p>
 
-An online Streaming TV client for the [Stremio addon protocol](https://github.com/Stremio/stremio-addon-sdk/tree/master/docs/api)
-with a Netflix-style interface and **cached-only** debrid streams.
+<p align="center"><b>A Netflix-style TV app for Stremio addons, with cached-only debrid streams.</b><br>
+Android TV · Google TV · Fire TV · Roku · macOS</p>
 
-## Features
+<p align="center"><a href="https://github.com/demerzelle/Zemu/releases/latest">Download the latest release</a></p>
+
+<p align="center"><img src="docs/screenshots/theme-alien.jpg" alt="Zemu Home with the Alien Abduction theme" width="900"></p>
+
+## Highlights
+
+- **Looks like a streaming service.** A full-bleed hero that follows your focus, title logos, trailers that fade in behind it, poster rows and a side menu.
+- **Only streams that will start right away.** Zemu lists only what your debrid service (Real-Debrid, AllDebrid, Premiumize, TorBox, Debrid-Link) already has cached, and ranks them by what plays best on your TV.
+- **Recommendations that change every day.** "Picked for You Today", "Because you watched…", hidden gems, a "% Match" on every title, and a **Coming Up** calendar of new episodes from the shows you follow.
+- **Surprise me.** One button in the menu plays a random title picked for you.
+- **Downloads for offline playback.** Hold OK on a stream and pick *Download for offline*; it plays later without internet.
+- **Ratings and scores.** IMDb on every poster, plus US ratings, Rotten Tomatoes and Metacritic with a free OMDb key.
+- **Trakt.** Your watchlist syncs with My List both ways, watched movies come in, and what you play is scrobbled.
+- **Profiles and kid profiles.** Each profile has its own history, list, addons and look. Kid profiles only show family and kids' titles with the ratings you allow; leaving them needs a parent code.
+- **A player that recovers.** If a stream won't decode, Zemu retries with other decoders, then moves to the next cached stream. Skip intro and recap, next-episode autoplay, subtitles in your language and live subtitle styling.
+
+## Themes
+
+More than 20 animated themes, and every one can be recolored. Each theme brings its own scene, shapes, text boxes, fonts and sounds.
+
+| | |
+|:-:|:-:|
+| <img src="docs/screenshots/theme-cybercore-98.jpg" alt="Cybercore 98 theme"><br>**Cybercore** · a Windows 98 desktop (also XP and Kawaii) | <img src="docs/screenshots/theme-cybercore-xp.jpg" alt="Cybercore XP theme"><br>**Cybercore XP** · the selected poster opens in a window |
+| <img src="docs/screenshots/theme-16bit.jpg" alt="16-Bit theme"><br>**16-Bit** · pixel font, a side-scrolling world, characters walking along the floor | <img src="docs/screenshots/theme-ps2.jpg" alt="PS2 Y2K theme"><br>**PS2 · Y2K** · glowing towers and a controller legend |
+| <img src="docs/screenshots/theme-outerspace.jpg" alt="Outer Space theme"><br>**Outer Space** · nebulas, a turning galaxy and a rocket | <img src="docs/screenshots/theme-nightsky.jpg" alt="Night Sky theme"><br>**Night Sky** · moon, aurora and shooting stars |
+| <img src="docs/screenshots/theme-ocean.jpg" alt="Ocean theme"><br>**Ocean** · sun rays, kelp, fish and bubbles | <img src="docs/screenshots/theme-acidwave.jpg" alt="Acidwave theme"><br>**Acidwave** · clipped corners and technical readouts |
+
+Also: Pocket LCD, Ethereal · Aurora, Graffiti, Liquid Glass, Cyberpunk, Matrix, Sakura, Fireflies, Weather, Holidays, RGB, OLED Black and High Contrast.
+
+- **Edit any color.** Every color a theme uses shows as a palette; pick one and change it. Picking a color theme recolors the animated theme too, scene included.
+- **Save palettes** with a name, for every theme or just one.
+- **Keep changes?** After a theme change, a countdown puts the old look back unless you press OK.
+- **Your own font and text size**, and a UI zoom for posters, text and icons.
+
+| | |
+|:-:|:-:|
+| <img src="docs/screenshots/settings-themes.jpg" alt="Themes and colors settings"><br>Themes & colors | <img src="docs/screenshots/keep-changes.jpg" alt="Keep changes popup"><br>Keep changes? |
+
+## More features
 
 - **Netflix-style TV UI** (Jetpack Compose for TV): a full-bleed hero that follows focus, poster rows, a collapsible side menu, and a details page with backdrop, logo, episodes and recommendations.
 - **Trailers**: after you rest on a title, its trailer fades in muted behind the hero (Home and title pages). Hold OK on any poster, or press Trailer, to watch full screen with sound. Toggle autoplay and sound in Settings → Trailers.
@@ -17,12 +55,10 @@ with a Netflix-style interface and **cached-only** debrid streams.
   - Title pages show "More Like This" (up to 50) and "Top {genre} Picks".
 - **Readable summaries**: long descriptions scroll themselves. On title pages you can also focus the text and scroll it with Up/Down.
 - **Movies, Series and Anime pages**, each with a hero for the focused title. Anime uses the Kitsu addon (installed automatically) with separate Anime Series and Anime Movies sections.
-- **Themes**: 10 preset themes plus a custom accent/background color picker (Settings → Theme).
 - **Hold OK on any card** for a menu: Details, Episodes, View trailer, My List, Mark as watched/unwatched, Remove from history.
 - **Player menu bar**: play/pause, ±10 s, audio track, subtitles (with live subtitle styling), speed, picture size (Fit / Zoom / Stretch / Center), like/dislike (feeds recommendations), My List and next episode. OK pauses and opens it. Back or Up closes it, and Back again leaves the player. Left/Right scrub 15 s, speeding up to 60 s the longer you hold or the faster you press.
 - **Next-episode autoplay** with a countdown, plus an optional "Are you still watching?" check that you can switch off right from the prompt.
 - **Profiles**: separate profiles, each with its own addons, history, My List, likes, recommendations and settings. "Who's watching?" appears at launch once there's more than one. Pick a premade avatar or upload a photo from your phone.
-- **Animated themes**: RGB, Snowfall, Rain, Lightning storm, Cyberpunk, Halloween, Christmas, Aurora, Fireflies, Matrix and Sakura (Settings → Theme).
 - **Cast & crew** (needs a free TMDB API key in Settings): actor photos, director, studio, and tappable actors that open their other movies and series.
 - **Skip intro / recap**: community timestamps from [TheIntroDB](https://theintrodb.org) (shows and movies) and [AniSkip](https://aniskip.com) (anime). The next-episode card starts when the credits do.
 - **Subtitles everywhere**: if your addons have none in your language, OpenSubtitles and a few language-specific addons are searched automatically.
@@ -43,6 +79,13 @@ with a Netflix-style interface and **cached-only** debrid streams.
   - Installed, Official and Community catalogs, plus stremio-addons.net (~700 addons), with type filters and search.
   - Install / Uninstall / Configure. Configure opens the addon's own setup page in the app with a D-pad cursor, and its Install button (or "copy URL") installs straight into Zemu.
   - You can also paste a URL, or send one from your phone.
+
+## Install
+
+From the [latest release](https://github.com/demerzelle/Zemu/releases/latest):
+
+- **Android TV / Google TV / Fire TV:** sideload `Zemu-AndroidTV-<version>.apk` (or unzip `Zemu-AndroidTV-<version>.zip`), for example with `adb install`, Downloader or Send Files to TV.
+- **Roku:** turn on developer mode, open the TV's address in a browser and upload `Zemu-Roku-<version>.zip` in the Development Application Installer.
 
 ## Setup on the TV
 
@@ -81,7 +124,9 @@ data/        Stremio protocol models, addon client & repository, persistence, ca
 streams/     Stream parsing, language detection, device capabilities, filter + ranking engine
 recommend/   Taste profile, similarity scoring, % Match
 player/      Media3 player activity + external-player handoff
-ui/          Compose for TV screens: home, details, browse, search, my list, settings
+ui/          Compose for TV screens: home, details, browse, search, my list, downloads, settings, themes
+roku/        The Roku app (BrightScript / SceneGraph)
+macos/       The macOS app (Swift)
 ```
 
 Zemu doesn't host or index any content. It only plays what the addons you install return.
