@@ -167,12 +167,16 @@ class MainActivity : ComponentActivity() {
             var profileId by remember { mutableStateOf(app.container.profileId) }
             val realProfiles by app.profiles.profiles.collectAsStateWithLifecycle()
             val profiles = realProfiles
-            var picking by remember { mutableStateOf(profiles.size > 1 && !app.profileChosen && !app.profiles.skipPicker.value) }
-            LaunchedEffect(askProfile) { if (askProfile) { picking = true; askProfile = false } }
+            val kids by app.profiles.kids.collectAsStateWithLifecycle()
+            // Kids Mode keeps whoever was watching; the picker would be a way out.
+            var picking by remember { mutableStateOf(profiles.size > 1 && !app.profileChosen && !app.profiles.skipPicker.value && !kids.on) }
+            LaunchedEffect(askProfile) { if (askProfile) { picking = !kids.on; askProfile = false } }
 
             key(profileId) {
                 val c = app.container
-                val settings by c.userStore.settings.collectAsStateWithLifecycle()
+                val savedSettings by c.userStore.settings.collectAsStateWithLifecycle()
+                // Kids Mode wears its own theme and has no screensaver (it shows any title).
+                val settings = if (kids.on) savedSettings.copy(dynamicTheme = kids.theme, screensaver = false) else savedSettings
                 val dynamic = DynamicTheme.of(settings.dynamicTheme)
                 var rgbAccent by remember { mutableStateOf<Color?>(null) }
                 val base = settings.resolvedColors()

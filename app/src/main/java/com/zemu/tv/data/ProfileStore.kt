@@ -42,6 +42,15 @@ class ProfileStore(private val context: Context, private val json: Json, scope: 
 
     suspend fun setSkipPicker(skip: Boolean) = ds.edit { it[skipPickerKey] = skip.toString() }
 
+    private val kidsKey = stringPreferencesKey("kids")
+    private fun decodeKids(raw: String?) = raw?.let { runCatching { json.decodeFromString(KidsSettings.serializer(), it) }.getOrNull() } ?: KidsSettings()
+
+    /** Kids Mode covers every profile, so it lives here rather than in a profile's settings. */
+    val kids: StateFlow<KidsSettings> = ds.data.map { decodeKids(it[kidsKey]) }
+        .stateIn(scope, SharingStarted.Eagerly, runBlocking { decodeKids(ds.data.first()[kidsKey]) })
+
+    suspend fun updateKids(change: (KidsSettings) -> KidsSettings) = ds.edit { it[kidsKey] = json.encodeToString(KidsSettings.serializer(), change(decodeKids(it[kidsKey]))) }
+
     fun activeIdBlocking(): String = runBlocking { ds.data.first()[activeKey] } ?: DEFAULT_ID
 
     suspend fun setActive(id: String) = ds.edit { it[activeKey] = id }

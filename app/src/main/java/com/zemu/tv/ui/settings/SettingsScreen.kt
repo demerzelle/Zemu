@@ -33,6 +33,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,6 +116,7 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
     QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look."),
     ADDONS("Addons & accounts", "Stream addons, your debrid service, title details and cast info."),
     PROFILES("Profiles", "Who's watching, pictures and the profile picker."),
+    KIDS("Kids Mode", "Parental controls: the highest rating allowed, the kids themes and the parent code. Kids Mode is also on the menu's bottom left."),
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
@@ -174,6 +176,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
                 SettingsCategory.QUICK -> quickCategory(vm, settings, remote, onOpenServices)
                 SettingsCategory.ADDONS -> addonsCategory(vm, settings, remote, onOpenAddons, onOpenServices)
                 SettingsCategory.PROFILES -> item(key = "profiles") { ProfilesSection(remote) }
+                SettingsCategory.KIDS -> item(key = "kids") { KidsSection() }
                 SettingsCategory.PLAYBACK -> playbackCategory(vm, settings) { dialog = it }
                 SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
                 SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings)
@@ -256,6 +259,8 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "TMDB key (cast, studios, streaming services)" to SettingsCategory.ADDONS,
     "My streaming services" to SettingsCategory.ADDONS,
     "Profiles and profile pictures" to SettingsCategory.PROFILES,
+    "Kids Mode, parental controls, maximum rating, parent code" to SettingsCategory.KIDS,
+    "Kids themes (Toddler, Grade School, Young Adult)" to SettingsCategory.KIDS,
     "Instant play" to SettingsCategory.PLAYBACK,
     "Autoplay next episode" to SettingsCategory.PLAYBACK,
     "Play something similar" to SettingsCategory.PLAYBACK,
@@ -452,7 +457,7 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
         val current = DynamicTheme.of(settings.dynamicTheme)
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(DynamicTheme.entries.filter { !it.hidden || settings.catRaveUnlocked }, key = { it.name }) { d ->
+            items(DynamicTheme.entries.filter { !it.kids && (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
                 TvChip(d.label, selected = current == d, onClick = {
                     vm.update { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
                 })
@@ -659,3 +664,26 @@ private fun Modifier.previewBackdrop(): Modifier =
     this.then(Modifier.background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF3A4A5A), androidx.compose.ui.graphics.Color(0xFF6A5A3A))), RoundedCornerShape(10.dp)).height(110.dp))
 
 private fun Modifier.subtitleBox(c: androidx.compose.ui.graphics.Color): Modifier = this.then(Modifier.background(c, RoundedCornerShape(4.dp)))
+
+@Composable
+private fun KidsSection() {
+    val context = LocalContext.current
+    val kids = com.zemu.tv.ui.kids.rememberKids()
+    val scope = rememberCoroutineScope()
+    var setup by remember { mutableStateOf(false) }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            "Highest rating: ${com.zemu.tv.data.Ratings.LEVELS[kids.maxLevel.coerceIn(0, 3)]} / ${com.zemu.tv.data.Ratings.TV[kids.maxLevel.coerceIn(0, 3)]}  ·  Theme: ${com.zemu.tv.ui.kids.KIDS_THEMES.firstOrNull { it.first == kids.theme }?.second ?: "Grade School"}  ·  Parent code: ${if (kids.pinHash.isEmpty()) "not set" else "set"}",
+            color = Palette.TextSecondary, fontSize = 14.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton("Start Kids Mode", primary = true, onClick = { setup = true })
+            if (kids.pinHash.isNotEmpty()) TvButton("Change parent code", onClick = {
+                // Settings is locked in Kids Mode, so whoever is here already knows the code.
+                scope.launch { context.app.profiles.updateKids { it.copy(pinHash = "") } }
+                setup = true
+            })
+        }
+    }
+    if (setup) com.zemu.tv.ui.kids.KidsModeSetup { setup = false }
+}

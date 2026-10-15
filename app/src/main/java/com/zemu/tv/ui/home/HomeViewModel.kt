@@ -321,7 +321,7 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
         val watched = c.userStore.watched.value
         val seen = c.userStore.history.value.map { it.meta.id }.toSet()
         val pool = (dailyRows.value.flatMap { it.items } + specRows.value.flatMap { it.items })
-            .filter { it.id !in watched && it.id !in seen && it.type in setOf("movie", "series") }
+            .filter { it.id !in watched && it.id !in seen && it.type in setOf("movie", "series") && c.kids.knownAllowed(it) == true }
             .distinctBy { it.id }
         val profile = c.tasteProfile()
         return pool.sortedByDescending { c.recommender.matchPercent(it, profile) }.take(30).randomOrNull()

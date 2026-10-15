@@ -389,7 +389,7 @@ fun DetailsScreen(
             if (similar.isNotEmpty()) {
                 item(key = "similar") {
                     Spacer(Modifier.size(24.dp))
-                    MediaRow(title = "More Like This", items = similar, key = { it.meta.id }) { _, s, mod ->
+                    MediaRow(title = "More Like This", items = com.zemu.tv.ui.kids.kidsSafe(similar) { it.meta }, key = { it.meta.id }) { _, s, mod ->
                         PosterCard(s.meta, onClick = { onOpen(s.meta) }, modifier = mod, badge = "${s.matchPercent}%")
                     }
                 }
@@ -397,7 +397,7 @@ fun DetailsScreen(
             genreFavorites?.let { (genre, items) ->
                 item(key = "genre-favorites") {
                     Spacer(Modifier.size(12.dp))
-                    MediaRow(title = "Top $genre Picks", items = items, key = { it.meta.id }) { _, s, mod ->
+                    MediaRow(title = "Top $genre Picks", items = com.zemu.tv.ui.kids.kidsSafe(items) { it.meta }, key = { it.meta.id }) { _, s, mod ->
                         PosterCard(s.meta, onClick = { onOpen(s.meta) }, modifier = mod, badge = "${s.matchPercent}%")
                     }
                 }

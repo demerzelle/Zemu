@@ -186,7 +186,7 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, 
                             // Shows you watch with episodes out since you last watched; the row bleeds past the grid padding.
                             MediaRow(
                                 title = "New Episodes",
-                                items = list,
+                                items = com.zemu.tv.ui.kids.kidsSafe(list) { it.meta },
                                 key = { it.meta.id },
                                 modifier = Modifier.padding(bottom = 4.dp).layout { measurable, constraints ->
                                     val extra = 96.dp.roundToPx()

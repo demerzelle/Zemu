@@ -82,6 +82,7 @@ fun HomeScreen(
 
     var focused by remember { mutableStateOf<Meta?>(null) }
     var hero by remember { mutableStateOf<Meta?>(null) }
+    val kids = com.zemu.tv.ui.kids.rememberKids()
     var savedFocus by rememberSaveable { mutableStateOf<String?>(null) }
     val restoreRequester = remember { FocusRequester() }
     val firstRequester = remember { FocusRequester() }
@@ -95,8 +96,8 @@ fun HomeScreen(
         // Service logos and "See more" tiles aren't titles; keep the last title in the hero.
         focused?.takeIf { !it.id.startsWith("service:") && !it.id.startsWith("seemore:") }?.let { hero = it }
     }
-    LaunchedEffect(firstKey) {
-        if (hero == null) hero = firstRow?.items?.firstOrNull()
+    LaunchedEffect(firstKey, kids.on) {
+        if (hero == null || kids.on) hero = firstRow?.items?.firstOrNull { c.kids.knownAllowed(it) == true }
     }
     LaunchedEffect(firstKey != null) {
         if (firstKey == null) return@LaunchedEffect
@@ -128,16 +129,20 @@ fun HomeScreen(
         }
     }
 
+    // Kids Mode: the hero only shows an allowed title (one picked before Kids Mode started is dropped).
+    val heroShown = hero?.takeIf { !kids.on || c.kids.knownAllowed(it) == true }
     Box(Modifier.fillMaxSize().heroTrailerKeys()) {
         Backdrop(
-            hero,
+            heroShown,
             Modifier.fillMaxWidth().fillMaxHeight(0.62f),
             trailerAfterMs = if (settings.heroTrailers) 6_000L else null,
             trailerSound = settings.heroTrailerSound,
         )
         Column(Modifier.fillMaxSize()) {
-            HeroInfo(hero, hero?.let { vm.match(it) }, Modifier.fillMaxWidth().fillMaxHeight(0.40f).heroTrailerTap())
+            HeroInfo(heroShown, heroShown?.let { vm.match(it) }, Modifier.fillMaxWidth().fillMaxHeight(0.40f).heroTrailerTap())
             when {
+                kids.on && !c.tmdb.enabled ->
+                    CenteredMessage("Kids Mode needs a TMDB key", "Titles are checked against their ratings on TMDB. Ask a grown-up to add a TMDB key in Settings → Quick setup.")
                 state.rows.isEmpty() && state.loading ->
                     StatusLine("Loading catalogs…")
                 state.rows.isEmpty() && state.error != null ->
@@ -167,9 +172,12 @@ fun HomeScreen(
                     PageBar(page, onBrowse = { onBrowse(BrowseTarget(page)) }, onPick = { which -> if (which == "service") onAllServices(page) else pageDialog = which }, tmdb = c.tmdb.enabled)
                 }
                 items(state.rows, key = { it.key }) { row ->
+                    // Kids Mode: only titles within the allowed rating; rows left empty disappear.
+                    val shown = com.zemu.tv.ui.kids.kidsSafe(row.items) { it }
+                    if (shown.isEmpty() && row.items.isNotEmpty()) return@items
                     val requesters = buildMap {
                         savedFocus?.takeIf { it.startsWith("${row.key}|") }?.let { put(it.substringAfter('|'), restoreRequester) }
-                        if (row === firstRow) row.items.firstOrNull()?.let { put(it.id, firstRequester) }
+                        if (row === firstRow) shown.firstOrNull()?.let { put(it.id, firstRequester) }
                     }
                     val onFocus: (Meta) -> Unit = { m ->
                         focused = m
@@ -182,9 +190,9 @@ fun HomeScreen(
                     MediaRow(
                         title = row.title,
                         items = when {
-                            more -> row.items + Meta(id = "seemore:${row.key}", name = "See more")
-                            row.style == RowStyle.SERVICES -> row.items + Meta(id = "service:all", name = "View more")
-                            else -> row.items
+                            more -> shown + Meta(id = "seemore:${row.key}", name = "See more")
+                            row.style == RowStyle.SERVICES -> shown + Meta(id = "service:all", name = "View more")
+                            else -> shown
                         },
                         key = { it.id },
                         requesters = requesters,

@@ -203,6 +203,35 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
             .take(6).map { "https://image.tmdb.org/t/p/w1280${it.first}" } to logo
     }
 
+    /**
+     * The US rating ("PG-13", "TV-Y7"), "" when TMDB has none, or null without a TMDB key.
+     * Kids Mode uses it. Throws on network errors.
+     */
+    suspend fun usCertification(meta: Meta): String? {
+        if (!enabled) return null
+        val (tv, id) = if (meta.id.startsWith("tmdb:")) meta.id.split(':').let { (it[1] == "tv") to it[2].toLong() } else {
+            meta.tmdbId?.toLongOrNull()?.let { (meta.type == "series") to it } ?: run {
+                val imdb = meta.imdbId.takeIf { it.startsWith("tt") } ?: return ""
+                val found = json.decodeFromString(TmdbFind.serializer(), get("/find/$imdb", "external_source=imdb_id"))
+                val movie = found.movies.firstOrNull()
+                val show = found.tv.firstOrNull()
+                when {
+                    meta.type == "series" && show != null -> true to show.id
+                    movie != null -> false to movie.id
+                    show != null -> true to show.id
+                    else -> return ""
+                }
+            }
+        }
+        val root = json.parseToJsonElement(get(if (tv) "/tv/$id/content_ratings" else "/movie/$id/release_dates")).jsonObject
+        val us = root["results"]?.jsonArray.orEmpty().map { it.jsonObject }
+            .firstOrNull { it["iso_3166_1"]?.jsonPrimitive?.contentOrNull == "US" } ?: return ""
+        return if (tv) us["rating"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        else us["release_dates"]?.jsonArray.orEmpty().firstNotNullOfOrNull { d ->
+            d.jsonObject["certification"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        }.orEmpty()
+    }
+
     /** TheTVDB id of a series (fanart.tv indexes shows by it). */
     suspend fun tvdbId(meta: Meta): String? {
         if (!enabled || meta.type != "series") return null

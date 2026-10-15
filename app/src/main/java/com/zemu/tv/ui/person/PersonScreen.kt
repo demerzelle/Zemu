@@ -170,12 +170,12 @@ fun PersonScreen(key: String, onOpen: (Meta) -> Unit) {
             Spacer(Modifier.size(20.dp))
         }
         if (p.movies.isNotEmpty()) item(key = "movies") {
-            MediaRow(title = "Movies", items = p.movies, key = { "m${it.id}" }, requesters = mapOf("m${p.movies.first().id}" to firstFocus)) { _, m, mod ->
+            MediaRow(title = "Movies", items = com.zemu.tv.ui.kids.kidsSafe(p.movies) { it }, key = { "m${it.id}" }, requesters = mapOf("m${p.movies.first().id}" to firstFocus)) { _, m, mod ->
                 PosterCard(m, onClick = { open(m) }, modifier = mod, onLongClick = { open(m) })
             }
         }
         if (p.series.isNotEmpty()) item(key = "series") {
-            MediaRow(title = "Series", items = p.series, key = { "s${it.id}" }, requesters = if (p.movies.isEmpty()) mapOf("s${p.series.first().id}" to firstFocus) else emptyMap()) { _, m, mod ->
+            MediaRow(title = "Series", items = com.zemu.tv.ui.kids.kidsSafe(p.series) { it }, key = { "s${it.id}" }, requesters = if (p.movies.isEmpty()) mapOf("s${p.series.first().id}" to firstFocus) else emptyMap()) { _, m, mod ->
                 PosterCard(m, onClick = { open(m) }, modifier = mod, onLongClick = { open(m) })
             }
         }

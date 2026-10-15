@@ -170,7 +170,8 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
                 )
             }
         }
-        Box(
+        // Scrims only over a picture; with nothing to show, the theme's scene shows through.
+        if (meta?.backdropUrl() != null) Box(
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to Palette.Background,
@@ -180,7 +181,7 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
                 ),
             ),
         )
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Palette.Background)))
+        if (meta?.backdropUrl() != null) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Palette.Background)))
     }
 }
 

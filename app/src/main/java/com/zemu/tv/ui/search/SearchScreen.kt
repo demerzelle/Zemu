@@ -160,7 +160,8 @@ fun SearchScreen(onOpen: (Meta) -> Unit) {
         if (status != null) Text(status, color = Palette.TextSecondary, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 48.dp, vertical = 14.dp))
         LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp)) {
             items(ui.rows, key = { it.first }) { (title, items) ->
-                MediaRow(title = title, items = items, key = { it.id }) { _, m, mod ->
+                val shown = com.zemu.tv.ui.kids.kidsSafe(items) { it }
+                if (shown.isNotEmpty()) MediaRow(title = title, items = shown, key = { it.id }) { _, m, mod ->
                     PosterCard(m, onClick = { vm.remember(ui.query); onOpen(m) }, modifier = mod)
                 }
             }

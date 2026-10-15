@@ -29,13 +29,14 @@ fun PosterGrid(
     header: (@Composable () -> Unit)? = null,
     state: androidx.compose.foundation.lazy.grid.LazyGridState = rememberLazyGridState(),
 ) {
+    val shown = com.zemu.tv.ui.kids.kidsSafe(items) { it }
     val nearEnd by remember {
         derivedStateOf {
             val last = state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             last >= state.layoutInfo.totalItemsCount - columns * 2
         }
     }
-    LaunchedEffect(nearEnd, items.size) { if (nearEnd) onNearEnd() }
+    LaunchedEffect(nearEnd, shown.size) { if (nearEnd) onNearEnd() }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns),
@@ -46,7 +47,7 @@ fun PosterGrid(
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         if (header != null) item(key = "grid-header", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { header() }
-        itemsIndexed(items, key = { _, m -> m.id }) { i, m ->
+        itemsIndexed(shown, key = { _, m -> m.id }) { i, m ->
             PosterCard(m, onClick = { onOpen(m) }, width = androidx.compose.ui.unit.Dp.Unspecified, badge = badge(m), onFocused = { onFocused(i, it) })
         }
     }

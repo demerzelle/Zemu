@@ -5,6 +5,7 @@ import com.zemu.tv.ui.theme.appBackground
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -36,12 +37,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -60,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.zemu.tv.container
+import com.zemu.tv.app
 import com.zemu.tv.data.trailerId
 import com.zemu.tv.player.TrailerActivity
 import com.zemu.tv.ui.components.AppIcons
@@ -105,7 +112,8 @@ import com.zemu.tv.ui.search.SearchScreen
 import com.zemu.tv.ui.settings.SettingsScreen
 import com.zemu.tv.ui.theme.Palette
 
-private enum class Dest(val route: String, val label: String, val icon: ImageVector) {
+/** [bottom] items sit in the menu's bottom left and open dialogs instead of pages. */
+private enum class Dest(val route: String, val label: String, val icon: ImageVector, val bottom: Boolean = false) {
     SEARCH("search", "Search", Icons.Filled.Search),
     HOME("home", "Home", Icons.Filled.Home),
     MOVIES("movies", "Movies", AppIcons.Movie),
@@ -113,9 +121,12 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     ANIME("anime", "Anime", AppIcons.Anime),
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
+    PROFILES("@profiles", "Profiles", Icons.Filled.Person, bottom = true),
+    KIDS("@kids", "Kids Mode", Icons.Filled.Face, bottom = true),
 }
 
 private val RAIL_WIDTH = 76.dp
+private val RAIL_OPEN_WIDTH = 210.dp
 
 fun detailsRoute(m: Meta, section: String = "", play: Boolean = false) =
     "details/${Uri.encode(m.type)}/${Uri.encode(m.id)}?section=$section&play=$play"
@@ -140,6 +151,11 @@ fun AppShell() {
     var menuFor by remember { mutableStateOf<Meta?>(null) }
     var menuRowOptions by remember { mutableStateOf<(() -> Unit)?>(null) }
     var railOpen by remember { mutableStateOf(false) }
+    val kids = com.zemu.tv.ui.kids.rememberKids()
+    val switchProfile = com.zemu.tv.LocalSwitchProfile.current
+    // Bottom-left menu dialogs: start Kids Mode, or the parent code to leave it / switch profiles.
+    var kidsSetup by remember { mutableStateOf(false) }
+    var parentFor by remember { mutableStateOf<Dest?>(null) }
     LaunchedEffect(showRail) { if (!showRail) railOpen = false }
     // A movie just finished: back to Home.
     val goHome = com.zemu.tv.PendingOpen.goHome
@@ -159,17 +175,8 @@ fun AppShell() {
 
     CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
     FocusScrollMargins {
-    Box(Modifier.fillMaxSize().appBackground()) {
-        when (com.zemu.tv.ui.theme.Palette.Style) {
-            com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
-            com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()
-            com.zemu.tv.ui.theme.UiStyle.ETHEREAL -> com.zemu.tv.ui.theme.EtherealBackdrop()
-            com.zemu.tv.ui.theme.UiStyle.RETRO -> com.zemu.tv.ui.theme.RetroBackdrop(com.zemu.tv.ui.theme.Palette.colors.variant)
-            com.zemu.tv.ui.theme.UiStyle.GRAFFITI -> com.zemu.tv.ui.theme.GraffitiBackdrop()
-            com.zemu.tv.ui.theme.UiStyle.LIQUID -> com.zemu.tv.ui.theme.LiquidBackdrop()
-            com.zemu.tv.ui.theme.UiStyle.CATRAVE -> com.zemu.tv.ui.theme.CatRaveBackdrop()
-            else -> {}
-        }
+    Box(Modifier.fillMaxSize()) {
+        StyleBackdrop(Modifier.fillMaxSize())
         NavHost(
             navController = nav,
             startDestination = "home",
@@ -211,9 +218,9 @@ fun AppShell() {
             composable("services/{type}") { e -> com.zemu.tv.ui.browse.ServicesScreen(e.arguments?.getString("type") ?: "movie", onBrowse = browse) }
             composable("search") { SearchScreen(onOpen = open) }
             composable("mylist") { MyListScreen(onOpen = open) }
-            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }, onManageRows = { nav.navigate("rows/$it") }) }
-            composable("rows/{page}") { e -> com.zemu.tv.ui.settings.RowsManagerScreen(e.arguments?.getString("page") ?: "home") }
-            composable("addons") { AddonBrowserScreen() }
+            composable("settings") { com.zemu.tv.ui.kids.ParentLock { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }, onManageRows = { nav.navigate("rows/$it") }) } }
+            composable("rows/{page}") { e -> com.zemu.tv.ui.kids.ParentLock { com.zemu.tv.ui.settings.RowsManagerScreen(e.arguments?.getString("page") ?: "home") } }
+            composable("addons") { com.zemu.tv.ui.kids.ParentLock { AddonBrowserScreen() } }
             composable("person/{key}") { e -> PersonScreen(key = Uri.decode(e.arguments?.getString("key").orEmpty()), onOpen = open) }
             composable(
                 "details/{type}/{id}?section={section}&play={play}",
@@ -222,6 +229,8 @@ fun AppShell() {
                     navArgument("play") { type = NavType.BoolType; defaultValue = false },
                 ),
             ) { e ->
+                // Kids Mode: titles above the allowed rating stop here, however they were opened.
+                com.zemu.tv.ui.kids.KidsTitleGate(e.arguments?.getString("type") ?: "movie", e.arguments?.getString("id").orEmpty()) {
                 DetailsScreen(
                     type = e.arguments?.getString("type") ?: "movie",
                     id = e.arguments?.getString("id").orEmpty(),
@@ -233,6 +242,7 @@ fun AppShell() {
                     onOpenSettings = { nav.navigateTop("addons") },
                     onOpenPerson = { key -> nav.navigate("person/${Uri.encode(key)}") },
                 )
+                }
             }
         }
         if (showRail) {
@@ -241,10 +251,25 @@ fun AppShell() {
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
                     .pointerInput(Unit) { detectTapGestures { railOpen = false } },
             )
-            NavRail(current, railOpen, onTouchOpen = { railOpen = it }) { d ->
-                if (d.route != current) Haptics.buzz(context)
-                nav.navigateTop(d.route)
+            NavRail(current, railOpen, kids.on, onTouchOpen = { railOpen = it }) { d ->
+                railOpen = false
+                when {
+                    d == Dest.KIDS -> if (kids.on) parentFor = d else kidsSetup = true
+                    d == Dest.PROFILES -> if (kids.on) parentFor = d else switchProfile()
+                    else -> {
+                        if (d.route != current) Haptics.buzz(context)
+                        nav.navigateTop(d.route)
+                    }
+                }
             }
+        }
+    }
+    if (kidsSetup) com.zemu.tv.ui.kids.KidsModeSetup { kidsSetup = false }
+    parentFor?.let { d ->
+        com.zemu.tv.ui.kids.ParentCheck(if (d == Dest.KIDS) "Leave Kids Mode?" else "Switch profiles?", onDismiss = { parentFor = null }) {
+            parentFor = null
+            if (d == Dest.KIDS) scope.launch { context.app.profiles.updateKids { it.copy(on = false) } }
+            else switchProfile()
         }
     }
     menuFor?.let { m ->
@@ -259,7 +284,7 @@ fun AppShell() {
             ),
             onAction = { a -> resolving(context, scope, m) { m ->
                 when (a) {
-                    CardAction.PLAY -> if (!com.zemu.tv.player.Playback.resumeSaved(context, m)) nav.navigate(detailsRoute(m, play = true))
+                    CardAction.PLAY -> if (kids.on || !com.zemu.tv.player.Playback.resumeSaved(context, m)) nav.navigate(detailsRoute(m, play = true))
                     CardAction.DETAILS -> nav.navigate(detailsRoute(m))
                     CardAction.EPISODES -> nav.navigate(detailsRoute(m, "episodes"))
                     CardAction.TRAILER -> m.officialTrailers.takeIf { it.isNotEmpty() }?.let { TrailerActivity.start(context, it) }
@@ -277,6 +302,24 @@ fun AppShell() {
     }
 }
 
+/** The page's background plus the whole-app style's animated scene (PS2 towers, kids' sky, …). */
+@Composable
+private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground()) {
+    when (com.zemu.tv.ui.theme.Palette.Style) {
+        com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
+        com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.ETHEREAL -> com.zemu.tv.ui.theme.EtherealBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.RETRO -> com.zemu.tv.ui.theme.RetroBackdrop(com.zemu.tv.ui.theme.Palette.colors.variant)
+        com.zemu.tv.ui.theme.UiStyle.GRAFFITI -> com.zemu.tv.ui.theme.GraffitiBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.LIQUID -> com.zemu.tv.ui.theme.LiquidBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.CATRAVE -> com.zemu.tv.ui.theme.CatRaveBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.TODDLER -> com.zemu.tv.ui.theme.ToddlerBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.GRADE -> com.zemu.tv.ui.theme.GradeSchoolBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.TEEN -> com.zemu.tv.ui.theme.YoungAdultBackdrop()
+        else -> {}
+    }
+}
+
 private fun NavHostController.navigateTop(route: String) = navigate(route) {
     popUpTo("home") { saveState = true }
     launchSingleTop = true
@@ -291,11 +334,17 @@ private fun NavHostController.navigateTop(route: String) = navigate(route) {
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean) -> Unit, onSelect: (Dest) -> Unit) {
+private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTouchOpen: (Boolean) -> Unit, onSelect: (Dest) -> Unit) {
     var hasFocus by remember { mutableStateOf(false) }
     val usingRemote = LocalInputModeManager.current.inputMode == InputMode.Keyboard
     val expanded = (hasFocus && usingRemote) || touchOpen
-    val width by animateDpAsState(if (expanded) 210.dp else RAIL_WIDTH, label = "rail")
+    val width by animateDpAsState(if (expanded) RAIL_OPEN_WIDTH else RAIL_WIDTH, label = "rail")
+    // Labels fade in as the menu widens, so nothing pokes out past its edge mid-animation.
+    val progress = ((width - RAIL_WIDTH) / (RAIL_OPEN_WIDTH - RAIL_WIDTH)).coerceIn(0f, 1f)
+    // Settings is for grown-ups; in Kids Mode it's off the menu.
+    val main = Dest.entries.filter { !it.bottom && !(kidsOn && it == Dest.SETTINGS) }
+    val bottom = Dest.entries.filter { it.bottom }
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val requesters = remember { Dest.entries.associateWith { FocusRequester() } }
     val selected = Dest.entries.firstOrNull { it.route == current }
     // Ten quick presses on the logo unlock something.
@@ -327,12 +376,20 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
     val select by rememberUpdatedState(onSelect)
     val setOpen by rememberUpdatedState(onTouchOpen)
 
-    Box(
+    // A soft shadow rides the menu's edge while it's open, so the page fades out at the same width.
+    if (progress > 0f) Box(
+        Modifier
+            .fillMaxHeight()
+            .padding(start = width)
+            .width(120.dp)
+            .graphicsLayer { alpha = progress }
+            .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Palette.Background.copy(alpha = 0.85f), Color.Transparent))),
+    )
+    androidx.compose.foundation.layout.BoxWithConstraints(
         Modifier
             .fillMaxHeight()
             .width(width)
-            // Glass: the rail is a translucent pane over the page.
-            .background(if (Palette.Glass) Palette.Background.copy(alpha = 0.55f) else Palette.Background)
+            .clipToBounds()
             .onGloballyPositioned { railOrigin = it.positionInWindow() }
             .pointerInput(Unit) {
                 fun destAt(p: Offset): Dest? = (p + railOrigin).let { w -> bounds.entries.firstOrNull { it.value.contains(w) }?.key }
@@ -371,6 +428,13 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                 }
             },
     ) {
+        // The menu's underlay is the page's own background scene, cut to the menu's width, so it looks
+        // the same at any width instead of the page's posters showing through as it opens.
+        val styled = Palette.Style != com.zemu.tv.ui.theme.UiStyle.NORMAL
+        if (styled || Palette.Glass) StyleBackdrop(
+            Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start, unbounded = true).requiredWidth(screenWidth),
+        )
+        Box(Modifier.matchParentSize().background(Palette.Background.copy(alpha = if (Palette.Glass) 0.55f else if (styled) 0.8f else 1f)))
         Image(
             painter = painterResource(if (expanded) R.drawable.logo_wordmark else R.drawable.logo_mark),
             contentDescription = "Zemu",
@@ -388,20 +452,27 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                 .graphicsLayer { if (logoFocused) { scaleX = 1.15f; scaleY = 1.15f } }
                 .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onLogo),
         )
+        // Main pages centered as before; Profiles and Kids Mode in the bottom left. Item heights are fixed
+        // (40dp + 2dp gap), so the gaps are worked out here and the whole menu still scrolls on short screens.
+        val itemH = 42.dp
+        val top = maxOf(64.dp, (maxHeight - itemH * main.size) / 2)
+        val gap = maxOf(16.dp, maxHeight - top - itemH * (main.size + bottom.size) - 16.dp)
         Column(
             Modifier
-                .align(Alignment.CenterStart)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .onFocusChanged { hasFocus = it.hasFocus }
                 // Entering the menu always lands on the current page, not whichever item is nearest.
                 .focusProperties { enter = { selected?.let { requesters.getValue(it) } ?: FocusRequester.Default } }
                 .focusGroup()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 12.dp, end = 12.dp, top = 64.dp, bottom = 16.dp),
+                .padding(start = 12.dp, end = 12.dp, top = top, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Dest.entries.forEach { d ->
+            (main + bottom).forEach { d ->
+                if (d == bottom.first()) Spacer(Modifier.height(gap - 2.dp))
                 val isCurrent = current == d.route
+                val label = if (d == Dest.KIDS && kidsOn) "Exit Kids Mode" else d.label
+                val icon = if (d == Dest.KIDS && kidsOn) Icons.Filled.Lock else d.icon
                 val shape = RoundedCornerShape(10.dp)
                 // Plain TV surface: remote only. Touch is handled by the rail above.
                 Surface(
@@ -414,21 +485,24 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
-                        contentColor = Palette.Text,
+                        contentColor = if (d == Dest.KIDS && kidsOn) Palette.Accent else Palette.Text,
                         focusedContainerColor = Palette.Focus,
                         focusedContentColor = Palette.OnFocus,
                     ),
                 ) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            d.icon,
-                            contentDescription = d.label,
+                            icon,
+                            contentDescription = label,
                             modifier = Modifier.size(22.dp),
                             tint = if (isCurrent && !expanded) Palette.Accent else androidx.tv.material3.LocalContentColor.current,
                         )
                         if (expanded) {
                             Spacer(Modifier.width(16.dp))
-                            Text(d.label, fontSize = 16.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal)
+                            Text(
+                                label, fontSize = 16.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer { alpha = progress },
+                            )
                         }
                     }
                 }

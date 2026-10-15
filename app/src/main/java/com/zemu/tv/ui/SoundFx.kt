@@ -27,6 +27,9 @@ object SoundFx {
         UiStyle.LIQUID -> "liquid"
         UiStyle.ETHEREAL -> "ethereal"
         UiStyle.CATRAVE -> "catrave"
+        UiStyle.TODDLER -> "toddler"
+        UiStyle.GRADE -> "gradeschool"
+        UiStyle.TEEN -> "youngadult"
         UiStyle.NORMAL -> "default"
     }
 

@@ -67,7 +67,7 @@ data class ThemeColors(
 }
 
 /** Whole-app looks that go beyond colors: shapes, type, panels and a backdrop scene. */
-enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE }
+enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE, TODDLER, GRADE, TEEN }
 
 /** Colors the user can set per theme and per light/dark mode. */
 enum class ColorRole(val key: String, val label: String) {

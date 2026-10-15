@@ -59,6 +59,10 @@ fun styleTextStyle(style: UiStyle, variant: String): TextStyle = when (style) {
     )
     UiStyle.LIQUID -> TextStyle(letterSpacing = sp(-0.2f))
     UiStyle.CATRAVE -> TextStyle(fontFamily = FontFamily.Cursive, shadow = Shadow(Color(0xCCFF00E6), Offset(2f, 2f), 4f))
+    // Kids: chunky and friendly; Grade School is hand-lettered (Android's "casual" face); Young Adult is clean and wide.
+    UiStyle.TODDLER -> TextStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = sp(0.4f))
+    UiStyle.GRADE -> TextStyle(fontFamily = FontFamily(android.graphics.Typeface.create("casual", android.graphics.Typeface.NORMAL)))
+    UiStyle.TEEN -> TextStyle(letterSpacing = sp(0.6f), shadow = Shadow(Color(0x667CFFCB), Offset.Zero, 12f))
     UiStyle.NORMAL -> TextStyle.Default
 }
 
@@ -88,6 +92,9 @@ fun styledShape(shape: Shape): Shape {
         UiStyle.LIQUID, UiStyle.CATRAVE -> RoundedCornerShape(50)
         UiStyle.RETRO -> if (Palette.colors.variant == "KAWAII") RoundedCornerShape(14.dp) else if (Palette.colors.variant == "XP") RoundedCornerShape(5.dp) else androidx.compose.ui.graphics.RectangleShape
         UiStyle.GRAFFITI -> RoundedCornerShape(3.dp)
+        UiStyle.TODDLER -> RoundedCornerShape(26.dp)
+        UiStyle.GRADE -> RoundedCornerShape(12.dp)
+        UiStyle.TEEN -> RoundedCornerShape(16.dp)
         else -> shape
     }
 }
@@ -104,6 +111,12 @@ fun Modifier.stylePanel(shape: Shape, solid: Color): Modifier? = when (Palette.S
     UiStyle.RETRO -> retroWindow(solid)
     UiStyle.GRAFFITI -> background(solid, androidx.compose.ui.graphics.RectangleShape)
         .border(3.dp, Palette.Accent, androidx.compose.ui.graphics.RectangleShape)
+    // Toddler: a white bubble with a thick sunny border; Grade School: a sheet of paper with a pencil outline.
+    UiStyle.TODDLER -> RoundedCornerShape(30.dp).let { s -> background(solid, s).border(4.dp, Color(0xFFFFC93C), s) }
+    UiStyle.GRADE -> RoundedCornerShape(10.dp).let { s -> background(solid, s).border(2.dp, Color(0xFF1F2937), s) }
+    UiStyle.TEEN -> RoundedCornerShape(22.dp).let { s ->
+        background(solid.copy(alpha = 0.9f), s).border(1.5.dp, Brush.linearGradient(listOf(Color(0xFF7CFFCB), Color(0xFFB57BFF), Color(0xFFFF7AC6))), s)
+    }
     UiStyle.CATRAVE -> {
         val s = RoundedCornerShape(22.dp)
         background(solid, s).border(3.dp, Brush.sweepGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) }), s)
