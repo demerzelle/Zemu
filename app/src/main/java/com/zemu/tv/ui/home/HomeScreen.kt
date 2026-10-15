@@ -57,6 +57,9 @@ import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 
 /** Where "See more", a service tile or a studio tile leads: the grid for that type, filtered. */
+/** Set by the menu's Surprise me; Home plays a title and clears it. */
+object HomeSurprise { var pending by mutableStateOf(false) }
+
 data class BrowseTarget(val type: String, val service: String? = null, val serviceLabel: String? = null, val studio: String? = null)
 
 /**
@@ -72,7 +75,6 @@ fun HomeScreen(
     onBrowse: (BrowseTarget) -> Unit = {},
     /** Opens the list of every streaming service. */
     onAllServices: (type: String) -> Unit = {},
-    onSearch: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val c = context.container
@@ -227,15 +229,13 @@ fun HomeScreen(
             }
             }
         }
-        // Search and Surprise me sit at the top right, above the hero (Up from the rows reaches them).
-        if (page == "home") androidx.compose.foundation.layout.Row(
-            Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 40.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
-        ) {
-            com.zemu.tv.ui.components.TvChip("🔍  Search", selected = false, onClick = onSearch)
-            com.zemu.tv.ui.components.TvChip("🎲  Surprise me", selected = false, onClick = {
+        // The menu's Surprise me: once Home's suggestions are in, play one at random.
+        if (page == "home") {
+            LaunchedEffect(HomeSurprise.pending, state.rows.isNotEmpty()) {
+                if (!HomeSurprise.pending || state.rows.isEmpty()) return@LaunchedEffect
+                HomeSurprise.pending = false
                 vm.surprise()?.let(onPlay) ?: android.widget.Toast.makeText(context, "Still loading suggestions…", android.widget.Toast.LENGTH_SHORT).show()
-            })
+            }
         }
     }
     pageDialog?.let { which ->

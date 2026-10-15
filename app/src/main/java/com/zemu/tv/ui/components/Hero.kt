@@ -178,8 +178,7 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
                     if (windowed) com.zemu.tv.ui.theme.RetroWindow(
                         meta?.title.orEmpty() + " - Trailer",
                         // 16:9 video plus the title bar, ending above the first row.
-                        // Below Search / Surprise me, ending above the first row.
-                        Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = 40.dp).fillMaxHeight(0.42f).aspectRatio(1.6f),
+                        Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 40.dp).fillMaxHeight(0.42f).aspectRatio(1.6f),
                     ) {
                         HeroTrailer(trailer, sound = trailerSound, modifier = Modifier.fillMaxSize(), onFinished = { if (index + 1 < playlist.size) index++ else showTrailer = false })
                     }
@@ -212,14 +211,26 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
 @Composable
 fun TitleLogo(meta: Meta, maxHeight: Int = 110) {
     var failed by remember(meta.id) { mutableStateOf(false) }
-    val logo = meta.logoUrl()?.takeIf { LocalContext.current.container.userStore.settings.collectAsStateWithLifecycle().value.logoArt }
-    if (logo != null && !failed) {
+    var fallbackFailed by remember(meta.id) { mutableStateOf(false) }
+    val c = LocalContext.current.container
+    val on = c.userStore.settings.collectAsStateWithLifecycle().value.logoArt
+    // The addon's logo, else fanart.tv's or TMDB's; plain text only when none exists or logos are off.
+    val fallback by androidx.compose.runtime.produceState<String?>(null, meta.id, failed) {
+        if (on && (failed || meta.logoUrl() == null)) value = runCatching { c.screensaverImages.logo(meta) }.getOrNull()
+    }
+    val logo = when {
+        !on -> null
+        !failed && meta.logoUrl() != null -> meta.logoUrl()
+        !fallbackFailed -> fallback
+        else -> null
+    }
+    if (logo != null) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current).data(logo).crossfade(true).build(),
             contentDescription = meta.title,
             contentScale = ContentScale.Fit,
             alignment = Alignment.CenterStart,
-            onError = { failed = true },
+            onError = { if (logo == meta.logoUrl()) failed = true else fallbackFailed = true },
             modifier = Modifier.heightIn(max = maxHeight.dp).widthIn(max = 420.dp),
         )
     } else {

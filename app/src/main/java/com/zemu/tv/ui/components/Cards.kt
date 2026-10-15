@@ -110,6 +110,9 @@ fun PosterCard(
     val rowOptions = LocalRowOptions.current
     val menu: (Meta) -> Unit = { cardMenu(it, rowOptions) }
     val watched = meta.id in LocalWatched.current
+    // Cybercore: the selected poster opens in a desktop window titled with its name.
+    var focused by remember { mutableStateOf(false) }
+    val windowed = focused && Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO
     Surface(
         onClick = onClick,
         onLongClick = onLongClick ?: { menu(meta) },
@@ -117,22 +120,27 @@ fun PosterCard(
             .touchClick(onClick, onLongClick ?: { menu(meta) })
             .then(if (width.isSpecified) Modifier.width(width) else Modifier.fillMaxWidth())
             .aspectRatio(2f / 3f)
-            .onFocusChanged { if (it.isFocused) onFocused(meta) }
+            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(meta) }
             .styleDecor(seed = meta.id.hashCode(), bevel = false),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) 1f else 1.1f),
         border = ClickableSurfaceDefaults.border(focusedBorder = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) Border.None else Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.Surface, focusedContainerColor = Palette.Surface),
     ) {
-        Text(
-            meta.title,
-            modifier = Modifier.align(Alignment.Center).padding(8.dp),
-            textAlign = TextAlign.Center,
-            color = Palette.TextSecondary,
-            fontSize = 13.sp,
-            maxLines = 4,
-        )
-        RemoteImage(meta.posterUrl(), Modifier.fillMaxSize())
+        val poster: @Composable () -> Unit = {
+            Box(Modifier.fillMaxSize()) {
+                Text(
+                    meta.title,
+                    modifier = Modifier.align(Alignment.Center).padding(8.dp),
+                    textAlign = TextAlign.Center,
+                    color = Palette.TextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 4,
+                )
+                RemoteImage(meta.posterUrl(), Modifier.fillMaxSize())
+            }
+        }
+        if (windowed) com.zemu.tv.ui.theme.RetroWindow(meta.title, Modifier.fillMaxSize(), poster) else poster()
         val rating = meta.imdbRating?.toDoubleOrNull()?.takeIf { it > 0 }
         if (rating != null) {
             Box(
@@ -150,6 +158,7 @@ fun PosterCard(
                 Modifier
                     .align(Alignment.TopStart)
                     .padding(6.dp)
+                    .padding(top = if (windowed) com.zemu.tv.ui.theme.retroBarHeight() else 0.dp)
                     .background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
@@ -161,6 +170,7 @@ fun PosterCard(
                 Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
+                    .padding(top = if (windowed) com.zemu.tv.ui.theme.retroBarHeight() else 0.dp)
                     .background(Color.Black.copy(alpha = 0.75f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {

@@ -84,6 +84,12 @@ class ScreensaverImages(
         }
     }
 
+    /** [m]'s logo from fanart.tv or TMDB (looked up once, then remembered), for when the addon has none. */
+    suspend fun logo(m: Meta): String? {
+        if (m.id !in loaded()) refresh(listOf(m))
+        return loaded()[m.id]?.logo
+    }
+
     private suspend fun lookup(m: Meta): ScreensaverArt {
         val fan = runCatching { fanart(m) }.getOrNull()
         if (fan != null && fan.backdrops.isNotEmpty() && fan.logo != null) return fan

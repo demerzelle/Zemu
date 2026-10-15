@@ -61,6 +61,10 @@ private val ICONS = mapOf(
         "............", ".kkk...kkk..", "krrrk.krrrk.", "krwrrkrrrrk.", "krrrrrrrrrk.", "krrrrrrrrrk.",
         ".krrrrrrrk..", "..krrrrrk...", "...krrrk....", "....krk.....", ".....k......",
     ),
+    "SURPRISE" to sprite(
+        "kkkkkkkkkkkk", "kwwwwwwwwwwk", "kwkkwwwwkkwk", "kwkkwwwwkkwk", "kwwwwwwwwwwk", "kwwwwkkwwwwk",
+        "kwwwwkkwwwwk", "kwwwwwwwwwwk", "kwkkwwwwkkwk", "kwkkwwwwkkwk", "kwwwwwwwwwwk", "kkkkkkkkkkkk",
+    ),
     "SETTINGS" to sprite(
         "....kkkk....", "..k.kggk.k..", ".kgkkggkkgk.", "..kggggggk..", "kkgggkkgggkk", "kgggk..kgggk",
         "kgggk..kgggk", "kkgggkkgggkk", "..kggggggk..", ".kgkkggkkgk.", "..k.kggk.k..", "....kkkk....",
@@ -138,17 +142,7 @@ fun PocketBackdrop(modifier: Modifier = Modifier) {
             val x = ((t * 10f * (i + 1) + i * 300f) % (size.width + 200f)) - 100f
             CLOUD.draw(this, Offset(x, size.height * (0.08f + i * 0.1f)), px, cloudPal)
         }
-        // The ground is its own strip below ([PocketFloor]); characters stand on its top edge.
-        val groundY = size.height
-        // Hero walks across; slime bounces; coins spin.
-        val heroX = ((t * 30f) % (size.width + 100f)) - 50f
-        HERO[(t * 4).toInt() % 2].draw(this, Offset(heroX, groundY - HERO[0].h * px), px, pal)
-        val slimeX = size.width * 0.7f
-        val hop = abs(sin(t * 3f)) * px * 10
-        SLIME.draw(this, Offset(slimeX, groundY - SLIME.h * px - hop), px, pal)
-        repeat(5) { i ->
-            COIN[((t * 3).toInt() + i) % 2].draw(this, Offset(size.width * (0.25f + i * 0.08f), groundY - px * 18), px, pal)
-        }
+        // The hero, slime and coins are drawn over everything ([ConsoleSprites]).
         // Falling blocks down the right edge.
         val well = size.width - px * 30
         repeat(3) { i ->
@@ -194,20 +188,53 @@ fun SixteenBackdrop(modifier: Modifier = Modifier) {
         }
         hills(Color(0xFF3A9A80), size.height * 0.62f, size.height * 0.12f, 6f, size.width * 0.35f)
         hills(Color(0xFF48B848), size.height * 0.74f, size.height * 0.07f, 16f, size.width * 0.22f)
-        // The ground is its own strip below ([SixteenFloor]); characters stand on its top edge.
-        val groundY = size.height
         // Floating star blocks and coins.
         repeat(4) { i ->
             val x = size.width * (0.3f + i * 0.13f)
             STAR_BLOCK.draw(this, Offset(x, size.height * 0.48f), px, pal)
             COIN[((t * 6).toInt() + i) % 2].draw(this, Offset(x + px * 2, size.height * 0.4f + sin(t * 3f + i) * px * 2), px, pal)
         }
-        // The hero runs and hops now and then; a slime patrols.
-        val heroX = ((t * 70f) % (size.width + 120f)) - 60f
-        val jump = ((t % 3f) / 0.6f).let { if (it < 1f) sin(it * Math.PI.toFloat()) * px * 18 else 0f }
-        HERO[(t * 8).toInt() % 2].draw(this, Offset(heroX, groundY - HERO[0].h * px - jump), px, pal)
-        val slimeX = size.width * 0.15f + sin(t * 0.8f) * size.width * 0.08f
-        SLIME.draw(this, Offset(slimeX, groundY - SLIME.h * px), px, pal, flip = kotlin.math.cos(t * 0.8f) < 0)
+        // The hero and slime are drawn over everything ([ConsoleSprites]).
+    }
+}
+
+/**
+ * The console themes' characters, drawn over the whole app (pages and menu included) and standing
+ * on the floor strip's top edge, which is this layer's bottom. They never take focus or input.
+ */
+@Composable
+fun ConsoleSprites(modifier: Modifier = Modifier) {
+    val pocket = Palette.Style == UiStyle.POCKET
+    if (!pocket && Palette.Style != UiStyle.SIXTEEN) return
+    val clock = sceneClock(if (pocket) 8 else 15)
+    val pal = if (pocket) Color(0xFF0F380F).let { c0 -> val c1 = Color(0xFF306230); val c2 = Color(0xFF8BAC0F)
+        mapOf('k' to c0, 'c' to c1, 's' to c2, 'p' to c1, 'g' to c2, 'w' to Color(0xFF9BBC0F), 'y' to c2) }
+    else mapOf(
+        'k' to Color(0xFF181028), 'c' to Color(0xFFE04040), 's' to Color(0xFFFFC890), 'p' to Color(0xFF3050C8),
+        'g' to Color(0xFF50D060), 'w' to Color.White, 'y' to Color(0xFFFFD040),
+    )
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        val groundY = size.height
+        if (pocket) {
+            val px = 3.dp.toPx()
+            // Hero walks across; slime bounces; coins spin.
+            val heroX = ((t * 30f) % (size.width + 100f)) - 50f
+            HERO[(t * 4).toInt() % 2].draw(this, Offset(heroX, groundY - HERO[0].h * px), px, pal)
+            val hop = abs(sin(t * 3f)) * px * 10
+            SLIME.draw(this, Offset(size.width * 0.7f, groundY - SLIME.h * px - hop), px, pal)
+            repeat(5) { i ->
+                COIN[((t * 3).toInt() + i) % 2].draw(this, Offset(size.width * (0.25f + i * 0.08f), groundY - px * 18), px, pal)
+            }
+        } else {
+            val px = 4.dp.toPx()
+            // The hero runs and hops now and then; a slime patrols.
+            val heroX = ((t * 70f) % (size.width + 120f)) - 60f
+            val jump = ((t % 3f) / 0.6f).let { if (it < 1f) sin(it * Math.PI.toFloat()) * px * 18 else 0f }
+            HERO[(t * 8).toInt() % 2].draw(this, Offset(heroX, groundY - HERO[0].h * px - jump), px, pal)
+            val slimeX = size.width * 0.15f + sin(t * 0.8f) * size.width * 0.08f
+            SLIME.draw(this, Offset(slimeX, groundY - SLIME.h * px), px, pal, flip = kotlin.math.cos(t * 0.8f) < 0)
+        }
     }
 }
 

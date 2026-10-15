@@ -120,6 +120,8 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     SERIES("series", "Series", AppIcons.Tv),
     ANIME("anime", "Anime", AppIcons.Anime),
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
+    /** Plays a random title picked for you (from Home's suggestions). */
+    SURPRISE("@surprise", "Surprise me", AppIcons.Dice),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
     PROFILES("@profiles", "Profiles", Icons.Filled.Person, bottom = true),
     /** Kid profiles only: the kid picks their own theme. */
@@ -200,7 +202,7 @@ fun AppShell() {
             }
             val allServices: (String) -> Unit = { type -> nav.navigate("services/$type") }
             composable("home") {
-                HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { m -> resolving(context, scope, m) { nav.navigate(detailsRoute(it, play = true)) } }, onBrowse = browse, onAllServices = allServices, onSearch = { nav.navigateTop("search") })
+                HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { m -> resolving(context, scope, m) { nav.navigate(detailsRoute(it, play = true)) } }, onBrowse = browse, onAllServices = allServices)
             }
             listOf("movies" to "movie", "series" to "series", "anime" to "anime").forEach { (route, page) ->
                 composable(route) {
@@ -259,6 +261,7 @@ fun AppShell() {
                 railOpen = false
                 when {
                     d == Dest.THEME -> kidsTheme = true
+                    d == Dest.SURPRISE -> { com.zemu.tv.ui.home.HomeSurprise.pending = true; nav.navigateTop("home") }
                     d == Dest.PROFILES -> if (kids.on) parentCheck = true else switchProfile()
                     else -> {
                         if (d.route != current) Haptics.buzz(context)
@@ -269,6 +272,7 @@ fun AppShell() {
         }
     }
         com.zemu.tv.ui.theme.StyleFloor(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(floor).sceneTint())
+        com.zemu.tv.ui.theme.ConsoleSprites(Modifier.padding(bottom = floor).sceneTint())
     }
     if (kidsTheme) com.zemu.tv.ui.kids.KidsThemePicker { kidsTheme = false }
     if (parentCheck) com.zemu.tv.ui.kids.ParentCheck("Leave this kid profile?", onDismiss = { parentCheck = false }) {
