@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.home
 
+import com.zemu.tv.ui.theme.retroScrollbar
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
@@ -148,7 +149,7 @@ fun HomeScreen(
             }
             PinnedRows(anchor = 52.dp) { pinRow ->
             LazyColumn(
-                Modifier.fillMaxSize(),
+                Modifier.fillMaxSize().retroScrollbar(listState),
                 state = listState,
                 // Room below the last row so it can settle at the same spot as the others.
                 contentPadding = PaddingValues(bottom = 420.dp),

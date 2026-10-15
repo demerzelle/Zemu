@@ -70,7 +70,7 @@ data class ThemeColors(
 }
 
 /** Whole-app looks that go beyond colors: shapes, type, panels and a backdrop scene. */
-enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE, TODDLER, GRADE, TEEN }
+enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE, TODDLER, GRADE, TEEN, POCKET, SIXTEEN }
 
 /** Colors the user can set per theme and per light/dark mode. */
 enum class ColorRole(val key: String, val label: String) {
@@ -176,7 +176,7 @@ object Palette {
     val SurfaceHigh: Color get() = colors.surfaceHigh
     val Accent: Color get() = colors.accent
     /** Text/icon color on top of [Accent]: black on bright accents (like neon green), white otherwise. */
-    val OnAccent: Color get() = if (colors.accent.luminance() > 0.45f) Color(0xFF07130A) else Color.White
+    val OnAccent: Color get() = if (Style == UiStyle.POCKET) Color(0xFF9BBC0F) else if (colors.accent.luminance() > 0.45f) Color(0xFF07130A) else Color.White
 
     val Text: Color get() = colors.customText ?: if (Light) Color(0xFF121216) else Color.White
     val TextSecondary: Color get() = if (colors.highContrast) Text else colors.customText?.copy(alpha = 0.75f) ?: if (Light) Color(0xFF4A4A55) else Color(0xFFB8B8C2)
@@ -193,7 +193,7 @@ object Palette {
     val Edge: Color get() = if (Light) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.16f)
     val Imdb = Color(0xFFF5C518)
     // Cybercore desktops are colorful, so its labels use the text color to stay readable.
-    val Match: Color get() = if (Style == UiStyle.RETRO) Text else if (Light) Color(0xFF14853B) else Color(0xFF46D369)
+    val Match: Color get() = if (Style == UiStyle.RETRO || Style == UiStyle.POCKET) Text else if (Light) Color(0xFF14853B) else Color(0xFF46D369)
     val Cached: Color get() = if (Light) Color(0xFF9A5B00) else Color(0xFFFFC94D)
     val Info: Color get() = if (Light) Color(0xFF1E62C8) else Color(0xFF5AA9FF)
 }

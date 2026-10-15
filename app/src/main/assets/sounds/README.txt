@@ -21,6 +21,8 @@ Folders (which theme uses them):
   toddler/     Kids Mode · Toddler
   gradeschool/ Kids Mode · Grade School
   youngadult/  Kids Mode · Young Adult
+  pocket/      Pocket LCD (handheld)
+  sixteen/     16-Bit (console)
 
 The .wav files here are placeholders. To use your own, drop a file with the same name in the
 same folder — move.ogg, move.mp3, move.m4a or move.wav. If both exist, .ogg, .mp3 and .m4a win

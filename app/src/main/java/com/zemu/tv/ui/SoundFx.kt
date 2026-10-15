@@ -30,6 +30,8 @@ object SoundFx {
         UiStyle.TODDLER -> "toddler"
         UiStyle.GRADE -> "gradeschool"
         UiStyle.TEEN -> "youngadult"
+        UiStyle.POCKET -> "pocket"
+        UiStyle.SIXTEEN -> "sixteen"
         UiStyle.NORMAL -> "default"
     }
 

@@ -61,6 +61,10 @@ enum class DynamicTheme(
     GRAFFITI("Graffiti", 0xFFFF2E88, 0xFF161616, UiStyle.GRAFFITI),
     /** Translucent liquid glass over a vivid wallpaper. */
     LIQUID("Liquid Glass", 0xFF0A84FF, 0xFF0B1226, UiStyle.LIQUID),
+    /** A handheld's four-green LCD: square buttons, an arrow pointer, pixel sprites strolling by. */
+    POCKET("Pocket LCD", 0xFF0F380F, 0xFF9BBC0F, UiStyle.POCKET),
+    /** 16-bit console: RPG-style blue windows, a glove pointer, a side-scrolling pixel world. */
+    SIXTEEN("16-Bit", 0xFFB8A9F0, 0xFF101848, UiStyle.SIXTEEN),
     /** Shh. */
     CATRAVE("Cat Rave", 0xFFFF00E6, 0xFF07000F, UiStyle.CATRAVE, hidden = true),
     /** Kids Mode: sky, hills and rising balloons; big bubbly buttons. */
@@ -164,6 +168,14 @@ enum class Holiday(val label: String, val accent: Long, val background: Long) {
 fun DynamicTheme.applyTo(base: ThemeColors, variant: String): ThemeColors {
     if (this == DynamicTheme.RETRO) return retroColors(variant, base)
     if (kids) return kidsColors(this, variant)
+    if (this == DynamicTheme.POCKET) return ThemeColors(
+        Color(0xFF0F380F), Color(0xFF9BBC0F), light = true,
+        customBase = Color(0xFF9BBC0F), customPanel = Color(0xFF8BAC0F), customButton = Color(0xFF8BAC0F), customText = Color(0xFF0F380F),
+    )
+    if (this == DynamicTheme.SIXTEEN) return ThemeColors(
+        Color(0xFFB8A9F0), Color(0xFF101848), light = false,
+        customBase = Color(0xFF101848), customPanel = Color(0xFF182890), customButton = Color(0xFF2A2F7A), customText = Color.White,
+    )
     val own = colorsFor(variant) ?: return base
     // Its own palette replaces yours entirely (your saved edits for this theme apply afterwards).
     val c = ThemeColors(Color(own.first.toInt()), Color(own.second.toInt()), light = base.light, glass = base.glass || style == UiStyle.LIQUID)

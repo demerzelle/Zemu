@@ -98,6 +98,8 @@ fun FocusSurface(
         com.zemu.tv.ui.theme.UiStyle.ACID -> Palette.Text.copy(alpha = 0.35f)
         com.zemu.tv.ui.theme.UiStyle.ETHEREAL -> Color.White.copy(alpha = 0.22f)
         com.zemu.tv.ui.theme.UiStyle.GRAFFITI -> Color.Black.copy(alpha = 0.8f)
+        com.zemu.tv.ui.theme.UiStyle.POCKET -> Color(0xFF0F380F)
+        com.zemu.tv.ui.theme.UiStyle.SIXTEEN -> Color.White.copy(alpha = 0.6f)
         else -> null
     }?.takeIf { solid }
     val retro = style == com.zemu.tv.ui.theme.UiStyle.RETRO

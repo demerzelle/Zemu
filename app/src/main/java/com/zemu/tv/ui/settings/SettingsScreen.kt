@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.settings
 
+import com.zemu.tv.ui.theme.retroScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.LazyListScope
@@ -161,8 +162,10 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
         }
         Spacer(Modifier.width(28.dp))
         // Right: the chosen category.
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
         LazyColumn(
-            Modifier.weight(1f).fillMaxHeight(),
+            Modifier.weight(1f).fillMaxHeight().retroScrollbar(listState),
+            state = listState,
             contentPadding = PaddingValues(end = 48.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

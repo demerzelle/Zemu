@@ -323,6 +323,8 @@ private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground()) {
         com.zemu.tv.ui.theme.UiStyle.TODDLER -> com.zemu.tv.ui.theme.ToddlerBackdrop()
         com.zemu.tv.ui.theme.UiStyle.GRADE -> com.zemu.tv.ui.theme.GradeSchoolBackdrop()
         com.zemu.tv.ui.theme.UiStyle.TEEN -> com.zemu.tv.ui.theme.YoungAdultBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.POCKET -> com.zemu.tv.ui.theme.PocketBackdrop()
+        com.zemu.tv.ui.theme.UiStyle.SIXTEEN -> com.zemu.tv.ui.theme.SixteenBackdrop()
         else -> {}
     }
 }
@@ -499,7 +501,9 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                     ),
                 ) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
+                        // Vintage PC and console themes: pixel icons, like their era's.
+                        if (com.zemu.tv.ui.theme.usePixelIcons) com.zemu.tv.ui.theme.PixelIcon(if (d == Dest.PROFILES && kidsOn) "LOCK" else d.name)
+                        else Icon(
                             icon,
                             contentDescription = label,
                             modifier = Modifier.size(22.dp),

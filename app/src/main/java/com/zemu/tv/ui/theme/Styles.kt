@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
@@ -63,6 +64,9 @@ fun styleTextStyle(style: UiStyle, variant: String): TextStyle = when (style) {
     UiStyle.TODDLER -> TextStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = sp(0.4f))
     UiStyle.GRADE -> TextStyle(fontFamily = FontFamily(android.graphics.Typeface.create("casual", android.graphics.Typeface.NORMAL)))
     UiStyle.TEEN -> TextStyle(letterSpacing = sp(0.6f), shadow = Shadow(Color(0x667CFFCB), Offset.Zero, 12f))
+    // Consoles: chunky monospace, like bitmap fonts; 16-bit text gets a hard drop shadow.
+    UiStyle.POCKET -> TextStyle(fontFamily = FontFamily.Monospace, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = sp(0.4f))
+    UiStyle.SIXTEEN -> TextStyle(fontFamily = FontFamily.Monospace, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, shadow = Shadow(Color(0xFF181028), Offset(2f, 2f), 0f))
     UiStyle.NORMAL -> TextStyle.Default
 }
 
@@ -85,8 +89,12 @@ fun styleTypography(style: UiStyle, variant: String): androidx.tv.material3.Typo
 
 /** Button shapes per style (round buttons stay round). */
 fun styledShape(shape: Shape): Shape {
-    if (shape == CircleShape) return shape
+    // Old PCs and handhelds have square buttons, round ones included (Kawaii stays soft).
+    val square = Palette.Style == UiStyle.POCKET || (Palette.Style == UiStyle.RETRO && Palette.colors.variant != "KAWAII")
+    if (shape == CircleShape && !square) return shape
     return when (Palette.Style) {
+        UiStyle.POCKET -> androidx.compose.ui.graphics.RectangleShape
+        UiStyle.SIXTEEN -> RoundedCornerShape(4.dp)
         UiStyle.ACID -> AcidShape
         UiStyle.ETHEREAL -> RoundedCornerShape(20.dp)
         UiStyle.LIQUID, UiStyle.CATRAVE -> RoundedCornerShape(50)
@@ -109,6 +117,10 @@ fun Modifier.stylePanel(shape: Shape, solid: Color): Modifier? = when (Palette.S
     }
     UiStyle.LIQUID -> liquidGlass(RoundedCornerShape(28.dp), strong = true)
     UiStyle.RETRO -> retroWindow(solid)
+    UiStyle.POCKET -> background(solid, androidx.compose.ui.graphics.RectangleShape).border(3.dp, Color(0xFF0F380F), androidx.compose.ui.graphics.RectangleShape)
+    UiStyle.SIXTEEN -> RoundedCornerShape(8.dp).let { s ->
+        background(SixteenWindowBrush, s).border(3.dp, Color.White, s).padding(3.dp).border(1.dp, Color(0xFF9090B0), RoundedCornerShape(5.dp))
+    }
     UiStyle.GRAFFITI -> background(solid, androidx.compose.ui.graphics.RectangleShape)
         .border(3.dp, Palette.Accent, androidx.compose.ui.graphics.RectangleShape)
     // Toddler: a white bubble with a thick sunny border; Grade School: a sheet of paper with a pencil outline.
@@ -135,29 +147,167 @@ fun Modifier.liquidGlass(shape: Shape, strong: Boolean = false): Modifier {
         .border(1.2.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.85f), Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.35f))), shape)
 }
 
-/** A vintage window: solid body, beveled edges and a title bar in the accent color. */
-private fun Modifier.retroWindow(solid: Color): Modifier = drawWithContent {
+/**
+ * A vintage window, true to each desktop: Windows 98's gray box with a navy title bar and square
+ * caption buttons; XP's beige body in a blue frame with a glossy rounded title bar and a red close
+ * button; Kawaii's pastel window with heart buttons. Content starts below the title bar.
+ */
+private fun Modifier.retroWindow(solid: Color): Modifier {
     val v = Palette.colors.variant
-    val r = if (v == "CLASSIC" || v.isEmpty()) 0f else 12f
-    drawRoundRect(solid, cornerRadius = CornerRadius(r))
-    val bar = if (v == "XP") Brush.verticalGradient(listOf(Color(0xFF3D86F5), Color(0xFF0A54D6))) else if (v == "KAWAII") Brush.horizontalGradient(listOf(Color(0xFFFF9AD5), Color(0xFFC9A8FF))) else Brush.horizontalGradient(listOf(Color(0xFF000080), Color(0xFF1084D0)))
-    drawRoundRect(bar, size = Size(size.width, 10.dp.toPx()), cornerRadius = CornerRadius(r))
-    bevel(this)
-    drawContent()
+    val barDp = when (v) { "XP" -> 26.dp; "KAWAII" -> 22.dp; else -> 20.dp }
+    return drawWithContent {
+        val bar = barDp.toPx()
+        val u = 1.dp.toPx()
+        when (v) {
+            "XP" -> {
+                val r = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                drawRoundRect(Color(0xFF0831D9), cornerRadius = r)
+                drawRect(solid, Offset(3 * u, bar), Size(size.width - 6 * u, size.height - bar - 3 * u))
+                drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF3C8DF8), Color(0xFF0058EE), Color(0xFF0054E3), Color(0xFF0A5FF0)), endY = bar), size = Size(size.width, bar + 8 * u), cornerRadius = r)
+                drawRect(solid, Offset(3 * u, bar), Size(size.width - 6 * u, 8 * u))
+                // Minimize, maximize (blue) and close (red), each a rounded square with a white edge.
+                val b = bar - 8 * u
+                listOf(Color(0xFF2663E0), Color(0xFF2663E0), Color(0xFFE0502A)).forEachIndexed { i, c ->
+                    val o = Offset(size.width - (3 - i) * (b + 3 * u) - 5 * u, 4 * u)
+                    drawRoundRect(c, o, Size(b, b), CornerRadius(3 * u))
+                    drawRoundRect(Color.White, o, Size(b, b), CornerRadius(3 * u), style = Stroke(u))
+                    val m = o + Offset(b / 2, b / 2); val g = b * 0.25f
+                    when (i) {
+                        0 -> drawLine(Color.White, Offset(m.x - g, m.y + g), Offset(m.x + g * 0.3f, m.y + g), 2 * u)
+                        1 -> drawRect(Color.White, Offset(m.x - g, m.y - g), Size(g * 2, g * 2), style = Stroke(1.5f * u))
+                        else -> { drawLine(Color.White, m - Offset(g, g), m + Offset(g, g), 2 * u); drawLine(Color.White, m + Offset(-g, g), m + Offset(g, -g), 2 * u) }
+                    }
+                }
+            }
+            "KAWAII" -> {
+                val r = CornerRadius(14.dp.toPx())
+                drawRoundRect(solid, cornerRadius = r)
+                drawRoundRect(Brush.horizontalGradient(listOf(Color(0xFFFF9AD5), Color(0xFFC9A8FF))), size = Size(size.width, bar), cornerRadius = r)
+                drawRect(Brush.horizontalGradient(listOf(Color(0xFFFF9AD5), Color(0xFFC9A8FF))), Offset(0f, bar / 2), Size(size.width, bar / 2))
+                drawRoundRect(Color(0xFFFF7CC8), cornerRadius = r, style = Stroke(2 * u))
+                listOf(Color(0xFFFFE066), Color(0xFF9AF0C8), Color(0xFFFF5FA2)).forEachIndexed { i, c ->
+                    val m = Offset(size.width - (3 - i) * 18 * u - 4 * u, bar / 2)
+                    drawCircle(c, 5.5f * u, m - Offset(3 * u, 1.5f * u)); drawCircle(c, 5.5f * u, m + Offset(3 * u, -1.5f * u))
+                    drawPath(Path().apply { moveTo(m.x - 8 * u, m.y); lineTo(m.x, m.y + 8 * u); lineTo(m.x + 8 * u, m.y); close() }, c)
+                }
+            }
+            else -> {
+                drawRect(solid)
+                win98Bevel(this, raised = true)
+                drawRect(Brush.horizontalGradient(listOf(Color(0xFF000080), Color(0xFF1084D0))), Offset(3 * u, 3 * u), Size(size.width - 6 * u, bar - 3 * u))
+                // Caption buttons: minimize, maximize, close.
+                val bw = 16 * u; val bh = bar - 7 * u
+                listOf("_", "□", "x").forEachIndexed { i, g ->
+                    val o = Offset(size.width - 5 * u - (3 - i) * (bw + 2 * u) + (if (i == 2) 2 * u else 0f), 5 * u)
+                    drawRect(Color(0xFFC0C0C0), o, Size(bw, bh))
+                    drawRect(Color.White, o, Size(bw, u)); drawRect(Color.White, o, Size(u, bh))
+                    drawRect(Color.Black, o + Offset(0f, bh - u), Size(bw, u)); drawRect(Color.Black, o + Offset(bw - u, 0f), Size(u, bh))
+                    val m = o + Offset(bw / 2, bh / 2); val gg = bh * 0.25f
+                    when (g) {
+                        "_" -> drawRect(Color.Black, Offset(m.x - gg, m.y + gg - u), Size(gg * 1.6f, 2 * u))
+                        "□" -> { drawRect(Color.Black, Offset(m.x - gg, m.y - gg), Size(gg * 2, gg * 2), style = Stroke(u)); drawRect(Color.Black, Offset(m.x - gg, m.y - gg), Size(gg * 2, 2 * u)) }
+                        else -> { drawLine(Color.Black, m - Offset(gg, gg), m + Offset(gg, gg), 2 * u); drawLine(Color.Black, m + Offset(-gg, gg), m + Offset(gg, -gg), 2 * u) }
+                    }
+                }
+            }
+        }
+        drawContent()
+    }.padding(top = barDp - 8.dp)
 }
 
-/** Raised 3D edge: light top-left, dark bottom-right (Windows 95 buttons and windows). */
-private fun bevel(d: DrawScope) = with(d) {
-    if (Palette.colors.variant == "KAWAII") {
-        drawRoundRect(Color(0xFFFF7CC8), style = Stroke(2.dp.toPx()), cornerRadius = CornerRadius(12.dp.toPx()))
-        return@with
-    }
-    val w = 2.dp.toPx()
-    drawLine(Color.White, Offset(0f, 0f), Offset(size.width, 0f), w)
-    drawLine(Color.White, Offset(0f, 0f), Offset(0f, size.height), w)
-    drawLine(Color(0xFF404040), Offset(0f, size.height), Offset(size.width, size.height), w)
-    drawLine(Color(0xFF404040), Offset(size.width, 0f), Offset(size.width, size.height), w)
+/** Windows 98's two-step 3D edge: white and light gray on top-left, black and dark gray bottom-right (reversed when sunken). */
+internal fun win98Bevel(d: DrawScope, raised: Boolean = true) = with(d) {
+    val u = 1.dp.toPx()
+    val (tl1, tl2, br1, br2) = if (raised) listOf(Color(0xFFDFDFDF), Color.White, Color.Black, Color(0xFF808080))
+    else listOf(Color(0xFF808080), Color.Black, Color.White, Color(0xFFDFDFDF))
+    drawRect(tl1, Offset.Zero, Size(size.width, u)); drawRect(tl1, Offset.Zero, Size(u, size.height))
+    drawRect(br1, Offset(0f, size.height - u), Size(size.width, u)); drawRect(br1, Offset(size.width - u, 0f), Size(u, size.height))
+    drawRect(tl2, Offset(u, u), Size(size.width - 2 * u, u)); drawRect(tl2, Offset(u, u), Size(u, size.height - 2 * u))
+    drawRect(br2, Offset(u, size.height - 2 * u), Size(size.width - 2 * u, u)); drawRect(br2, Offset(size.width - 2 * u, u), Size(u, size.height - 2 * u))
 }
+
+/** A button's edge for each desktop, and how it shows focus (98: dotted rectangle; XP: orange glow; Kawaii: pink glow). */
+private fun bevel(d: DrawScope, focused: Boolean = false) = with(d) {
+    val u = 1.dp.toPx()
+    when (Palette.colors.variant) {
+        "KAWAII" -> {
+            val r = CornerRadius(12.dp.toPx())
+            if (focused) drawRoundRect(Color(0x66FF7CC8), Offset(-3 * u, -3 * u), Size(size.width + 6 * u, size.height + 6 * u), r, style = Stroke(4 * u))
+            drawRoundRect(Color(0xFFFF7CC8), style = Stroke(2 * u), cornerRadius = r)
+        }
+        "XP" -> {
+            val r = CornerRadius(3 * u)
+            drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.Transparent, Color(0x22000000))), cornerRadius = r)
+            if (focused) drawRoundRect(Color(0xFFF8B636), Offset(u, u), Size(size.width - 2 * u, size.height - 2 * u), r, style = Stroke(2.5f * u))
+            drawRoundRect(Color(0xFF003C74), cornerRadius = r, style = Stroke(u))
+        }
+        else -> {
+            win98Bevel(this, raised = true)
+            if (focused) drawRect(
+                Color.Black, Offset(4 * u, 4 * u), Size(size.width - 8 * u, size.height - 8 * u),
+                style = Stroke(u, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(u, u))),
+            )
+        }
+    }
+}
+
+/**
+ * A scroll bar on the right of a long list, drawn the way each desktop did it: 98's gray arrows
+ * and beveled thumb, XP's soft blue rounded thumb, Kawaii's pink one. Other styles: nothing.
+ */
+fun Modifier.retroScrollbar(state: androidx.compose.foundation.lazy.LazyListState): Modifier =
+    if (Palette.Style != UiStyle.RETRO) this else drawWithContent {
+        drawContent()
+        val info = state.layoutInfo
+        val total = info.totalItemsCount
+        if (total <= 1 || info.visibleItemsInfo.size >= total) return@drawWithContent
+        val u = 1.dp.toPx()
+        val w = 16 * u
+        val x = size.width - w
+        val v = Palette.colors.variant
+        val arrowH = w
+        val trackTop = arrowH; val trackH = size.height - arrowH * 2
+        val thumbH = (trackH * info.visibleItemsInfo.size / total).coerceAtLeast(24 * u)
+        val frac = state.firstVisibleItemIndex.toFloat() / (total - info.visibleItemsInfo.size).coerceAtLeast(1)
+        val thumbY = trackTop + (trackH - thumbH) * frac.coerceIn(0f, 1f)
+        fun arrow(y: Float, up: Boolean, color: Color) {
+            val m = Offset(x + w / 2, y + arrowH / 2); val g = 3.5f * u
+            drawPath(Path().apply {
+                if (up) { moveTo(m.x - g, m.y + g / 2); lineTo(m.x + g, m.y + g / 2); lineTo(m.x, m.y - g / 2) }
+                else { moveTo(m.x - g, m.y - g / 2); lineTo(m.x + g, m.y - g / 2); lineTo(m.x, m.y + g / 2) }
+                close()
+            }, color)
+        }
+        when (v) {
+            "XP" -> {
+                drawRect(Color(0xFFF7F7F2), Offset(x, 0f), Size(w, size.height))
+                listOf(0f, size.height - arrowH).forEachIndexed { i, y ->
+                    drawRoundRect(Color(0xFFC3D5FD), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u), CornerRadius(3 * u))
+                    drawRoundRect(Color(0xFF8EB0F5), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u), CornerRadius(3 * u), style = Stroke(u))
+                    arrow(y, i == 0, Color(0xFF4D6185))
+                }
+                drawRoundRect(Color(0xFFC3D5FD), Offset(x + u, thumbY), Size(w - 2 * u, thumbH), CornerRadius(3 * u))
+                drawRoundRect(Color(0xFF8EB0F5), Offset(x + u, thumbY), Size(w - 2 * u, thumbH), CornerRadius(3 * u), style = Stroke(u))
+                repeat(4) { k -> drawLine(Color(0xFF8EB0F5), Offset(x + 4 * u, thumbY + thumbH / 2 + (k - 1.5f) * 2 * u), Offset(x + w - 4 * u, thumbY + thumbH / 2 + (k - 1.5f) * 2 * u), u) }
+            }
+            "KAWAII" -> {
+                drawRoundRect(Color(0xFFFFE3F2), Offset(x, 0f), Size(w, size.height), CornerRadius(w / 2))
+                drawRoundRect(Color(0xFFFF9AD5), Offset(x + 2 * u, thumbY), Size(w - 4 * u, thumbH), CornerRadius(w / 2))
+            }
+            else -> {
+                // Dithered track, then beveled arrow buttons and thumb.
+                drawRect(Color(0xFFE0E0E0), Offset(x, 0f), Size(w, size.height))
+                listOf(0f, size.height - arrowH).forEachIndexed { i, y ->
+                    drawRect(Color(0xFFC0C0C0), Offset(x, y), Size(w, arrowH))
+                    arrow(y, i == 0, Color.Black)
+                    drawRect(Color.Black, Offset(x, y + arrowH - u), Size(w, u)); drawRect(Color.White, Offset(x, y), Size(w, u))
+                }
+                drawRect(Color(0xFFC0C0C0), Offset(x, thumbY), Size(w, thumbH))
+                drawRect(Color.White, Offset(x, thumbY), Size(w, u)); drawRect(Color.White, Offset(x, thumbY), Size(u, thumbH))
+                drawRect(Color.Black, Offset(x, thumbY + thumbH - u), Size(w, u)); drawRect(Color.Black, Offset(x + w - u, thumbY), Size(u, thumbH))
+            }
+        }
+    }
 
 /** The arrow pointer drawn on whatever is selected in Cybercore (instead of a highlight). */
 fun DrawScope.drawPointer(at: Offset) {
@@ -182,8 +332,16 @@ fun Modifier.styleDecor(seed: Int = 0, bevel: Boolean = true): Modifier = compos
             var focused by remember { mutableStateOf(false) }
             onFocusChanged { focused = it.isFocused || it.hasFocus }.drawWithContent {
                 drawContent()
-                if (bevel) bevel(this)
+                if (bevel) bevel(this, focused)
                 if (focused) drawPointer(Offset(size.width * 0.72f, size.height * 0.5f))
+            }
+        }
+        // Consoles: a menu pointer (a glove, or the handheld's arrow) beside what's selected.
+        UiStyle.POCKET, UiStyle.SIXTEEN -> {
+            var focused by remember { mutableStateOf(false) }
+            onFocusChanged { focused = it.isFocused }.drawWithContent {
+                drawContent()
+                if (focused) drawConsolePointer()
             }
         }
         UiStyle.CATRAVE -> graphicsLayer {

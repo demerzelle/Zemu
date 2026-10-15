@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.details
 
+import com.zemu.tv.ui.theme.retroScrollbar
 import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.components.SheetAction
 import com.zemu.tv.ui.components.ActionSheet
@@ -231,7 +232,7 @@ fun DetailsScreen(
             trailerAfterMs = if (settings.heroTrailers && atTop) 5_000L else null,
             trailerSound = settings.heroTrailerSound,
         )
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 60.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().retroScrollbar(listState), contentPadding = PaddingValues(bottom = 60.dp)) {
             item(key = "header") {
                 Column(Modifier.heroTrailerTap().padding(start = 48.dp, top = 48.dp, end = 48.dp)) {
                     TitleLogo(m, maxHeight = 120)
