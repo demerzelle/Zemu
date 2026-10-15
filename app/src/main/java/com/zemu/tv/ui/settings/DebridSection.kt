@@ -119,7 +119,7 @@ private fun LinkDialog(c: AppContainer, service: DebridService, phoneAddress: St
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         DialogBackdropBlur()
-        Column(Modifier.width(900.dp).glassPanel(RoundedCornerShape(16.dp)).padding(28.dp)) {
+        Column(Modifier.width(900.dp).glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp))).padding(28.dp)) {
             Text("Link ${service.label}", fontSize = 24.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {

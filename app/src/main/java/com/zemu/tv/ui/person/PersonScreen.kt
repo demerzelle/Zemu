@@ -156,7 +156,7 @@ fun PersonScreen(key: String, onOpen: (Meta) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 36.dp, bottom = 48.dp)) {
         item(key = "header") {
             Row(Modifier.padding(horizontal = 48.dp)) {
-                Box(Modifier.width(150.dp).height(225.dp).clip(RoundedCornerShape(12.dp)).background(Palette.SurfaceHigh)) {
+                Box(Modifier.width(150.dp).height(225.dp).clip(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp))).background(Palette.SurfaceHigh)) {
                     RemoteImage(p.photo, Modifier.fillMaxSize())
                 }
                 Spacer(Modifier.width(28.dp))

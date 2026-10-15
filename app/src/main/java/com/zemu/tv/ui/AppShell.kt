@@ -175,7 +175,10 @@ fun AppShell() {
 
     CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
     FocusScrollMargins {
-    Box(Modifier.fillMaxSize()) {
+    // Desktop and console themes have a taskbar or floor along the bottom: everything else ends above it.
+    val floor = com.zemu.tv.ui.theme.floorHeight()
+    Box(Modifier.fillMaxSize().background(Palette.Background)) {
+    Box(Modifier.fillMaxSize().padding(bottom = floor)) {
         StyleBackdrop(Modifier.fillMaxSize())
         NavHost(
             navController = nav,
@@ -263,6 +266,8 @@ fun AppShell() {
                 }
             }
         }
+    }
+        com.zemu.tv.ui.theme.StyleFloor(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(floor))
     }
     if (kidsTheme) com.zemu.tv.ui.kids.KidsThemePicker { kidsTheme = false }
     if (parentCheck) com.zemu.tv.ui.kids.ParentCheck("Leave this kid profile?", onDismiss = { parentCheck = false }) {
@@ -483,7 +488,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                 // A kid profile's way out is locked.
                 val label = d.label
                 val icon = if (d == Dest.PROFILES && kidsOn) Icons.Filled.Lock else d.icon
-                val shape = RoundedCornerShape(10.dp)
+                val shape = com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)))
                 // Plain TV surface: remote only. Touch is handled by the rail above.
                 Surface(
                     onClick = { onSelect(d) },

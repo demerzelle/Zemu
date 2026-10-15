@@ -146,6 +146,10 @@ data class AppSettings(
     val dynamicTheme: String = "NONE",
     /** Sub-theme per animated theme (e.g. WEATHER to "RAIN", HOLIDAYS to "AUTO", RETRO to "XP"). */
     val themeVariants: Map<String, String> = emptyMap(),
+    /** Cybercore's mouse pointer: fill color (0 = the desktop's own), size in percent, where it sits on a button. */
+    val pointerColor: Long = 0,
+    val pointerSize: Int = 100,
+    val pointerPosition: String = "RIGHT",
     /** Found the secret (click the logo ten times). */
     val catRaveUnlocked: Boolean = false,
     /** The animated theme to return to when the 30-second Cat Rave ends. */

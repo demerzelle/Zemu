@@ -425,9 +425,9 @@ private fun SeekBar(a: PlayerActivity, focused: Boolean) {
                 contentAlignment = Alignment.CenterStart,
             ) {
                 val w = maxWidth
-                Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(5.dp)))
-                Box(Modifier.width(w * (a.bufferedMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(5.dp)))
-                Box(Modifier.width(w * (a.positionMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Palette.Accent, RoundedCornerShape(5.dp)))
+                Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.25f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(5.dp))))
+                Box(Modifier.width(w * (a.bufferedMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Color.White.copy(alpha = 0.35f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(5.dp))))
+                Box(Modifier.width(w * (a.positionMs.toFloat() / duration).coerceIn(0f, 1f)).fillMaxSize().background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(5.dp))))
                 // Intro / recap / credits, so you can see where they are while scrubbing.
                 a.markers.forEach { seg ->
                     val start = (seg.startMs.toFloat() / duration).coerceIn(0f, 1f)
@@ -439,8 +439,8 @@ private fun SeekBar(a: PlayerActivity, focused: Boolean) {
                     Modifier
                         .offset(x = w * (shown.toFloat() / duration).coerceIn(0f, 1f) - knob / 2)
                         .size(knob)
-                        .background(if (target != null) Color.White else Palette.Accent, CircleShape)
-                        .border(2.dp, Color.White, CircleShape),
+                        .background(if (target != null) Color.White else Palette.Accent, com.zemu.tv.ui.theme.boxy(CircleShape))
+                        .border(2.dp, Color.White, com.zemu.tv.ui.theme.boxy(CircleShape)),
                 )
             }
             Text(
@@ -512,7 +512,7 @@ private fun MenuBar(
                             .size(34.dp)
                             .onFocusChanged { if (it.isFocused) focusedKey = item.key }
                             .then(if (item.key == "play") Modifier.focusRequester(playFocus) else Modifier),
-                        shape = CircleShape,
+                        shape = com.zemu.tv.ui.theme.boxy(CircleShape),
                         // Dark buttons; "on" shows as an accent icon, focus as the accent fill.
                         containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
                         contentColor = if (item.active) Palette.Accent else Color.White,
@@ -552,7 +552,7 @@ private fun TrackPanel(a: PlayerActivity, focusSubtitles: Boolean, onStyle: () -
                     .padding(end = 32.dp)
                     .width(760.dp)
                     .heightIn(max = 620.dp)
-                    .background(Palette.Surface.copy(alpha = 0.96f), RoundedCornerShape(16.dp))
+                    .background(Palette.Surface.copy(alpha = 0.96f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))
                     .padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -583,7 +583,7 @@ private fun TrackColumn(
                 FocusSurface(
                     onClick = { onPick(o) },
                     modifier = Modifier.fillMaxWidth().then(if (first) Modifier.focusRequester(focus) else Modifier),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
                     containerColor = if (o.selected) Palette.SurfaceHigh else Color.Transparent,
                     focusedScale = 1.02f,
                 ) {
@@ -592,7 +592,7 @@ private fun TrackColumn(
                 }
             }
             if (footer != null) item(key = "footer") {
-                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shape = RoundedCornerShape(10.dp), focusedScale = 1.02f) {
+                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.02f) {
                     Text(footer.first, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                 }
             }
@@ -608,7 +608,7 @@ private fun TrackColumn(
 private fun SkipBubble(label: String, focus: FocusRequester, onSkip: () -> Unit, onCancel: () -> Unit, onMenu: () -> Unit, modifier: Modifier) {
     Row(
         modifier
-            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.55f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp)))
             .padding(6.dp)
             .onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && (e.key == Key.DirectionUp || e.key == Key.DirectionDown)) { onMenu(); true } else false
@@ -632,7 +632,7 @@ private fun BubbleButton(onClick: () -> Unit, modifier: Modifier = Modifier, con
     FocusSurface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp)),
         focusedScale = 1.04f,
         containerColor = Color(0xFF1E1E24).copy(alpha = 0.85f),
         contentColor = Color.White,
@@ -646,7 +646,7 @@ private fun NextUpCard(heading: String, title: String, seconds: Int, focus: Focu
     Column(
         modifier
             .width(380.dp)
-            .background(Palette.Surface.copy(alpha = 0.95f), RoundedCornerShape(14.dp))
+            .background(Palette.Surface.copy(alpha = 0.95f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))
             .padding(20.dp),
     ) {
         Text(heading, color = Palette.TextSecondary, fontSize = 13.sp)
@@ -667,7 +667,7 @@ private fun StillWatchingDialog(a: PlayerActivity) {
         Column(
             Modifier
                 .width(520.dp)
-                .background(Palette.Surface, RoundedCornerShape(16.dp))
+                .background(Palette.Surface, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))
                 .padding(28.dp),
         ) {
             Text("Are you still watching?", fontSize = 26.sp, fontWeight = FontWeight.Black)
@@ -698,7 +698,7 @@ private fun SubtitleStyleDialog(
             Column(
                 Modifier
                     .width(640.dp)
-                    .background(Palette.Surface.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
+                    .background(Palette.Surface.copy(alpha = 0.92f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))
                     .padding(horizontal = 24.dp, vertical = 14.dp),
             ) {
                 Text("Subtitle style  ·  changes apply right away, Back to close", fontSize = 15.sp, fontWeight = FontWeight.Bold)

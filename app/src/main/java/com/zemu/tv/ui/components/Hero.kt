@@ -1,5 +1,6 @@
 package com.zemu.tv.ui.components
 
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.zemu.tv.data.imdbId
 import androidx.compose.foundation.border
@@ -168,17 +169,30 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
                 RemoteImage(url, Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd), alignment = Alignment.TopCenter)
             }
         }
-        if (showTrailer && trailer != null) {
-            HeroTrailerState.playlist = playlist
-            key(trailer) {
-                HeroTrailer(
-                    trailer,
-                    sound = trailerSound,
-                    modifier = Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd),
-                    onFinished = { if (index + 1 < playlist.size) index++ else showTrailer = false },
-                )
+        // Cybercore plays trailers in a desktop window (drawn last, over the fades); others behind the title.
+        val windowed = Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO
+        val trailerView: @Composable () -> Unit = {
+            if (showTrailer && trailer != null) {
+                HeroTrailerState.playlist = playlist
+                key(trailer) {
+                    if (windowed) com.zemu.tv.ui.theme.RetroWindow(
+                        meta?.title.orEmpty() + " - Trailer",
+                        // 16:9 video plus the title bar, ending above the first row.
+                        // Below Search / Surprise me, ending above the first row.
+                        Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = 40.dp).fillMaxHeight(0.42f).aspectRatio(1.6f),
+                    ) {
+                        HeroTrailer(trailer, sound = trailerSound, modifier = Modifier.fillMaxSize(), onFinished = { if (index + 1 < playlist.size) index++ else showTrailer = false })
+                    }
+                    else HeroTrailer(
+                        trailer,
+                        sound = trailerSound,
+                        modifier = Modifier.fillMaxHeight().fillMaxWidth(0.78f).align(Alignment.TopEnd),
+                        onFinished = { if (index + 1 < playlist.size) index++ else showTrailer = false },
+                    )
+                }
             }
         }
+        if (!windowed) trailerView()
         // Scrims only over a picture; with nothing to show, the theme's scene shows through.
         if (art != null) Box(
             Modifier.fillMaxSize().background(
@@ -191,6 +205,7 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
             ),
         )
         if (art != null) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Palette.Background)))
+        if (windowed) trailerView()
     }
 }
 
@@ -256,7 +271,7 @@ fun RatingBadge(cert: String) {
 @Composable
 fun MetacriticBadge(score: Int) {
     val color = when { score >= 61 -> Color(0xFF66CC33); score >= 40 -> Color(0xFFFFCC33); else -> Color(0xFFFF0000) }
-    Box(Modifier.size(26.dp).background(color, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(26.dp).background(color, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(3.dp))), contentAlignment = Alignment.Center) {
         Text("$score", color = if (score in 40..60) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
     }
 }

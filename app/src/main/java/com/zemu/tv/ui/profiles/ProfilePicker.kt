@@ -59,7 +59,7 @@ fun ProfilePicker(profiles: List<Profile>, currentId: String, onPick: (Profile) 
             Row(horizontalArrangement = Arrangement.spacedBy(36.dp)) {
                 profiles.forEach { p ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(150.dp)) {
-                        val shape = RoundedCornerShape(22.dp)
+                        val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(22.dp))
                         Surface(
                             onClick = { onPick(p) },
                             modifier = Modifier.touchClick({ onPick(p) }).size(140.dp).focusRequester(requesters.getValue(p.id)),

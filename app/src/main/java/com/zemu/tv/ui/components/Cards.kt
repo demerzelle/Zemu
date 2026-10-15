@@ -90,7 +90,7 @@ fun RemoteImage(url: String?, modifier: Modifier = Modifier, contentScale: Conte
 
 @Composable
 fun PosterImage(meta: Meta, modifier: Modifier = Modifier) {
-    androidx.compose.foundation.layout.Box(modifier.background(Palette.SurfaceHigh, RoundedCornerShape(8.dp))) {
+    androidx.compose.foundation.layout.Box(modifier.background(Palette.SurfaceHigh, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp)))) {
         RemoteImage(meta.posterUrl(), Modifier.fillMaxSize())
     }
 }
@@ -105,7 +105,7 @@ fun PosterCard(
     badge: String? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp))
     val cardMenu = LocalCardMenu.current
     val rowOptions = LocalRowOptions.current
     val menu: (Meta) -> Unit = { cardMenu(it, rowOptions) }
@@ -139,7 +139,7 @@ fun PosterCard(
                 Modifier
                     .align(Alignment.BottomStart)
                     .padding(6.dp)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.75f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
                 Text("★ ${"%.1f".format(rating)}", color = Palette.Imdb, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -150,7 +150,7 @@ fun PosterCard(
                 Modifier
                     .align(Alignment.TopStart)
                     .padding(6.dp)
-                    .background(Palette.Accent, RoundedCornerShape(4.dp))
+                    .background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
                 Text("✓ Watched", color = Palette.OnAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -161,10 +161,11 @@ fun PosterCard(
                 Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.75f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
-                Text(badge, color = Palette.Match, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // The tag is always black, so its text stays bright whatever the theme.
+                Text(badge, color = Color(0xFF46D369), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -179,7 +180,7 @@ fun ContinueCard(
     modifier: Modifier = Modifier,
     onFocused: (Meta) -> Unit = {},
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp))
     val cardMenu = LocalCardMenu.current
     val rowOptions = LocalRowOptions.current
     val menu: (Meta) -> Unit = { cardMenu(it, rowOptions) }
@@ -248,7 +249,7 @@ fun <T> MediaRow(
             .focusable()
         Row(
             Modifier.padding(start = 48.dp).then(titleTouch).then(titleKeys)
-                .background(if (titleFocused) Palette.Accent else Color.Transparent, RoundedCornerShape(6.dp))
+                .background(if (titleFocused) Palette.Accent else Color.Transparent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp)))
                 .padding(horizontal = if (titleFocused) 8.dp else 0.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -277,7 +278,7 @@ fun <T> MediaRow(
 /** A streaming service: its square logo fills the whole tile. */
 @Composable
 fun ServiceCard(m: Meta, modifier: Modifier = Modifier, selected: Boolean = false, onLongClick: (() -> Unit)? = null, onFocused: (Meta) -> Unit = {}, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp))
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
@@ -292,7 +293,7 @@ fun ServiceCard(m: Meta, modifier: Modifier = Modifier, selected: Boolean = fals
     ) {
         Text(m.name.orEmpty(), modifier = Modifier.align(Alignment.Center).padding(10.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         RemoteImage(m.poster, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        if (selected) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).background(Palette.Accent, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+        if (selected) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp))).padding(horizontal = 5.dp, vertical = 1.dp)) {
             Text("✓", color = Palette.OnAccent, fontSize = 12.sp, fontWeight = FontWeight.Black)
         }
     }
@@ -301,7 +302,7 @@ fun ServiceCard(m: Meta, modifier: Modifier = Modifier, selected: Boolean = fals
 /** A studio or network: its wordmark fills a light tile (logos are made for light backgrounds). */
 @Composable
 fun StudioCard(m: Meta, modifier: Modifier = Modifier, onFocused: (Meta) -> Unit = {}, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp))
     Surface(
         onClick = onClick,
         modifier = modifier.touchClick(onClick, null).size(width = 260.dp, height = 146.dp).onFocusChanged { if (it.isFocused) onFocused(m) }.styleDecor(seed = m.id.hashCode(), bevel = false),

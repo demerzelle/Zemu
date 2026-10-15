@@ -106,7 +106,7 @@ fun seedCustom(s: AppSettings): AppSettings {
 private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, onClick: () -> Unit) {
     FocusSurface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp)),
         // Exactly the palette's colors, focused or not (focus shows as the outline).
         containerColor = colors.base,
         contentColor = colors.customText ?: Palette.Text,
@@ -118,16 +118,16 @@ private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, o
         Column(
             Modifier
                 .width(132.dp)
-                .border(2.dp, if (selected) colors.accent else Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                .border(2.dp, if (selected) colors.accent else Color.White.copy(alpha = 0.12f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp)))
                 .padding(12.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(22.dp).background(colors.accent, CircleShape))
-                Box(Modifier.size(22.dp).background(colors.surfaceHigh, CircleShape))
-                Box(Modifier.size(22.dp).background(colors.surface, CircleShape))
+                Box(Modifier.size(22.dp).background(colors.accent, com.zemu.tv.ui.theme.boxy(CircleShape)))
+                Box(Modifier.size(22.dp).background(colors.surfaceHigh, com.zemu.tv.ui.theme.boxy(CircleShape)))
+                Box(Modifier.size(22.dp).background(colors.surface, com.zemu.tv.ui.theme.boxy(CircleShape)))
             }
             Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(6.dp).background(colors.accent, RoundedCornerShape(3.dp)))
+            Box(Modifier.fillMaxWidth().height(6.dp).background(colors.accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(3.dp))))
             Spacer(Modifier.height(8.dp))
             Text((if (selected) "✓ " else "") + label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
@@ -154,8 +154,8 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
                 }
             }
             .focusable()
-            .background(if (focused) Palette.SurfaceHigh else Palette.Surface, RoundedCornerShape(10.dp))
-            .border(2.dp, if (focused) Palette.Accent else Color.Transparent, RoundedCornerShape(10.dp))
+            .background(if (focused) Palette.SurfaceHigh else Palette.Surface, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)))
+            .border(2.dp, if (focused) Palette.Accent else Color.Transparent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)))
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -166,7 +166,7 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
                 .height(14.dp)
                 .onSizeChanged { widthPx = it.width }
                 .pointerInput(Unit) { detectTapGestures { o -> onChange((o.x / size.width).coerceIn(0f, 1f)) } }
-                .background(track, RoundedCornerShape(7.dp)),
+                .background(track, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(7.dp))),
             contentAlignment = Alignment.CenterStart,
         ) {
             val knobX = with(density) { (widthPx * value.coerceIn(0f, 1f)).toDp() } - 9.dp
@@ -174,8 +174,8 @@ fun TvSlider(label: String, value: Float, step: Float, track: Brush, valueText: 
                 Modifier
                     .offset(x = knobX)
                     .size(18.dp)
-                    .background(Color.White, CircleShape)
-                    .border(2.dp, Color.Black.copy(alpha = 0.5f), CircleShape),
+                    .background(Color.White, com.zemu.tv.ui.theme.boxy(CircleShape))
+                    .border(2.dp, Color.Black.copy(alpha = 0.5f), com.zemu.tv.ui.theme.boxy(CircleShape)),
             )
         }
         Text(valueText ?: "${(value * 100).toInt()}%", fontSize = 13.sp, color = Palette.TextSecondary, modifier = Modifier.width(64.dp).padding(start = 12.dp))

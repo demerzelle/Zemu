@@ -138,11 +138,8 @@ fun PocketBackdrop(modifier: Modifier = Modifier) {
             val x = ((t * 10f * (i + 1) + i * 300f) % (size.width + 200f)) - 100f
             CLOUD.draw(this, Offset(x, size.height * (0.08f + i * 0.1f)), px, cloudPal)
         }
-        // Ground: a row of bricks.
-        val groundY = size.height - px * 16
-        drawRect(c1, Offset(0f, groundY), Size(size.width, size.height - groundY))
-        var bx = 0f
-        while (bx < size.width) { drawRect(c0, Offset(bx, groundY), Size(px, size.height - groundY)); drawRect(c0, Offset(bx, groundY + px * 8), Size(px * 8, px)); bx += px * 8 }
+        // The ground is its own strip below ([PocketFloor]); characters stand on its top edge.
+        val groundY = size.height
         // Hero walks across; slime bounces; coins spin.
         val heroX = ((t * 30f) % (size.width + 100f)) - 50f
         HERO[(t * 4).toInt() % 2].draw(this, Offset(heroX, groundY - HERO[0].h * px), px, pal)
@@ -197,14 +194,8 @@ fun SixteenBackdrop(modifier: Modifier = Modifier) {
         }
         hills(Color(0xFF3A9A80), size.height * 0.62f, size.height * 0.12f, 6f, size.width * 0.35f)
         hills(Color(0xFF48B848), size.height * 0.74f, size.height * 0.07f, 16f, size.width * 0.22f)
-        // Ground: grass on dirt bricks.
-        val groundY = size.height - px * 18
-        drawRect(Color(0xFFC07838), Offset(0f, groundY), Size(size.width, size.height - groundY))
-        drawRect(Color(0xFF50D060), Offset(0f, groundY), Size(size.width, px * 3))
-        var bx = -(t * 40f) % (px * 12)
-        while (bx < size.width) {
-            drawRect(Color(0xFF8A5020), Offset(bx, groundY + px * 3), Size(px, size.height)); bx += px * 12
-        }
+        // The ground is its own strip below ([SixteenFloor]); characters stand on its top edge.
+        val groundY = size.height
         // Floating star blocks and coins.
         repeat(4) { i ->
             val x = size.width * (0.3f + i * 0.13f)
@@ -238,3 +229,51 @@ fun DrawScope.drawConsolePointer() {
 
 /** 16-bit RPG window: a blue gradient box with a white frame. */
 val SixteenWindowBrush = Brush.verticalGradient(listOf(Color(0xFF3858D8), Color(0xFF182890), Color(0xFF101870)))
+
+/** The handheld's brick floor, a strip along the bottom of the screen above everything. */
+@Composable
+fun PocketFloor(modifier: Modifier = Modifier) = Canvas(modifier) {
+    val px = 3.dp.toPx()
+    drawRect(Color(0xFF306230))
+    var bx = 0f
+    while (bx < size.width) {
+        drawRect(Color(0xFF0F380F), Offset(bx, 0f), Size(px, size.height))
+        drawRect(Color(0xFF0F380F), Offset(bx, px * 8), Size(px * 8, px))
+        bx += px * 8
+    }
+    drawRect(Color(0xFF0F380F), Offset.Zero, Size(size.width, px))
+}
+
+/** The 16-bit grass-on-dirt floor, scrolling with the run, above everything. */
+@Composable
+fun SixteenFloor(modifier: Modifier = Modifier) {
+    val clock = sceneClock(15)
+    Canvas(modifier) {
+        val px = 4.dp.toPx()
+        drawRect(Color(0xFFC07838))
+        drawRect(Color(0xFF50D060), Offset.Zero, Size(size.width, px * 3))
+        drawRect(Color(0xFF2E9A3C), Offset(0f, px * 3), Size(size.width, px))
+        var bx = -(clock.floatValue * 40f) % (px * 12)
+        while (bx < size.width) {
+            drawRect(Color(0xFF8A5020), Offset(bx, px * 4), Size(px, size.height)); bx += px * 12
+        }
+        drawRect(Color(0xFF8A5020), Offset(0f, px * 10), Size(size.width, px))
+    }
+}
+
+/** Height of a style's bottom strip (taskbar or floor); the app's pages and menu end above it. */
+fun floorHeight(): androidx.compose.ui.unit.Dp = when (Palette.Style) {
+    UiStyle.RETRO -> 34.dp
+    UiStyle.POCKET -> 30.dp
+    UiStyle.SIXTEEN -> 40.dp
+    else -> 0.dp
+}
+
+/** Draws the current style's bottom strip. */
+@Composable
+fun StyleFloor(modifier: Modifier = Modifier) = when (Palette.Style) {
+    UiStyle.RETRO -> RetroTaskbar(Palette.colors.variant, modifier)
+    UiStyle.POCKET -> PocketFloor(modifier)
+    UiStyle.SIXTEEN -> SixteenFloor(modifier)
+    else -> {}
+}

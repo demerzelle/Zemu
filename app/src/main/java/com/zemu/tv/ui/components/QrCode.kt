@@ -29,7 +29,7 @@ fun QrCode(text: String, size: Dp, modifier: Modifier = Modifier) {
             Bitmap.createBitmap(pixels, m.width, m.height, Bitmap.Config.ARGB_8888).asImageBitmap()
         }.getOrNull()
     }
-    Box(modifier.background(Color.White, RoundedCornerShape(10.dp)).padding(10.dp)) {
+    Box(modifier.background(Color.White, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp))).padding(10.dp)) {
         // Nearest-neighbour scaling keeps the modules crisp.
         if (bitmap != null) Image(bitmap, "QR code", Modifier.size(size - 20.dp), filterQuality = FilterQuality.None)
     }

@@ -189,6 +189,9 @@ class MainActivity : ComponentActivity() {
                 appColors = colors
                 // Sound effects follow the theme (each restyling theme has its own set).
                 com.zemu.tv.ui.SoundFx.enabled = settings.soundEffects
+                com.zemu.tv.ui.theme.PointerPrefs.color = settings.pointerColor.takeIf { it != 0L }?.let { Color(it.toInt()) }
+                com.zemu.tv.ui.theme.PointerPrefs.scale = settings.pointerSize / 100f
+                com.zemu.tv.ui.theme.PointerPrefs.position = settings.pointerPosition
                 androidx.compose.runtime.SideEffect { com.zemu.tv.ui.SoundFx.use(this@MainActivity, com.zemu.tv.ui.SoundFx.setFor(colors.style)) }
                 // Dark status/navigation bar icons in light mode (phones and tablets).
                 androidx.compose.runtime.SideEffect {

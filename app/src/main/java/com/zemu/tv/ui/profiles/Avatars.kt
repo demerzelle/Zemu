@@ -37,7 +37,7 @@ object AvatarPresets {
 
 @Composable
 fun Avatar(avatar: String, size: Dp, modifier: Modifier = Modifier, corner: Dp = size / 6) {
-    val shape = RoundedCornerShape(corner)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(corner))
     if (avatar.startsWith("file:")) {
         val path = avatar.removePrefix("file:").substringBefore('?')
         AsyncImage(

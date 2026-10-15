@@ -64,7 +64,7 @@ fun RowsManagerScreen(page: String) {
                 val hidden = row.key in prefs.hidden
                 val pinned = row.key in prefs.favorites
                 Row(
-                    Modifier.fillMaxWidth().glassPanel(RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp))).padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

@@ -523,7 +523,7 @@ private fun EpisodesSection(
 
 @Composable
 private fun EpisodeCard(video: Video, selected: Boolean, nextUp: Boolean = false, progress: Float = 0f, onFocused: () -> Unit = {}, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp))
     Column(Modifier.width(230.dp)) {
         Surface(
             onClick = onClick,
@@ -544,7 +544,7 @@ private fun EpisodeCard(video: Video, selected: Boolean, nextUp: Boolean = false
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
             )
-            if (nextUp) Box(Modifier.align(Alignment.TopStart).padding(6.dp).background(Palette.Accent, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+            if (nextUp) Box(Modifier.align(Alignment.TopStart).padding(6.dp).background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp))).padding(horizontal = 6.dp, vertical = 2.dp)) {
                 Text("NEXT UP", color = Palette.OnAccent, fontSize = 11.sp, fontWeight = FontWeight.Black)
             }
             // How far you got in this episode.

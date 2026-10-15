@@ -5,6 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
@@ -42,6 +46,9 @@ object RaveClock {
     var t by mutableFloatStateOf(0f)
 }
 
+/** Pixelify Sans (SIL Open Font License; see assets/licenses): every word in the console themes. */
+val PixelFont = FontFamily(androidx.compose.ui.text.font.Font(com.zemu.tv.R.font.pixelify_sans))
+
 private fun sp(v: Float) = TextUnit(v, TextUnitType.Sp)
 
 /** Each whole-app style's lettering. */
@@ -65,8 +72,8 @@ fun styleTextStyle(style: UiStyle, variant: String): TextStyle = when (style) {
     UiStyle.GRADE -> TextStyle(fontFamily = FontFamily(android.graphics.Typeface.create("casual", android.graphics.Typeface.NORMAL)))
     UiStyle.TEEN -> TextStyle(letterSpacing = sp(0.6f), shadow = Shadow(Color(0x667CFFCB), Offset.Zero, 12f))
     // Consoles: chunky monospace, like bitmap fonts; 16-bit text gets a hard drop shadow.
-    UiStyle.POCKET -> TextStyle(fontFamily = FontFamily.Monospace, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = sp(0.4f))
-    UiStyle.SIXTEEN -> TextStyle(fontFamily = FontFamily.Monospace, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, shadow = Shadow(Color(0xFF181028), Offset(2f, 2f), 0f))
+    UiStyle.POCKET -> TextStyle(fontFamily = PixelFont, letterSpacing = sp(0.4f))
+    UiStyle.SIXTEEN -> TextStyle(fontFamily = PixelFont, shadow = Shadow(Color(0xFF181028), Offset(2f, 2f), 0f))
     UiStyle.NORMAL -> TextStyle.Default
 }
 
@@ -89,16 +96,16 @@ fun styleTypography(style: UiStyle, variant: String): androidx.tv.material3.Typo
 
 /** Button shapes per style (round buttons stay round). */
 fun styledShape(shape: Shape): Shape {
-    // Old PCs and handhelds have square buttons, round ones included (Kawaii stays soft).
-    val square = Palette.Style == UiStyle.POCKET || (Palette.Style == UiStyle.RETRO && Palette.colors.variant != "KAWAII")
+    // Old PCs and consoles: everything is square, round buttons included.
+    val square = Palette.Style in setOf(UiStyle.POCKET, UiStyle.SIXTEEN, UiStyle.RETRO)
     if (shape == CircleShape && !square) return shape
     return when (Palette.Style) {
         UiStyle.POCKET -> androidx.compose.ui.graphics.RectangleShape
-        UiStyle.SIXTEEN -> RoundedCornerShape(4.dp)
+        UiStyle.SIXTEEN -> androidx.compose.ui.graphics.RectangleShape
         UiStyle.ACID -> AcidShape
         UiStyle.ETHEREAL -> RoundedCornerShape(20.dp)
         UiStyle.LIQUID, UiStyle.CATRAVE -> RoundedCornerShape(50)
-        UiStyle.RETRO -> if (Palette.colors.variant == "KAWAII") RoundedCornerShape(14.dp) else if (Palette.colors.variant == "XP") RoundedCornerShape(5.dp) else androidx.compose.ui.graphics.RectangleShape
+        UiStyle.RETRO -> androidx.compose.ui.graphics.RectangleShape
         UiStyle.GRAFFITI -> RoundedCornerShape(3.dp)
         UiStyle.TODDLER -> RoundedCornerShape(26.dp)
         UiStyle.GRADE -> RoundedCornerShape(12.dp)
@@ -118,8 +125,8 @@ fun Modifier.stylePanel(shape: Shape, solid: Color): Modifier? = when (Palette.S
     UiStyle.LIQUID -> liquidGlass(RoundedCornerShape(28.dp), strong = true)
     UiStyle.RETRO -> retroWindow(solid)
     UiStyle.POCKET -> background(solid, androidx.compose.ui.graphics.RectangleShape).border(3.dp, Color(0xFF0F380F), androidx.compose.ui.graphics.RectangleShape)
-    UiStyle.SIXTEEN -> RoundedCornerShape(8.dp).let { s ->
-        background(SixteenWindowBrush, s).border(3.dp, Color.White, s).padding(3.dp).border(1.dp, Color(0xFF9090B0), RoundedCornerShape(5.dp))
+    UiStyle.SIXTEEN -> androidx.compose.ui.graphics.RectangleShape.let { s ->
+        background(SixteenWindowBrush, s).border(3.dp, Color.White, s).padding(3.dp).border(1.dp, Color(0xFF9090B0), s)
     }
     UiStyle.GRAFFITI -> background(solid, androidx.compose.ui.graphics.RectangleShape)
         .border(3.dp, Palette.Accent, androidx.compose.ui.graphics.RectangleShape)
@@ -160,7 +167,7 @@ private fun Modifier.retroWindow(solid: Color): Modifier {
         val u = 1.dp.toPx()
         when (v) {
             "XP" -> {
-                val r = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                val r = CornerRadius.Zero
                 drawRoundRect(Color(0xFF0831D9), cornerRadius = r)
                 drawRect(solid, Offset(3 * u, bar), Size(size.width - 6 * u, size.height - bar - 3 * u))
                 drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF3C8DF8), Color(0xFF0058EE), Color(0xFF0054E3), Color(0xFF0A5FF0)), endY = bar), size = Size(size.width, bar + 8 * u), cornerRadius = r)
@@ -169,8 +176,8 @@ private fun Modifier.retroWindow(solid: Color): Modifier {
                 val b = bar - 8 * u
                 listOf(Color(0xFF2663E0), Color(0xFF2663E0), Color(0xFFE0502A)).forEachIndexed { i, c ->
                     val o = Offset(size.width - (3 - i) * (b + 3 * u) - 5 * u, 4 * u)
-                    drawRoundRect(c, o, Size(b, b), CornerRadius(3 * u))
-                    drawRoundRect(Color.White, o, Size(b, b), CornerRadius(3 * u), style = Stroke(u))
+                    drawRect(c, o, Size(b, b))
+                    drawRect(Color.White, o, Size(b, b), style = Stroke(u))
                     val m = o + Offset(b / 2, b / 2); val g = b * 0.25f
                     when (i) {
                         0 -> drawLine(Color.White, Offset(m.x - g, m.y + g), Offset(m.x + g * 0.3f, m.y + g), 2 * u)
@@ -180,7 +187,7 @@ private fun Modifier.retroWindow(solid: Color): Modifier {
                 }
             }
             "KAWAII" -> {
-                val r = CornerRadius(14.dp.toPx())
+                val r = CornerRadius.Zero
                 drawRoundRect(solid, cornerRadius = r)
                 drawRoundRect(Brush.horizontalGradient(listOf(Color(0xFFFF9AD5), Color(0xFFC9A8FF))), size = Size(size.width, bar), cornerRadius = r)
                 drawRect(Brush.horizontalGradient(listOf(Color(0xFFFF9AD5), Color(0xFFC9A8FF))), Offset(0f, bar / 2), Size(size.width, bar / 2))
@@ -231,12 +238,12 @@ private fun bevel(d: DrawScope, focused: Boolean = false) = with(d) {
     val u = 1.dp.toPx()
     when (Palette.colors.variant) {
         "KAWAII" -> {
-            val r = CornerRadius(12.dp.toPx())
+            val r = CornerRadius.Zero
             if (focused) drawRoundRect(Color(0x66FF7CC8), Offset(-3 * u, -3 * u), Size(size.width + 6 * u, size.height + 6 * u), r, style = Stroke(4 * u))
             drawRoundRect(Color(0xFFFF7CC8), style = Stroke(2 * u), cornerRadius = r)
         }
         "XP" -> {
-            val r = CornerRadius(3 * u)
+            val r = CornerRadius.Zero
             drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.Transparent, Color(0x22000000))), cornerRadius = r)
             if (focused) drawRoundRect(Color(0xFFF8B636), Offset(u, u), Size(size.width - 2 * u, size.height - 2 * u), r, style = Stroke(2.5f * u))
             drawRoundRect(Color(0xFF003C74), cornerRadius = r, style = Stroke(u))
@@ -282,17 +289,18 @@ fun Modifier.retroScrollbar(state: androidx.compose.foundation.lazy.LazyListStat
             "XP" -> {
                 drawRect(Color(0xFFF7F7F2), Offset(x, 0f), Size(w, size.height))
                 listOf(0f, size.height - arrowH).forEachIndexed { i, y ->
-                    drawRoundRect(Color(0xFFC3D5FD), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u), CornerRadius(3 * u))
-                    drawRoundRect(Color(0xFF8EB0F5), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u), CornerRadius(3 * u), style = Stroke(u))
+                    drawRect(Color(0xFFC3D5FD), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u))
+                    drawRect(Color(0xFF8EB0F5), Offset(x + u, y + u), Size(w - 2 * u, arrowH - 2 * u), style = Stroke(u))
                     arrow(y, i == 0, Color(0xFF4D6185))
                 }
-                drawRoundRect(Color(0xFFC3D5FD), Offset(x + u, thumbY), Size(w - 2 * u, thumbH), CornerRadius(3 * u))
-                drawRoundRect(Color(0xFF8EB0F5), Offset(x + u, thumbY), Size(w - 2 * u, thumbH), CornerRadius(3 * u), style = Stroke(u))
+                drawRect(Color(0xFFC3D5FD), Offset(x + u, thumbY), Size(w - 2 * u, thumbH))
+                drawRect(Color(0xFF8EB0F5), Offset(x + u, thumbY), Size(w - 2 * u, thumbH), style = Stroke(u))
                 repeat(4) { k -> drawLine(Color(0xFF8EB0F5), Offset(x + 4 * u, thumbY + thumbH / 2 + (k - 1.5f) * 2 * u), Offset(x + w - 4 * u, thumbY + thumbH / 2 + (k - 1.5f) * 2 * u), u) }
             }
             "KAWAII" -> {
-                drawRoundRect(Color(0xFFFFE3F2), Offset(x, 0f), Size(w, size.height), CornerRadius(w / 2))
-                drawRoundRect(Color(0xFFFF9AD5), Offset(x + 2 * u, thumbY), Size(w - 4 * u, thumbH), CornerRadius(w / 2))
+                drawRect(Color(0xFFFFE3F2), Offset(x, 0f), Size(w, size.height))
+                drawRect(Color(0xFFFF9AD5), Offset(x + 2 * u, thumbY), Size(w - 4 * u, thumbH))
+                drawRect(Color(0xFFFF7CC8), Offset(x + 2 * u, thumbY), Size(w - 4 * u, thumbH), style = Stroke(u))
             }
             else -> {
                 // Dithered track, then beveled arrow buttons and thumb.
@@ -309,15 +317,30 @@ fun Modifier.retroScrollbar(state: androidx.compose.foundation.lazy.LazyListStat
         }
     }
 
+/** The pointer's look from Settings (set once per composition by the app). */
+object PointerPrefs {
+    var color by mutableStateOf<Color?>(null)
+    var scale by mutableFloatStateOf(1f)
+    /** "RIGHT", "CENTER", "LEFT" or "CORNER" (bottom right). */
+    var position by mutableStateOf("RIGHT")
+
+    fun at(size: Size): Offset = when (position) {
+        "CENTER" -> Offset(size.width * 0.5f, size.height * 0.5f)
+        "LEFT" -> Offset(size.width * 0.12f, size.height * 0.5f)
+        "CORNER" -> Offset(size.width * 0.85f, size.height * 0.7f)
+        else -> Offset(size.width * 0.72f, size.height * 0.5f)
+    }
+}
+
 /** The arrow pointer drawn on whatever is selected in Cybercore (instead of a highlight). */
 fun DrawScope.drawPointer(at: Offset) {
-    val s = 1.6f * density / 2f * 14f
+    val s = 1.6f * density / 2f * 14f * PointerPrefs.scale
     val p = Path().apply {
         moveTo(at.x, at.y); lineTo(at.x, at.y + s * 1.5f); lineTo(at.x + s * 0.38f, at.y + s * 1.12f)
         lineTo(at.x + s * 0.66f, at.y + s * 1.72f); lineTo(at.x + s * 0.86f, at.y + s * 1.62f)
         lineTo(at.x + s * 0.58f, at.y + s * 1.04f); lineTo(at.x + s * 1.06f, at.y + s * 1.04f); close()
     }
-    val fill = if (Palette.colors.variant == "KAWAII") Color(0xFFFF7CC8) else Color.White
+    val fill = PointerPrefs.color ?: if (Palette.colors.variant == "KAWAII") Color(0xFFFF7CC8) else Color.White
     drawPath(p, fill)
     drawPath(p, Color.Black, style = Stroke(1.5f * density))
 }
@@ -333,7 +356,7 @@ fun Modifier.styleDecor(seed: Int = 0, bevel: Boolean = true): Modifier = compos
             onFocusChanged { focused = it.isFocused || it.hasFocus }.drawWithContent {
                 drawContent()
                 if (bevel) bevel(this, focused)
-                if (focused) drawPointer(Offset(size.width * 0.72f, size.height * 0.5f))
+                if (focused) drawPointer(PointerPrefs.at(size))
             }
         }
         // Consoles: a menu pointer (a glove, or the handheld's arrow) beside what's selected.
@@ -397,3 +420,37 @@ fun rememberSpray(): Spray = remember { Spray() }
 
 @androidx.compose.runtime.Composable
 fun rememberStyleScope() = rememberCoroutineScope()
+
+/** Desktop and console themes have no rounded corners anywhere; other styles keep [shape]. */
+fun boxy(shape: Shape): Shape =
+    if (Palette.Style in setOf(UiStyle.RETRO, UiStyle.POCKET, UiStyle.SIXTEEN)) androidx.compose.ui.graphics.RectangleShape else shape
+
+/** Text fields drawn per style: sunken 98 boxes, XP's blue-edged field, Kawaii pink, console frames. */
+fun styleField(): Modifier = when (Palette.Style) {
+    UiStyle.RETRO -> when (Palette.colors.variant) {
+        "XP" -> Modifier.border(1.dp, Color(0xFF7F9DB9))
+        "KAWAII" -> Modifier.border(2.dp, Color(0xFFFF9AD5))
+        else -> Modifier.drawWithContent { drawContent(); win98Bevel(this, raised = false) }
+    }
+    UiStyle.POCKET -> Modifier.border(3.dp, Color(0xFF0F380F))
+    UiStyle.SIXTEEN -> Modifier.border(2.dp, Color.White)
+    else -> Modifier
+}
+
+/** Title-bar height of the current desktop's windows. */
+fun retroBarHeight(): androidx.compose.ui.unit.Dp = when (Palette.colors.variant) { "XP" -> 26.dp; "KAWAII" -> 22.dp; else -> 20.dp }
+
+/** A desktop window with [title] in its title bar and [content] in its body. */
+@androidx.compose.runtime.Composable
+fun RetroWindow(title: String, modifier: Modifier = Modifier, content: @androidx.compose.runtime.Composable () -> Unit) {
+    val bar = retroBarHeight()
+    val dark = Palette.colors.variant == "KAWAII"
+    // The window frame pads its body to just under the title bar, so the title moves up into the bar.
+    androidx.compose.foundation.layout.Box(modifier.stylePanel(androidx.compose.ui.graphics.RectangleShape, Palette.Surface) ?: modifier) {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().height(bar).offset(y = -(bar - 8.dp)).padding(start = 8.dp, end = 80.dp), contentAlignment = androidx.compose.ui.Alignment.CenterStart) {
+            androidx.tv.material3.Text(title, color = if (dark) Color(0xFF5A2346) else Color.White, fontSize = androidx.compose.ui.unit.TextUnit(12f, TextUnitType.Sp), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1)
+        }
+        // The frame's padding ends 8dp inside the title bar, so the body starts a little lower.
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp).background(Color.Black)) { content() }
+    }
+}

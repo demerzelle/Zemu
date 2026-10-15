@@ -320,9 +320,6 @@ fun RetroBackdrop(variant: String, modifier: Modifier = Modifier) {
     val clock = sceneClock(4)
     Canvas(modifier.fillMaxSize()) {
         val t = clock.floatValue
-        val bar = 34.dp.toPx()
-        // The side menu covers the left edge, so the Start button begins just past it.
-        val startX = 84.dp.toPx()
         when (variant) {
             "KAWAII" -> {
                 drawRect(Brush.verticalGradient(listOf(Color(0xFFFFD6EC), Color(0xFFE9D9FF))))
@@ -342,11 +339,6 @@ fun RetroBackdrop(variant: String, modifier: Modifier = Modifier) {
                     val cy = size.height * (0.15f + i * 0.2f)
                     listOf(0f to 0f, 30f to -14f, 60f to 0f, 30f to 10f).forEach { (dx, dy) -> drawCircle(Color.White.copy(alpha = 0.8f), 26f, Offset(cx + dx, cy + dy)) }
                 }
-                drawRect(Color(0xFFFFB8DE), Offset(0f, size.height - bar), Size(size.width, bar))
-                drawLine(Color.White, Offset(0f, size.height - bar), Offset(size.width, size.height - bar), 2f)
-                drawRoundRect(Color(0xFFFF7CC8), Offset(startX, size.height - bar + 4.dp.toPx()), Size(96.dp.toPx(), bar - 8.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(bar))
-                drawText(measurer.measure("♡ start", TextStyle(fontFamily = FontFamily.Cursive, fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Bold)), topLeft = Offset(startX + 16.dp.toPx(), size.height - bar + 6.dp.toPx()))
-                drawRoundRect(Color(0xFFFFD6EC), Offset(size.width - 100.dp.toPx(), size.height - bar + 4.dp.toPx()), Size(96.dp.toPx(), bar - 8.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(bar))
             }
             "XP" -> {
                 drawRect(Brush.verticalGradient(listOf(Color(0xFF2E6FD8), Color(0xFF6FA8F0), Color(0xFFB8D8F8)), endY = size.height * 0.7f))
@@ -359,10 +351,39 @@ fun RetroBackdrop(variant: String, modifier: Modifier = Modifier) {
                     cubicTo(size.width * 0.3f, size.height * 0.52f, size.width * 0.7f, size.height * 0.62f, size.width, size.height * 0.7f)
                     lineTo(size.width, size.height); lineTo(0f, size.height); close()
                 }, Brush.verticalGradient(listOf(Color(0xFF6CC24A), Color(0xFF2F8A1F)), startY = size.height * 0.55f, endY = size.height))
+            }
+            else -> {
+                drawRect(Color(0xFF008080))
+            }
+        }
+    }
+}
+
+/**
+ * The desktop's taskbar, drawn as its own strip along the bottom of the screen, above everything
+ * (the pages and the side menu end where it starts, so it never covers them).
+ */
+@Composable
+fun RetroTaskbar(variant: String, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val tick = sceneClock(1)
+    Canvas(modifier) {
+        tick.floatValue // redraws once a second, for the clock
+        val bar = size.height
+        val startX = 4.dp.toPx()
+        when (variant) {
+            "KAWAII" -> {
+                drawRect(Color(0xFFFFB8DE), Offset(0f, size.height - bar), Size(size.width, bar))
+                drawLine(Color.White, Offset(0f, size.height - bar), Offset(size.width, size.height - bar), 2f)
+                drawRect(Color(0xFFFF7CC8), Offset(startX, size.height - bar + 4.dp.toPx()), Size(96.dp.toPx(), bar - 8.dp.toPx()))
+                drawText(measurer.measure("♡ start", TextStyle(fontFamily = FontFamily.Cursive, fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Bold)), topLeft = Offset(startX + 16.dp.toPx(), size.height - bar + 6.dp.toPx()))
+                drawRect(Color(0xFFFFD6EC), Offset(size.width - 100.dp.toPx(), size.height - bar + 4.dp.toPx()), Size(96.dp.toPx(), bar - 8.dp.toPx()))
+            }
+            "XP" -> {
                 // Luna taskbar: glossy blue, the green Start button and the lighter blue tray.
                 drawRect(Brush.verticalGradient(listOf(Color(0xFF3F8CF3), Color(0xFF245EDC), Color(0xFF1941A5)), startY = size.height - bar, endY = size.height), Offset(0f, size.height - bar), Size(size.width, bar))
                 val sw = 104.dp.toPx()
-                drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF5EC55E), Color(0xFF3C9B3C), Color(0xFF2E7D2E)), startY = size.height - bar, endY = size.height), Offset(startX - 12.dp.toPx(), size.height - bar), Size(sw + 12.dp.toPx(), bar), androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()))
+                drawRect(Brush.verticalGradient(listOf(Color(0xFF5EC55E), Color(0xFF3C9B3C), Color(0xFF2E7D2E)), startY = size.height - bar, endY = size.height), Offset(0f, size.height - bar), Size(sw + startX, bar))
                 // The four-pane flag, then "start" in bold italic.
                 val f = Offset(startX + 4.dp.toPx(), size.height - bar + 9.dp.toPx()); val q = 7.dp.toPx()
                 listOf(Color(0xFFF65314), Color(0xFF7CBB00), Color(0xFF00A1F1), Color(0xFFFFBB00)).forEachIndexed { i, c -> drawRect(c, f + Offset((i % 2) * (q + 1f), (i / 2) * (q + 1f)), Size(q, q)) }
@@ -371,7 +392,6 @@ fun RetroBackdrop(variant: String, modifier: Modifier = Modifier) {
                 drawLine(Color(0xFF0A3FA0), Offset(size.width - 100.dp.toPx(), size.height - bar), Offset(size.width - 100.dp.toPx(), size.height), 2f)
             }
             else -> {
-                drawRect(Color(0xFF008080))
                 // Windows 98 taskbar: a raised Start button with the flag, and the sunken clock tray.
                 drawRect(Color(0xFFC0C0C0), Offset(0f, size.height - bar), Size(size.width, bar))
                 drawLine(Color(0xFFDFDFDF), Offset(0f, size.height - bar), Offset(size.width, size.height - bar), 2f)

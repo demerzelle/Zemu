@@ -86,7 +86,7 @@ fun ScrollingText(
                             }
                         }
                         .focusable()
-                        .border(2.dp, if (focused) Palette.FocusBorder.copy(alpha = 0.7f) else Color.Transparent, RoundedCornerShape(6.dp))
+                        .border(2.dp, if (focused) Palette.FocusBorder.copy(alpha = 0.7f) else Color.Transparent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp)))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 } else Modifier,
             )

@@ -230,13 +230,13 @@ private fun CategoryItem(label: String, selected: Boolean, modifier: Modifier, o
     FocusSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { if (it.isFocused) onFocused() },
-        shape = RoundedCornerShape(10.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
         containerColor = if (selected) Palette.SurfaceHigh else Color.Transparent,
         contentColor = if (selected) Palette.Text else Palette.TextSecondary,
         focusedScale = 1.03f,
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 4.dp, height = 18.dp).background(if (selected) Palette.Accent else Color.Transparent, RoundedCornerShape(2.dp)))
+            Box(Modifier.size(width = 4.dp, height = 18.dp).background(if (selected) Palette.Accent else Color.Transparent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(2.dp))))
             Spacer(Modifier.width(10.dp))
             Text(label, fontSize = 16.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -439,7 +439,7 @@ private fun TraktSection(vm: SettingsViewModel, settings: AppSettings) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { link = null }) {
             com.zemu.tv.ui.theme.DialogBackdropBlur()
             Column(
-                Modifier.glassPanel(RoundedCornerShape(16.dp)).padding(28.dp),
+                Modifier.glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp))).padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text("Link Trakt", fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -554,6 +554,24 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
                 items(current.variants, key = { it.first }) { (k, label) ->
                     val shown = if (k == "AUTO") "$label: ${com.zemu.tv.ui.theme.Holiday.today().label}" else label
                     TvChip(shown, selected = chosen == k, onClick = { vm.update { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
+                }
+            }
+        }
+        // Cybercore's mouse pointer: its color, size and where it sits on the selected button.
+        if (current == DynamicTheme.RETRO) {
+            Text("Mouse pointer", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 10.dp))
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val colors = listOf(0L to "Default", 0xFFFFFFFFL to "White", 0xFF000000L to "Black", 0xFFFFE600L to "Yellow", 0xFF39FF14L to "Green", 0xFFFF5FB8L to "Pink", 0xFF00B7FFL to "Blue", 0xFFFF3B30L to "Red")
+                items(colors, key = { it.first }) { (v, label) ->
+                    TvChip(label, settings.pointerColor == v, { vm.update { it.copy(pointerColor = v) } })
+                }
+            }
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(listOf(75, 100, 150, 200), key = { "size$it" }) { z ->
+                    TvChip("Size $z%", settings.pointerSize == z, { vm.update { it.copy(pointerSize = z) } })
+                }
+                items(listOf("LEFT" to "Left", "CENTER" to "Center", "RIGHT" to "Right", "CORNER" to "Corner"), key = { it.first }) { (k, label) ->
+                    TvChip(label, settings.pointerPosition == k, { vm.update { it.copy(pointerPosition = k) } })
                 }
             }
         }
@@ -702,7 +720,7 @@ private fun ToggleRow(title: String, description: String, on: Boolean, onClick: 
     FocusSurface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
         containerColor = Palette.Surface,
         focusedScale = 1.01f,
     ) {
@@ -721,7 +739,7 @@ private fun ValueRow(title: String, value: String, modifier: Modifier = Modifier
     FocusSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
         containerColor = Palette.Surface,
         focusedScale = 1.01f,
     ) {
@@ -766,9 +784,9 @@ private fun SubtitlePreview(settings: AppSettings) {
 }
 
 private fun Modifier.previewBackdrop(): Modifier =
-    this.then(Modifier.background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF3A4A5A), androidx.compose.ui.graphics.Color(0xFF6A5A3A))), RoundedCornerShape(10.dp)).height(110.dp))
+    this.then(Modifier.background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF3A4A5A), androidx.compose.ui.graphics.Color(0xFF6A5A3A))), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp))).height(110.dp))
 
-private fun Modifier.subtitleBox(c: androidx.compose.ui.graphics.Color): Modifier = this.then(Modifier.background(c, RoundedCornerShape(4.dp)))
+private fun Modifier.subtitleBox(c: androidx.compose.ui.graphics.Color): Modifier = this.then(Modifier.background(c, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp))))
 
 @Composable
 private fun KidsSection() {

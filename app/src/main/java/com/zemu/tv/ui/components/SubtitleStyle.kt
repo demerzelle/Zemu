@@ -84,7 +84,7 @@ private fun <T> CycleRow(label: String, value: String, values: List<T>, current:
                 else -> false
             }
         },
-        shape = RoundedCornerShape(10.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
         containerColor = Palette.Surface,
         focusedScale = 1.01f,
     ) {

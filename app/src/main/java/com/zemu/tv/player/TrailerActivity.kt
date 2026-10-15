@@ -1,5 +1,7 @@
 package com.zemu.tv.player
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -90,7 +92,21 @@ class TrailerActivity : ComponentActivity() {
         val colors = container.userStore.settings.value.resolvedColors(light = false)
         setContent {
             ZemuTheme(colors) {
-                Box(Modifier.fillMaxSize().background(Color.Black)) {
+                if (com.zemu.tv.ui.theme.Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) {
+                    // Cybercore: the trailer plays in a window on the desktop, with the taskbar below.
+                    val variant = com.zemu.tv.ui.theme.Palette.colors.variant
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().padding(bottom = 34.dp)) {
+                            com.zemu.tv.ui.theme.RetroBackdrop(variant)
+                            com.zemu.tv.ui.theme.RetroWindow(
+                                trailers[current].title,
+                                Modifier.align(Alignment.Center).fillMaxWidth(0.86f).fillMaxHeight(0.88f),
+                            ) { AndroidView(factory = { view }, modifier = Modifier.fillMaxSize()) }
+                            if (trailers.size > 1) TrailerSelector()
+                        }
+                        com.zemu.tv.ui.theme.RetroTaskbar(variant, Modifier.align(Alignment.BottomStart).fillMaxWidth().height(34.dp))
+                    }
+                } else Box(Modifier.fillMaxSize().background(Color.Black)) {
                     AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
                     if (trailers.size > 1) TrailerSelector()
                 }

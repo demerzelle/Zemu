@@ -98,7 +98,7 @@ fun CardMenuDialog(meta: Meta, actions: List<CardAction>, onAction: (CardAction)
                     }
                 }
                 .width(600.dp)
-                .glassPanel(RoundedCornerShape(14.dp))
+                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))
                 .padding(20.dp),
         ) {
             Column(Modifier.width(170.dp)) {

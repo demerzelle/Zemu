@@ -95,7 +95,7 @@ fun ParentCodeDialog(title: String, message: String? = null, onDismiss: () -> Un
     Dialog(onDismissRequest = onDismiss) {
         DialogBackdropBlur()
         Column(
-            Modifier.width(420.dp).glassPanel(RoundedCornerShape(18.dp)).padding(26.dp)
+            Modifier.width(420.dp).glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(18.dp))).padding(26.dp)
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     val digit = when (e.key) {
@@ -113,8 +113,8 @@ fun ParentCodeDialog(title: String, message: String? = null, onDismiss: () -> Un
             Row(Modifier.padding(vertical = 18.dp).offset(x = shake.value.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 repeat(4) { i ->
                     Box(
-                        Modifier.size(18.dp).background(if (i < code.length) Palette.Accent else Color.Transparent, CircleShape)
-                            .border(2.dp, if (i < code.length) Palette.Accent else Palette.TextMuted, CircleShape),
+                        Modifier.size(18.dp).background(if (i < code.length) Palette.Accent else Color.Transparent, com.zemu.tv.ui.theme.boxy(CircleShape))
+                            .border(2.dp, if (i < code.length) Palette.Accent else Palette.TextMuted, com.zemu.tv.ui.theme.boxy(CircleShape)),
                     )
                 }
             }
@@ -132,7 +132,7 @@ fun ParentCodeDialog(title: String, message: String? = null, onDismiss: () -> Un
                                 }
                             },
                             modifier = Modifier.size(72.dp, 56.dp).then(if (k == "1") Modifier.focusRequester(first) else Modifier),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp)),
                         ) { Text(k, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center)) }
                     }
                 }
@@ -179,14 +179,14 @@ fun KidsThemePicker(onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         DialogBackdropBlur()
-        Column(Modifier.glassPanel(RoundedCornerShape(24.dp)).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(24.dp))).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("🎨  Pick your theme", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 KIDS_THEMES.forEachIndexed { i, (key, label) ->
                     FocusSurface(
                         onClick = { c.appScope.launch { c.userStore.updateSettings { it.copy(dynamicTheme = key) } } },
                         modifier = Modifier.size(170.dp, 110.dp).then(if (key == current || (i == 0 && KIDS_THEMES.none { it.first == current })) Modifier.focusRequester(first) else Modifier),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(20.dp)),
                     ) {
                         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(listOf("🎈", "✏️", "🌙")[i], fontSize = 34.sp)

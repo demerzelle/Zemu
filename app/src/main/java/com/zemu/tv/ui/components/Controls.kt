@@ -79,7 +79,7 @@ fun FocusSurface(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(8.dp),
+    shape: Shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp)),
     focusedScale: Float = 1.05f,
     containerColor: Color = Palette.SurfaceHigh,
     contentColor: Color = Palette.Text,
@@ -149,7 +149,7 @@ fun TvButton(
     FocusSurface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(6.dp),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(6.dp)),
         // Only the focused button is accent-colored; [primary] just marks the main action.
         containerColor = Palette.SurfaceHigh,
         contentColor = Palette.Text,
@@ -193,7 +193,7 @@ fun TvChip(
     FocusSurface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(50),
+        shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(50)),
         containerColor = Palette.SurfaceHigh,
         contentColor = Palette.Text,
         focusedScale = 1.06f,
@@ -214,7 +214,7 @@ fun ImdbBadge(rating: String?, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
-                .background(Palette.Imdb, RoundedCornerShape(3.dp))
+                .background(Palette.Imdb, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(3.dp)))
                 .padding(horizontal = 4.dp, vertical = 1.dp),
         ) {
             Text("IMDb", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
@@ -229,8 +229,8 @@ fun Tag(text: String, color: Color, modifier: Modifier = Modifier, filled: Boole
     Box(
         modifier
             .then(
-                if (filled) Modifier.background(color, RoundedCornerShape(4.dp))
-                else Modifier.border(1.dp, color.copy(alpha = 0.7f), RoundedCornerShape(4.dp)),
+                if (filled) Modifier.background(color, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp)))
+                else Modifier.border(1.dp, color.copy(alpha = 0.7f), com.zemu.tv.ui.theme.boxy(RoundedCornerShape(4.dp))),
             )
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
@@ -286,15 +286,16 @@ fun TvTextField(
                     if (waitForUpOrCancellation(pass = PointerEventPass.Initial) != null) editing = true
                 }
             }
-            .background(if (active) Palette.SurfaceHigh else Palette.Surface, RoundedCornerShape(8.dp))
-            .border(2.dp, if (active) Palette.FocusBorder else Color.Transparent, RoundedCornerShape(8.dp))
+            .background(if (active) Palette.SurfaceHigh else Palette.Surface, com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp))))
+            .border(2.dp, if (active) Palette.FocusBorder else Color.Transparent, com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(8.dp))))
+            .then(com.zemu.tv.ui.theme.styleField())
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
-            textStyle = TextStyle(color = Palette.Text, fontSize = 18.sp),
+            textStyle = androidx.tv.material3.LocalTextStyle.current.merge(TextStyle(color = Palette.Text, fontSize = 18.sp)),
             cursorBrush = SolidColor(Palette.Text),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
             // The keyboard's ✓ / Enter: submit or save what was typed, close the keyboard, and put focus
@@ -353,7 +354,7 @@ fun ChoiceDialog(
             Modifier
                 .width(480.dp)
                 .heightIn(max = 560.dp)
-                .glassPanel(RoundedCornerShape(14.dp))
+                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))
                 .padding(24.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -424,7 +425,7 @@ fun ConfirmDialog(title: String, message: String, confirmLabel: String, onConfir
         Column(
             Modifier
                 .width(520.dp)
-                .glassPanel(RoundedCornerShape(14.dp))
+                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))
                 .padding(24.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -456,7 +457,7 @@ fun ActionSheet(title: String, actions: List<SheetAction>, onDismiss: () -> Unit
         Column(
             Modifier
                 .width(440.dp)
-                .glassPanel(RoundedCornerShape(16.dp))
+                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))
                 .padding(vertical = 18.dp, horizontal = 14.dp),
         ) {
             Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp, bottom = 10.dp))
@@ -464,7 +465,7 @@ fun ActionSheet(title: String, actions: List<SheetAction>, onDismiss: () -> Unit
                 FocusSurface(
                     onClick = { onDismiss(); a.onClick() },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).then(if (i == 0) Modifier.focusRequester(first) else Modifier),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)),
                     containerColor = Color.Transparent,
                     contentColor = Palette.Text,
                     focusedScale = 1.02f,

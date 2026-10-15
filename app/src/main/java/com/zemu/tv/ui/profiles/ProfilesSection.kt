@@ -76,7 +76,7 @@ fun ProfilesSection(phoneAddress: String?) {
         }
         item(key = "add") {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(110.dp)) {
-                val shape = RoundedCornerShape(18.dp)
+                val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(18.dp))
                 Surface(
                     onClick = { adding = true },
                     modifier = Modifier.touchClick({ adding = true }).size(96.dp),
@@ -135,7 +135,7 @@ fun ProfilesSection(phoneAddress: String?) {
 @Composable
 private fun ProfileTile(p: Profile, current: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(110.dp)) {
-        val shape = RoundedCornerShape(18.dp)
+        val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(18.dp))
         Surface(
             onClick = onClick,
             modifier = Modifier.touchClick(onClick).size(96.dp),
@@ -186,7 +186,7 @@ private fun ProfileEditor(
         Column(
             Modifier
                 .width(760.dp)
-                .glassPanel(RoundedCornerShape(16.dp))
+                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))
                 .padding(24.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,7 +207,7 @@ private fun ProfileEditor(
             ) {
                 itemsIndexed(AvatarPresets.all) { i, _ ->
                     val value = "preset:$i"
-                    val shape = RoundedCornerShape(12.dp)
+                    val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(12.dp))
                     Surface(
                         onClick = { avatar = value },
                         modifier = Modifier.touchClick({ avatar = value }).size(64.dp),
