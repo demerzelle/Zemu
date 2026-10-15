@@ -46,6 +46,7 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
         val lastStreams = stringPreferencesKey("last_streams")
         val recentSearches = stringPreferencesKey("recent_searches")
         val homeRows = stringPreferencesKey("home_rows")
+        val pageRows = stringPreferencesKey("page_rows")
     }
 
     private val ratingSer = MapSerializer(String.serializer(), Int.serializer())
@@ -184,6 +185,21 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
 
     suspend fun saveHomeRows(prefs: RowPrefs) {
         ds.edit { it[Keys.homeRows] = json.encodeToString(RowPrefs.serializer(), prefs) }
+    }
+
+    private val pageRowsSer = MapSerializer(String.serializer(), RowPrefs.serializer())
+
+    /** Row order and favorites of the Movies, Series and Anime pages, by page. */
+    val pageRows: StateFlow<Map<String, RowPrefs>> = ds.data
+        .map { it.decode(Keys.pageRows, pageRowsSer).orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    suspend fun saveRowPrefs(page: String, prefs: RowPrefs) {
+        if (page == "home") return saveHomeRows(prefs)
+        ds.edit { p ->
+            val cur = p.decode(Keys.pageRows, pageRowsSer).orEmpty()
+            p[Keys.pageRows] = json.encodeToString(pageRowsSer, cur + (page to prefs))
+        }
     }
 
     /** Searches that led to opening a title, newest first. */

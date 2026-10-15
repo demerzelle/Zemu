@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 /** A catalog the page can show, e.g. Cinemeta "top" or Kitsu "kitsu-anime-airing". */
 data class BrowseCatalog(val id: String, val label: String, val paged: Boolean = true, val genres: Boolean = true)
 
-enum class BrowseSort(val label: String) { DEFAULT("Default"), RATING("Highest rated"), NEWEST("Newest"), OLDEST("Oldest"), MATCH("Best match for you") }
+enum class BrowseSort(val label: String) { DEFAULT("Default"), RATING("Highest rated"), MOST_FAVORITED("Most favorited"), NEWEST("Newest"), OLDEST("Oldest"), MATCH("Best match for you") }
 
 /** Anime pages split one mixed catalog into series and movies. */
 enum class AnimeSection(val label: String, val metaType: String) { SERIES("Anime Series", "series"), MOVIES("Anime Movies", "movie") }
@@ -33,7 +33,15 @@ data class BrowseFilters(
     /** Decade start year, e.g. 1990. -1 = before 1970. */
     val decade: Int? = null,
     val sort: BrowseSort = BrowseSort.DEFAULT,
-)
+    /** A [com.zemu.tv.data.StreamingService] name: list what's on that service (TMDB). */
+    val service: String? = null,
+    /** A [com.zemu.tv.data.Studio] key: list that studio's / network's titles (TMDB). */
+    val studio: String? = null,
+    /** Movies or series, when browsing a service. */
+    val tmdbType: String = "movie",
+) {
+    val tmdbMode: Boolean get() = service != null || studio != null
+}
 
 data class BrowseUi(
     val items: List<Meta> = emptyList(),
@@ -48,11 +56,22 @@ data class BrowseUi(
 )
 
 /** Backs the Movies, Series and Anime pages. [type] is "movie", "series" or "anime". */
-class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel() {
+class BrowseViewModel(
+    private val c: AppContainer,
+    val type: String,
+    initialService: String? = null,
+    initialStudio: String? = null,
+) : ViewModel() {
     val isAnime = type == "anime"
 
     private val raw = MutableStateFlow<List<Meta>>(emptyList())
-    private val filters = MutableStateFlow(BrowseFilters())
+    private val filters = MutableStateFlow(
+        BrowseFilters(
+            service = initialService,
+            studio = initialStudio,
+            tmdbType = com.zemu.tv.data.Studio.of(initialStudio)?.type ?: if (type == "series") "series" else "movie",
+        ),
+    )
     private val loading = MutableStateFlow(false)
     private val endReached = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
@@ -68,6 +87,10 @@ class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel
 
     val state: StateFlow<BrowseUi> = combine(raw, filters, status) { items, f, s ->
         val profile = c.tasteProfile()
+        if (f.tmdbMode) {
+            val l = if (f.sort == BrowseSort.MATCH) items.sortedByDescending { c.recommender.matchPercent(it, profile) } else items
+            return@combine BrowseUi(l, f, s.catalogs, (if (f.tmdbType == "series") com.zemu.tv.data.Tmdb.TV_GENRES else com.zemu.tv.data.Tmdb.MOVIE_GENRES).values.sorted(), s.loading, s.end, s.error, items.size)
+        }
         var list = items
             .filter { !isAnime || it.type == f.section.metaType }
             .filter { x -> f.minRating == null || (x.rating ?: 0.0) >= f.minRating }
@@ -81,12 +104,13 @@ class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel
             }
         list = when (f.sort) {
             BrowseSort.DEFAULT -> list
-            BrowseSort.RATING -> list.sortedByDescending { it.rating ?: 0.0 }
+            BrowseSort.RATING, BrowseSort.MOST_FAVORITED -> list.sortedByDescending { it.rating ?: 0.0 }
             BrowseSort.NEWEST -> list.sortedByDescending { it.year ?: 0 }
             BrowseSort.OLDEST -> list.sortedBy { it.year ?: Int.MAX_VALUE }
             BrowseSort.MATCH -> list.sortedByDescending { c.recommender.matchPercent(it, profile) }
         }
-        BrowseUi(list, f, s.catalogs, s.genres, s.loading, s.end, s.error, items.size)
+        val genreNames = if (f.tmdbMode) (if (f.tmdbType == "series") com.zemu.tv.data.Tmdb.TV_GENRES else com.zemu.tv.data.Tmdb.MOVIE_GENRES).values.sorted() else s.genres
+        BrowseUi(list, f, s.catalogs, genreNames, s.loading, s.end, s.error, items.size)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowseUi(loading = true))
 
     init {
@@ -163,9 +187,12 @@ class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel
         val old = filters.value
         var next = transform(old)
         // Catalogs without genre support (Kitsu Trending) can't filter by genre.
-        if (catalogs.value.firstOrNull { it.id == next.catalog }?.genres == false) next = next.copy(genre = null)
+        if (!next.tmdbMode && catalogs.value.firstOrNull { it.id == next.catalog }?.genres == false) next = next.copy(genre = null)
+        // Switching between a service/studio list and the addon catalog: genre names differ.
+        if (old.tmdbMode != next.tmdbMode || old.tmdbType != next.tmdbType) next = next.copy(genre = null)
         filters.value = next
-        if (old.catalog != next.catalog || old.genre != next.genre) reload()
+        val serverSide = next.tmdbMode && (old.sort != next.sort || old.minRating != next.minRating || old.decade != next.decade)
+        if (old.catalog != next.catalog || old.genre != next.genre || old.service != next.service || old.studio != next.studio || old.tmdbType != next.tmdbType || serverSide) reload()
     }
 
     private fun reload() {
@@ -179,6 +206,7 @@ class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel
 
     fun loadMore(force: Boolean = false) {
         if (!force && (loading.value || endReached.value)) return
+        if (filters.value.tmdbMode) return loadTmdb()
         val source = addon ?: run {
             if (!isAnime) error.value = "No catalog provider is installed. Add Cinemeta or another metadata addon in Addons."
             loading.value = false
@@ -204,6 +232,45 @@ class BrowseViewModel(private val c: AppContainer, val type: String) : ViewModel
                     if (fresh.isEmpty() || !cat.paged || pages >= MAX_PAGES) endReached.value = true
                 }
                 .onFailure { e -> error.value = "Couldn't load: ${e.message}" }
+            loading.value = false
+        }
+    }
+
+    /** A page of a streaming service's or studio's titles from TMDB, filtered and sorted there. */
+    private fun loadTmdb() {
+        val f = filters.value
+        val t = f.tmdbType
+        val params = buildMap {
+            com.zemu.tv.data.StreamingService.of(f.service)?.let { putAll(com.zemu.tv.data.DiscoverParams.service(it)) }
+            com.zemu.tv.data.Studio.of(f.studio)?.let { put(it.param.first, it.param.second) }
+            putAll(
+                when (f.sort) {
+                    BrowseSort.RATING -> com.zemu.tv.data.DiscoverParams.topRated(200)
+                    BrowseSort.NEWEST -> com.zemu.tv.data.DiscoverParams.newest(t)
+                    BrowseSort.OLDEST -> mapOf("sort_by" to "${com.zemu.tv.data.DiscoverParams.dateField(t)}.asc", "vote_count.gte" to "20")
+                    BrowseSort.MOST_FAVORITED -> com.zemu.tv.data.DiscoverParams.mostFavorited()
+                    else -> com.zemu.tv.data.DiscoverParams.popular()
+                },
+            )
+            f.genre?.let { g -> com.zemu.tv.data.Tmdb.genreId(t, g)?.let { put("with_genres", it.toString()) } }
+            f.minRating?.let { put("vote_average.gte", it.toString()); put("vote_count.gte", "50") }
+            val df = com.zemu.tv.data.DiscoverParams.dateField(t)
+            when (val d = f.decade) {
+                null -> {}
+                -1 -> put("$df.lte", "1969-12-31")
+                else -> { put("$df.gte", "$d-01-01"); put("$df.lte", "${d + 9}-12-31") }
+            }
+        }
+        job = viewModelScope.launch {
+            loading.value = true
+            runCatching { c.tmdb.discover(t, params, page = pages + 1) }
+                .onSuccess { items ->
+                    val fresh = items.filter { n -> raw.value.none { it.id == n.id } }
+                    raw.value = raw.value + fresh
+                    pages++
+                    if (fresh.isEmpty() || pages >= 25) endReached.value = true
+                }
+                .onFailure { e -> error.value = if (!c.tmdb.enabled) "Add a TMDB key in Settings → Addons to browse streaming services and studios." else "Couldn't load: ${e.message}" }
             loading.value = false
         }
     }

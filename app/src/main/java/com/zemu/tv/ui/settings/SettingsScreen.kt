@@ -369,14 +369,14 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("theme", "Color theme") {
         ThemePicker(settings) { t -> vm.update(t) }
     }
-    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk, Y2K and the other effect themes bring their own colors. Y2K restyles the whole app: chrome buttons, a PS2-style backdrop and chromatic aberration. RGB, Snowfall and Rain keep your color theme.") {
+    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk, Y2K and the other effect themes bring their own colors. Y2K restyles the whole app: chrome buttons, a PS2-style backdrop and chromatic aberration. RGB keeps your color theme.") {
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(DynamicTheme.entries.toList(), key = { it.name }) { d ->
                 TvChip(d.label, selected = settings.dynamicTheme == d.name, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
             }
         }
     }
-    group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors. Each theme keeps its own, separately for light and dark mode.") {
+    group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors — including the white of light mode and the black of dark mode. Each theme keeps its own, separately for light and dark mode.") {
         ColorCustomizer(settings) { t -> vm.update(t) }
     }
     group("feedback", "Touch screens") {

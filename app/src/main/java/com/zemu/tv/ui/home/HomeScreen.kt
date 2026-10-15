@@ -1,6 +1,8 @@
 package com.zemu.tv.ui.home
 
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.clip
 import com.zemu.tv.ui.theme.glassPanel
 import com.zemu.tv.ui.components.AppIcons
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,11 +55,22 @@ import com.zemu.tv.ui.components.TvButton
 import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 
+/**
+ * Home, and the Movies / Series / Anime pages ([page] "movie", "series", "anime"), which add a bar
+ * to browse everything or one streaming service or studio. [onBrowse] opens that grid.
+ */
 @Composable
-fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta) -> Unit = onOpen) {
+fun HomeScreen(
+    onOpen: (Meta) -> Unit,
+    onOpenSettings: () -> Unit,
+    onPlay: (Meta) -> Unit = onOpen,
+    page: String = "home",
+    onBrowse: (type: String, service: String?, studio: String?) -> Unit = { _, _, _ -> },
+) {
     val context = LocalContext.current
     val c = context.container
-    val vm: HomeViewModel = viewModel { HomeViewModel(c) }
+    val vm: HomeViewModel = viewModel(key = "rows-$page") { HomeViewModel(c, page) }
+    var pageDialog by remember { mutableStateOf<String?>(null) }
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by c.userStore.settings.collectAsStateWithLifecycle()
 
@@ -73,7 +86,8 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
     // Debounce so fast scrolling doesn't thrash the backdrop.
     LaunchedEffect(focused) {
         delay(220)
-        focused?.let { hero = it }
+        // Service logos and "See more" tiles aren't titles; keep the last title in the hero.
+        focused?.takeIf { !it.id.startsWith("service:") && !it.id.startsWith("seemore:") }?.let { hero = it }
     }
     LaunchedEffect(firstKey) {
         if (hero == null) hero = firstRow?.items?.firstOrNull()
@@ -91,7 +105,9 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
     var lastBack by remember { mutableLongStateOf(0L) }
     // Row being moved or favorited (popup with heart / up / down).
     var editingRow by remember { mutableStateOf<String?>(null) }
-    BackHandler {
+    val scrolled by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    // Other pages: Back at the top goes back as usual.
+    BackHandler(enabled = page == "home" || scrolled) {
         val now = System.currentTimeMillis()
         when {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 -> scope.launch {
@@ -128,7 +144,7 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
                 // Room below the last row so it can settle at the same spot as the others.
                 contentPadding = PaddingValues(bottom = 420.dp),
             ) {
-                if (state.noStreamAddons) {
+                if (state.noStreamAddons && page == "home") {
                     item(key = "no-streams") {
                         Column(Modifier.padding(horizontal = 48.dp, vertical = 8.dp)) {
                             Text(
@@ -141,6 +157,9 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
                         }
                     }
                 }
+                if (page != "home") item(key = "page-bar") {
+                    PageBar(page, onBrowse = { onBrowse(if (page == "anime") "anime" else page, null, null) }, onPick = { pageDialog = it }, tmdb = c.tmdb.enabled)
+                }
                 items(state.rows, key = { it.key }) { row ->
                     val requesters = buildMap {
                         savedFocus?.takeIf { it.startsWith("${row.key}|") }?.let { put(it.substringAfter('|'), restoreRequester) }
@@ -152,9 +171,11 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
                     }
                     pinRow {
                     CompositionLocalProvider(LocalRowOptions provides { editingRow = row.key }) {
+                    val rowType = row.items.firstOrNull()?.type?.takeIf { page == "home" } ?: if (page == "series") "series" else "movie"
+                    val more = row.service != null || row.studio != null
                     MediaRow(
                         title = row.title,
-                        items = row.items,
+                        items = if (more) row.items + Meta(id = "seemore:${row.key}", name = "See more") else row.items,
                         key = { it.id },
                         requesters = requesters,
                         favorite = row.favorite,
@@ -167,7 +188,11 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
                                     if (row.key == "continue") onPlay(m) else onOpen(m)
                                 }
                             }, modifier = mod, onFocused = onFocus)
-                            RowStyle.POSTER -> PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
+                            RowStyle.SERVICES -> ServiceCard(m, modifier = mod, onFocused = onFocus) {
+                                onBrowse(if (page == "series") "series" else "movie", m.id.removePrefix("service:"), null)
+                            }
+                            RowStyle.POSTER -> if (m.id.startsWith("seemore:")) SeeMoreCard(row.title, mod, onFocus = { onFocus(m) }) { onBrowse(rowType, row.service, row.studio) }
+                            else PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
                         }
                     }
                     }
@@ -176,6 +201,19 @@ fun HomeScreen(onOpen: (Meta) -> Unit, onOpenSettings: () -> Unit, onPlay: (Meta
             }
             }
         }
+    }
+    pageDialog?.let { which ->
+        val type = if (page == "series") "series" else "movie"
+        val options = if (which == "service") com.zemu.tv.data.StreamingService.entries.map { com.zemu.tv.ui.components.ChoiceOption(it.name, it.label) }
+        else com.zemu.tv.data.Studio.forType(type).map { com.zemu.tv.ui.components.ChoiceOption(it.key, it.label) }
+        com.zemu.tv.ui.components.ChoiceDialog(
+            title = if (which == "service") "Streaming service" else if (type == "series") "Network" else "Studio",
+            options = options,
+            selected = emptySet(),
+            multiSelect = false,
+            onToggle = { v -> if (which == "service") onBrowse(type, v, null) else onBrowse(type, null, v) },
+            onDismiss = { pageDialog = null },
+        )
     }
     editingRow?.let { key ->
         val row = state.rows.firstOrNull { it.key == key }
@@ -226,5 +264,60 @@ private fun RowEditorButton(icon: androidx.compose.ui.graphics.vector.ImageVecto
 private fun StatusLine(text: String) {
     Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 16.dp), contentAlignment = Alignment.CenterStart) {
         Text(text, color = Palette.TextSecondary, fontSize = 15.sp)
+    }
+}
+
+/** Top of the Movies / Series / Anime pages: the page name and ways into the full catalog. */
+@Composable
+private fun PageBar(page: String, onBrowse: () -> Unit, onPick: (String) -> Unit, tmdb: Boolean) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.padding(start = 48.dp, end = 48.dp, top = 4.dp, bottom = 4.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val noun = when (page) { "series" -> "Series"; "anime" -> "Anime"; else -> "Movies" }
+        Text(noun, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.padding(end = 6.dp))
+        com.zemu.tv.ui.components.TvChip("All $noun ▸", selected = false, onClick = onBrowse)
+        if (page != "anime" && tmdb) {
+            com.zemu.tv.ui.components.TvChip("By streaming service ▾", selected = false, onClick = { onPick("service") })
+            com.zemu.tv.ui.components.TvChip(if (page == "series") "By network ▾" else "By studio ▾", selected = false, onClick = { onPick("studio") })
+        }
+        if (!tmdb && page != "anime") Text("Add a free TMDB key in Settings → Addons for streaming services and studios.", color = Palette.TextMuted, fontSize = 13.sp)
+    }
+}
+
+/** A streaming service tile: its logo (or name), opening everything on that service. */
+@Composable
+private fun ServiceCard(m: Meta, modifier: Modifier, onFocused: (Meta) -> Unit, onClick: () -> Unit) {
+    com.zemu.tv.ui.components.FocusSurface(
+        onClick = onClick,
+        modifier = modifier.size(width = 168.dp, height = 96.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        focusedScale = 1.08f,
+    ) {
+        if (m.poster != null) {
+            com.zemu.tv.ui.components.RemoteImage(
+                m.poster, Modifier.align(Alignment.Center).padding(14.dp).fillMaxSize()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            )
+        } else Text(m.name.orEmpty(), fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.align(Alignment.Center))
+    }
+}
+
+/** Last tile of a service or studio row: opens the full, filterable list. */
+@Composable
+private fun SeeMoreCard(title: String, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    com.zemu.tv.ui.components.FocusSurface(
+        onClick = onClick,
+        modifier = modifier.size(width = 132.dp, height = 198.dp).onFocusChanged { if (it.isFocused) onFocus() },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+        focusedScale = 1.1f,
+    ) {
+        Column(Modifier.align(Alignment.Center).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("See more", fontWeight = FontWeight.Black, fontSize = 17.sp)
+            Text(title.substringAfter(" on ").substringAfter(" from ").substringAfter("Best of "), fontSize = 12.sp, maxLines = 2,
+                color = androidx.tv.material3.LocalContentColor.current.copy(alpha = 0.7f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
     }
 }

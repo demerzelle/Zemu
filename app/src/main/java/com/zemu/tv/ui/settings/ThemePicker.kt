@@ -64,46 +64,16 @@ private data class Hsv(val h: Float, val s: Float, val v: Float) {
     }
 }
 
-/** Preset theme swatches plus a custom accent/background picker. */
+/** Preset theme swatches; colors of any theme are changed with [ColorCustomizer]. */
 @Composable
 fun ThemePicker(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
-    val current = settings.themeColors()
     LazyRow(
         contentPadding = PaddingValues(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(ThemePreset.entries.toList(), key = { it.name }) { p ->
-            ThemeSwatch(p.label, p.colors, selected = settings.theme == p.name) { update { it.copy(theme = p.name) } }
+            ThemeSwatch(p.label, p.colors, selected = ThemePreset.of(settings.theme) == p && settings.theme != ThemePreset.CUSTOM) { update { it.copy(theme = p.name) } }
         }
-        item(key = "custom") {
-            ThemeSwatch(
-                "Custom",
-                ThemeColors(Color(settings.customAccent.toInt()), Color(settings.customBackground.toInt())),
-                selected = settings.theme == ThemePreset.CUSTOM,
-            ) {
-                // Start the custom theme from whatever is showing now.
-                update {
-                    if (it.theme == ThemePreset.CUSTOM) it
-                    else it.copy(theme = ThemePreset.CUSTOM, customAccent = current.accent.toArgbLong(), customBackground = current.background.toArgbLong())
-                }
-            }
-        }
-    }
-    if (settings.theme == ThemePreset.CUSTOM) {
-        val accent = Hsv.of(Color(settings.customAccent.toInt()))
-        val bg = Hsv.of(Color(settings.customBackground.toInt()))
-        fun setAccent(h: Hsv) = update { it.copy(customAccent = h.color().toArgbLong()) }
-        fun setBg(h: Hsv) = update { it.copy(customBackground = h.color().toArgbLong()) }
-        val hueBrush = Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) })
-
-        Text("Custom colors  ·  use Left / Right to adjust", color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
-        TvSlider("Accent hue", accent.h / 360f, 1f / 72, hueBrush) { setAccent(accent.copy(h = it * 360f)) }
-        TvSlider("Accent saturation", accent.s, 0.05f, Brush.horizontalGradient(listOf(accent.copy(s = 0f).color(), accent.copy(s = 1f).color()))) { setAccent(accent.copy(s = it)) }
-        TvSlider("Accent brightness", accent.v, 0.05f, Brush.horizontalGradient(listOf(Color.Black, accent.copy(v = 1f).color()))) { setAccent(accent.copy(v = it)) }
-        TvSlider("Background tint", bg.h / 360f, 1f / 72, hueBrush) { setBg(bg.copy(h = it * 360f, s = bg.s.coerceAtLeast(0.2f))) }
-        TvSlider("Background tint strength", bg.s, 0.05f, Brush.horizontalGradient(listOf(Color(0xFF151515), bg.copy(s = 1f, v = 0.25f).color()))) { setBg(bg.copy(s = it)) }
-        // Backgrounds stay dark so white text is always readable.
-        TvSlider("Background brightness", bg.v / 0.22f, 0.05f, Brush.horizontalGradient(listOf(Color.Black, bg.copy(v = 0.22f).color()))) { setBg(bg.copy(v = it * 0.22f)) }
     }
 }
 

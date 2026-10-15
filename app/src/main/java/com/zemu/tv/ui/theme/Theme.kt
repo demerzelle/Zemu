@@ -40,14 +40,14 @@ data class ThemeColors(
     val surface: Color = customPanel ?: when {
         glass && light -> Color.White.copy(alpha = 0.55f)
         glass -> Color.White.copy(alpha = 0.09f)
-        light -> Color.White
+        light -> if (customBase != null) lerp(base, Color.White, 0.6f) else Color.White
         else -> lerp(base, Color.White, 0.07f)
     }
     /** Buttons and raised rows (unfocused). */
     val surfaceHigh: Color = customButton ?: when {
         glass && light -> Color.White.copy(alpha = 0.8f)
         glass -> Color.White.copy(alpha = 0.17f)
-        light -> lerp(Color.White, Color.Black, 0.07f)
+        light -> if (customBase != null) lerp(base, Color.Black, 0.07f) else lerp(Color.White, Color.Black, 0.07f)
         else -> lerp(base, Color.White, 0.14f)
     }
 
@@ -76,9 +76,7 @@ enum class ColorRole(val key: String, val label: String) {
 enum class ThemePreset(val label: String, val accent: Long, val background: Long) {
     CLASSIC("Zemu Neon", 0xFF39FF14, 0xFF07090A),
     CRIMSON("Crimson", 0xFFE50914, 0xFF0A0A0E),
-    OLED("OLED Black", 0xFFE50914, 0xFF000000),
     OCEAN("Ocean Blue", 0xFF2F80ED, 0xFF070B14),
-    ARCTIC("Arctic", 0xFF22D3EE, 0xFF0A1218),
     EMERALD("Emerald", 0xFF10B981, 0xFF06100C),
     PURPLE("Royal Purple", 0xFF8B5CF6, 0xFF0C0814),
     ROSE("Rose", 0xFFEC4899, 0xFF12070D),
@@ -89,13 +87,18 @@ enum class ThemePreset(val label: String, val accent: Long, val background: Long
     val colors: ThemeColors get() = ThemeColors(Color(accent.toInt()), Color(background.toInt()))
 
     companion object {
+        /** Older "Custom" theme: still honored, but colors are now set with Customize colors. */
         const val CUSTOM = "CUSTOM"
+        /** Removed presets map to their nearest one. */
+        private val RENAMED = mapOf("OLED" to "CRIMSON", "ARCTIC" to "OCEAN")
+
+        fun of(name: String) = entries.firstOrNull { it.name == (RENAMED[name] ?: name) } ?: CLASSIC
     }
 }
 
 fun AppSettings.themeColors(): ThemeColors =
     (if (theme == ThemePreset.CUSTOM) ThemeColors(Color(customAccent.toInt()), Color(customBackground.toInt()))
-    else (ThemePreset.entries.firstOrNull { it.name == theme } ?: ThemePreset.CLASSIC).colors)
+    else ThemePreset.of(theme).colors)
         .copy(light = lightMode, glass = glassStyle)
 
 /** Which theme's custom colors apply: an animated theme with its own palette, else the color theme. */

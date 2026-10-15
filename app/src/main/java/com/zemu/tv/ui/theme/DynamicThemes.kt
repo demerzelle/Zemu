@@ -32,8 +32,6 @@ import kotlin.random.Random
 enum class DynamicTheme(val label: String, val accent: Long? = null, val background: Long? = null) {
     NONE("Off"),
     RGB("RGB"),
-    SNOWFALL("Snowfall"),
-    RAIN("Rain"),
     LIGHTNING("Lightning storm", 0xFF8AB4FF, 0xFF06080F),
     CYBERPUNK("Cyberpunk", 0xFFFF2A6D, 0xFF0B0518),
     HALLOWEEN("Halloween", 0xFFFF7518, 0xFF0F0710),
@@ -47,7 +45,10 @@ enum class DynamicTheme(val label: String, val accent: Long? = null, val backgro
     ;
 
     companion object {
-        fun of(name: String) = entries.firstOrNull { it.name == name } ?: NONE
+        /** Removed themes map to the one that already includes their effect. */
+        private val RENAMED = mapOf("SNOWFALL" to "CHRISTMAS", "RAIN" to "LIGHTNING")
+
+        fun of(name: String) = entries.firstOrNull { it.name == (RENAMED[name] ?: name) } ?: NONE
     }
 }
 
@@ -73,8 +74,8 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
     val rnd = remember(theme) { Random(42) }
     val particles = remember(theme) {
         val n = when (theme) {
-            DynamicTheme.SNOWFALL, DynamicTheme.CHRISTMAS -> 90
-            DynamicTheme.RAIN, DynamicTheme.LIGHTNING -> 110
+            DynamicTheme.CHRISTMAS -> 90
+            DynamicTheme.LIGHTNING -> 110
             DynamicTheme.FIREFLIES -> 36
             DynamicTheme.HALLOWEEN -> 14
             DynamicTheme.MATRIX -> 48
@@ -115,11 +116,11 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
                 }
                 particles.forEach { p ->
                     when (theme) {
-                        DynamicTheme.SNOWFALL, DynamicTheme.CHRISTMAS -> {
+                        DynamicTheme.CHRISTMAS -> {
                             p.y += dt * 0.05f * p.speed
                             p.x += dt * 0.015f * sin(time + p.phase)
                         }
-                        DynamicTheme.RAIN, DynamicTheme.LIGHTNING -> {
+                        DynamicTheme.LIGHTNING -> {
                             p.y += dt * 1.1f * p.speed
                             p.x += dt * 0.12f
                         }
@@ -150,12 +151,10 @@ fun DynamicThemeLayer(theme: DynamicTheme, onAccent: (Color?) -> Unit, modifier:
     Canvas(modifier.fillMaxSize()) {
         val t = time
         when (theme) {
-            DynamicTheme.SNOWFALL -> snow(particles)
             DynamicTheme.CHRISTMAS -> {
                 snow(particles)
                 christmasLights(t)
             }
-            DynamicTheme.RAIN -> rain(particles, Color(0x55B0C4DE))
             DynamicTheme.LIGHTNING -> {
                 rain(particles, Color(0x448AB4FF))
                 if (flash > 0f) {

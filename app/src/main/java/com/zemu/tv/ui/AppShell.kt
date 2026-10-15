@@ -110,7 +110,6 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     SERIES("series", "Series", AppIcons.Tv),
     ANIME("anime", "Anime", AppIcons.Anime),
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
-    ADDONS("addons", "Addons", AppIcons.Puzzle),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }
 
@@ -125,12 +124,14 @@ fun AppShell() {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val current = route
-    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person")
+    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person") && !route.startsWith("browse")
     val context = LocalContext.current
     val c = context.container
     // With Instant play on, selecting a title starts it; the long-press menu's "Details" still opens the page.
-    val open: (Meta) -> Unit = { nav.navigate(detailsRoute(it, play = c.userStore.settings.value.instantPlay)) }
     val scope = rememberCoroutineScope()
+    val open: (Meta) -> Unit = { m ->
+        resolving(context, scope, m) { nav.navigate(detailsRoute(it, play = c.userStore.settings.value.instantPlay)) }
+    }
     val watched by c.userStore.watched.collectAsStateWithLifecycle()
     val myList by c.userStore.myList.collectAsStateWithLifecycle()
     val history by c.userStore.history.collectAsStateWithLifecycle()
@@ -156,13 +157,33 @@ fun AppShell() {
             startDestination = "home",
             modifier = Modifier.fillMaxSize().padding(start = if (showRail) RAIL_WIDTH else 0.dp),
         ) {
-            composable("home") { HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }) }
-            composable("movies") { BrowseScreen(type = "movie", onOpen = open) }
-            composable("series") { BrowseScreen(type = "series", onOpen = open) }
-            composable("anime") { BrowseScreen(type = "anime", onOpen = open) }
+            composable("home") {
+                HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }, onBrowse = { type, service, studio ->
+                    nav.navigate("browse/$type?service=${service.orEmpty()}&studio=${studio.orEmpty()}")
+                })
+            }
+            val browse: (String, String?, String?) -> Unit = { type, service, studio ->
+                nav.navigate("browse/$type?service=${service.orEmpty()}&studio=${studio.orEmpty()}")
+            }
+            listOf("movies" to "movie", "series" to "series", "anime" to "anime").forEach { (route, page) ->
+                composable(route) {
+                    HomeScreen(onOpen = open, onOpenSettings = { nav.navigateTop("addons") }, onPlay = { nav.navigate(detailsRoute(it, play = true)) }, page = page, onBrowse = browse)
+                }
+            }
+            composable(
+                "browse/{type}?service={service}&studio={studio}",
+                arguments = listOf(navArgument("service") { defaultValue = "" }, navArgument("studio") { defaultValue = "" }),
+            ) { e ->
+                BrowseScreen(
+                    type = e.arguments?.getString("type") ?: "movie",
+                    onOpen = open,
+                    service = e.arguments?.getString("service")?.ifEmpty { null },
+                    studio = e.arguments?.getString("studio")?.ifEmpty { null },
+                )
+            }
             composable("search") { SearchScreen(onOpen = open) }
             composable("mylist") { MyListScreen(onOpen = open) }
-            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigateTop("addons") }) }
+            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }) }
             composable("addons") { AddonBrowserScreen() }
             composable("person/{key}") { e -> PersonScreen(key = Uri.decode(e.arguments?.getString("key").orEmpty()), onOpen = open) }
             composable(
@@ -207,7 +228,7 @@ fun AppShell() {
                 inHistory = history.any { it.meta.id == m.id },
                 rowOptions = menuRowOptions != null,
             ),
-            onAction = { a ->
+            onAction = { a -> resolving(context, scope, m) { m ->
                 when (a) {
                     CardAction.DETAILS -> nav.navigate(detailsRoute(m))
                     CardAction.EPISODES -> nav.navigate(detailsRoute(m, "episodes"))
@@ -218,7 +239,7 @@ fun AppShell() {
                     CardAction.REMOVE_HISTORY -> scope.launch { c.userStore.removeFromHistory(m.id) }
                     CardAction.ROW_OPTIONS -> menuRowOptions?.invoke()
                 }
-            },
+            } },
             onDismiss = { menuFor = null },
         )
     }
@@ -353,5 +374,18 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                 }
             }
         }
+    }
+}
+
+/**
+ * Streaming service and studio rows list TMDB titles ("tmdb:movie:123"); they're looked up as
+ * IMDb titles when opened, so the rest of the app only ever sees IMDb / Kitsu ids.
+ */
+private fun resolving(context: android.content.Context, scope: kotlinx.coroutines.CoroutineScope, m: Meta, block: (Meta) -> Unit) {
+    if (!m.id.startsWith("tmdb:")) return block(m)
+    scope.launch {
+        val imdb = runCatching { context.container.tmdb.imdbFor(m.id) }.getOrNull()
+        if (imdb == null) android.widget.Toast.makeText(context, "Couldn't find ${m.name ?: "this title"} in the catalog", android.widget.Toast.LENGTH_SHORT).show()
+        else block(m.copy(id = imdb))
     }
 }

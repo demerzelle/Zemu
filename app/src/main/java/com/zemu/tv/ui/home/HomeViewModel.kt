@@ -3,10 +3,16 @@ package com.zemu.tv.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zemu.tv.AppContainer
-import com.zemu.tv.data.Addon
 import com.zemu.tv.data.AddonRepository
-import com.zemu.tv.data.CatalogDef
+import com.zemu.tv.data.DiscoverParams
 import com.zemu.tv.data.Meta
+import com.zemu.tv.data.RowPrefs
+import com.zemu.tv.data.RowSnapshot
+import com.zemu.tv.data.RowSpec
+import com.zemu.tv.data.StreamingService
+import com.zemu.tv.data.Categories
+import com.zemu.tv.data.slim
+import kotlinx.coroutines.sync.withPermit
 import com.zemu.tv.recommend.SuggestionRow
 import com.zemu.tv.recommend.TasteProfile
 import kotlinx.coroutines.async
@@ -24,7 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class RowStyle { POSTER, LANDSCAPE }
+enum class RowStyle { POSTER, LANDSCAPE, /** Streaming service logos. */ SERVICES }
 
 data class HomeRow(
     val key: String,
@@ -39,6 +45,9 @@ data class HomeRow(
     val badges: Map<String, String> = emptyMap(),
     /** Pinned to the top by the user (heart). */
     val favorite: Boolean = false,
+    /** "See more" opens the grid for this streaming service or studio. */
+    val service: String? = null,
+    val studio: String? = null,
 )
 
 /**
@@ -69,19 +78,34 @@ data class HomeUi(
 
 private data class Status(val loading: Boolean = true, val error: String? = null)
 
-class HomeViewModel(private val c: AppContainer) : ViewModel() {
-    private val catalogRows = MutableStateFlow<List<HomeRow>>(emptyList())
+/**
+ * Rows for Home and for the Movies, Series and Anime pages ([page] = "home", "movie", "series" or
+ * "anime"). Each page mixes personal rows, streaming service and studio rows, and catalog rows; the
+ * rotating ones change every launch. The last session's rows show instantly while they refresh.
+ */
+class HomeViewModel(private val c: AppContainer, val page: String = "home") : ViewModel() {
+    private val isHome = page == "home"
+    private val specRows = MutableStateFlow<List<HomeRow>>(emptyList())
     private val dailyRows = MutableStateFlow<List<HomeRow>>(emptyList())
+    private val serviceLogos = MutableStateFlow<Map<Int, String>>(emptyMap())
     private val status = MutableStateFlow(Status())
 
-    private val extraRows = combine(dailyRows, c.newEpisodes.items) { d, n -> d to n }
+    /** Movies/series pages only show their own kind; anime pages show Kitsu titles. */
+    private fun Meta.onPage(): Boolean = when (page) {
+        "home" -> true
+        "anime" -> id.startsWith("kitsu:")
+        else -> type == page && !id.startsWith("kitsu:")
+    }
 
-    private val baseRows = combine(catalogRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { catalogs, (daily, fresh), history, myList, watched ->
+    private val extraRows = combine(dailyRows, c.newEpisodes.items, serviceLogos) { d, n, l -> Triple(d, n, l) }
+
+    private val baseRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { catalogs, (daily, freshAll, logos), history, myList, watched ->
         buildList {
-            if (fresh.isNotEmpty()) add(
+            val fresh = freshAll.filter { it.meta.onPage() }
+            if (fresh.isNotEmpty() && page != "movie") add(
                 HomeRow("new-episodes", "New Episodes", fresh.map { it.meta }, priority = -1, badges = fresh.associate { it.meta.id to it.badge }),
             )
-            val inProgress = history.filter { (it.progress in 0.01f..0.95f || it.durationMs == 0L) && it.meta.id !in watched }.distinctBy { it.meta.id }
+            val inProgress = history.filter { (it.progress in 0.01f..0.95f || it.durationMs == 0L) && it.meta.id !in watched && it.meta.onPage() }.distinctBy { it.meta.id }
             if (inProgress.isNotEmpty()) add(
                 HomeRow(
                     key = "continue",
@@ -93,39 +117,52 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                     progress = inProgress.associate { it.meta.id to it.progress },
                 ),
             )
-            if (myList.isNotEmpty()) add(HomeRow("mylist", "My List", myList, priority = 7))
-            val recent = history.sortedByDescending { it.updatedAt }.distinctBy { it.meta.id }
-            // Only movies watched through to the credits; partly watched ones are In Progress.
-            recent.filter { it.meta.type == "movie" && it.meta.id in watched }.map { it.meta }.take(30).takeIf { it.isNotEmpty() }
-                ?.let { add(HomeRow("recent-movies", "Recently Watched Movies", it, priority = 6)) }
-            recent.filter { it.meta.type == "series" }.take(30).takeIf { it.isNotEmpty() }?.let { list ->
-                add(
-                    HomeRow(
-                        "recent-series", "Recently Watched Series", list.map { it.meta }, priority = 6,
-                        style = RowStyle.LANDSCAPE,
-                        subtitles = list.mapNotNull { e -> e.label?.let { e.meta.id to it } }.toMap(),
-                    ),
-                )
+            if (page != "anime" && c.tmdb.enabled) add(
+                HomeRow(
+                    "services", "Streaming Services",
+                    StreamingService.entries.filter { page == "series" || it != StreamingService.CRUNCHYROLL }
+                        .map { s -> Meta(id = "service:${s.name}", name = s.label, poster = logos[s.logoId]) },
+                    priority = 1, style = RowStyle.SERVICES,
+                ),
+            )
+            if (isHome) {
+                if (myList.isNotEmpty()) add(HomeRow("mylist", "My List", myList, priority = 7))
+                val recent = history.sortedByDescending { it.updatedAt }.distinctBy { it.meta.id }
+                // Only movies watched through to the credits; partly watched ones are In Progress.
+                recent.filter { it.meta.type == "movie" && it.meta.id in watched }.map { it.meta }.take(30).takeIf { it.isNotEmpty() }
+                    ?.let { add(HomeRow("recent-movies", "Recently Watched Movies", it, priority = 6)) }
+                recent.filter { it.meta.type == "series" }.take(30).takeIf { it.isNotEmpty() }?.let { list ->
+                    add(
+                        HomeRow(
+                            "recent-series", "Recently Watched Series", list.map { it.meta }, priority = 6,
+                            style = RowStyle.LANDSCAPE,
+                            subtitles = list.mapNotNull { e -> e.label?.let { e.meta.id to it } }.toMap(),
+                        ),
+                    )
+                }
             }
             addAll(daily)
             addAll(catalogs)
         }.sortedBy { it.priority }
     }
 
-    private val arrangedRows = combine(baseRows, c.userStore.homeRows) { rows, prefs -> arrangeRows(rows, prefs) }
+    private val prefs = if (isHome) c.userStore.homeRows else c.userStore.pageRows.map { it[page] ?: RowPrefs() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RowPrefs())
+
+    private val arrangedRows = combine(baseRows, prefs) { rows, p -> arrangeRows(rows, p) }
 
     init {
-        // The screensaver suggests titles from the same discovery rows (not your own history).
-        viewModelScope.launch {
-            combine(catalogRows, dailyRows) { cat, daily -> daily to cat }.collect { (daily, cat) ->
+        // The screensaver suggests titles from Home's discovery rows (not your own history).
+        if (isHome) viewModelScope.launch {
+            combine(specRows, dailyRows) { cat, daily -> daily to cat }.collect { (daily, cat) ->
                 c.discovery.value = DiscoveryPool(daily.flatMap { it.items }, cat.flatMap { it.items })
             }
         }
     }
 
     val state: StateFlow<HomeUi> = combine(arrangedRows, c.addons.ready, c.addons.addons, status) { rows, ready, _, st ->
-        if (!ready) return@combine HomeUi(loading = true)
-        HomeUi(rows = rows, loading = st.loading, error = st.error, noStreamAddons = !c.addons.hasStreamAddons)
+        if (!ready && rows.isEmpty()) return@combine HomeUi(loading = true)
+        HomeUi(rows = rows, loading = st.loading, error = st.error, noStreamAddons = ready && !c.addons.hasStreamAddons)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, HomeUi())
 
     /** Emits the local day number, re-checked every 30 minutes so rows rotate after midnight. */
@@ -136,22 +173,23 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         }
     }.distinctUntilChanged()
 
+    private val snapshotFile = java.io.File(c.appContext.filesDir, "rows_${c.profileId}_$page.json")
+
     init {
-        load()
-        viewModelScope.launch {
+        load(useSnapshot = true)
+        if (page != "anime") viewModelScope.launch {
             combine(c.userStore.history, c.userStore.myList, day, c.userStore.ratings) { h, l, d, r -> listOf(h, l, d, r) }
                 .distinctUntilChanged()
                 .collectLatest {
-                    delay(300)
-                    val history = c.userStore.history.value
-                    val myList = c.userStore.myList.value
-                    loadDaily(c.tasteProfile(), history, myList)
+                    delay(if (isHome) 1_200 else 2_000)
+                    loadDaily(c.tasteProfile(), c.userStore.history.value, c.userStore.myList.value)
                 }
         }
+        viewModelScope.launch { serviceLogos.value = runCatching { c.tmdb.providerLogos(DiscoverParams.region) }.getOrDefault(emptyMap()) }
         // Reload catalogs when addons are installed/removed.
         viewModelScope.launch {
             c.addons.addons.map { list -> list.map { it.transportUrl } }.distinctUntilChanged().collect {
-                if (c.addons.ready.value && it != loadedFor) load()
+                if (c.addons.ready.value && loadedFor != null && it != loadedFor) load(useSnapshot = false)
             }
         }
     }
@@ -164,56 +202,146 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         if (i < 0 || j !in shown.indices || shown[i].favorite != shown[j].favorite) return@launch
         val keys = shown.map { it.key }.toMutableList()
         keys[i] = keys[j].also { keys[j] = keys[i] }
-        val prefs = c.userStore.homeRows.value
-        c.userStore.saveHomeRows(prefs.copy(order = keys))
+        c.userStore.saveRowPrefs(page, prefs.value.copy(order = keys))
     }
 
     fun toggleFavoriteRow(key: String) = viewModelScope.launch {
-        val prefs = c.userStore.homeRows.value
+        val p = prefs.value
         // Un-favoriting drops the row's saved spot, so it goes back where it normally appears.
-        val next = if (key in prefs.favorites) prefs.copy(favorites = prefs.favorites - key, order = prefs.order - key)
-        else prefs.copy(favorites = prefs.favorites + key)
-        c.userStore.saveHomeRows(next)
+        val next = if (key in p.favorites) p.copy(favorites = p.favorites - key, order = p.order - key)
+        else p.copy(favorites = p.favorites + key)
+        c.userStore.saveRowPrefs(page, next)
     }
 
     fun match(meta: Meta): Int = c.recommender.matchPercent(meta, c.tasteProfile())
 
     fun retry() {
         c.streams.invalidate()
-        load()
+        load(useSnapshot = false)
     }
 
     private var loadedFor: List<String>? = null
+    private var loadJob: kotlinx.coroutines.Job? = null
 
-    private fun load() = viewModelScope.launch {
-        status.value = Status(loading = true)
-        c.addons.ready.first { it }
-        c.addons.ensureDefaults()
-        loadedFor = c.addons.addons.value.map { it.transportUrl }
-        val specs = catalogSpecs(c.addons.addons.value)
-        val rows = specs.map { spec ->
-            async {
-                val items = runCatching { c.addons.catalog(spec.addon, spec.catalog.type, spec.catalog.id, spec.extra) }
-                    .getOrDefault(emptyList())
-                HomeRow(
-                    key = "${spec.addon.manifest.id}/${spec.catalog.type}/${spec.catalog.id}/${spec.extra.values.joinToString()}",
-                    title = spec.title,
-                    items = items,
-                    priority = spec.priority,
-                )
+    private fun RowSpec.toRow(items: List<Meta>) = HomeRow(key, title, items, priority, service = service, studio = studio)
+
+    /**
+     * Shows the saved rows right away (if any), then refreshes every row in parallel, each one
+     * appearing as soon as it loads. Afterwards the next rotation is fetched and saved, so the
+     * next launch starts instantly with new categories.
+     */
+    private fun load(useSnapshot: Boolean) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            val snapshot = if (useSnapshot) readSnapshot() else null
+            if (snapshot != null && snapshot.specs.isNotEmpty()) {
+                specRows.value = snapshot.specs.mapNotNull { s -> snapshot.items[s.key]?.takeIf { it.isNotEmpty() }?.let { s.toRow(it) } }
+                status.value = Status(loading = false)
+            } else status.value = Status(loading = true)
+            c.addons.ready.first { it }
+            if (isHome) c.addons.ensureDefaults()
+            if (page == "anime") c.addons.ensureKitsu()
+            loadedFor = c.addons.addons.value.map { it.transportUrl }
+            val specs = snapshot?.specs?.takeIf { it.isNotEmpty() } ?: buildSpecs(kotlin.random.Random.nextLong())
+            val items = fetchAll(specs) { key, list ->
+                val spec = specs.first { it.key == key }
+                specRows.value = (specRows.value.filterNot { it.key == key } + spec.toRow(list)).sortedBy { it.priority }
             }
-        }.awaitAll().filter { it.items.isNotEmpty() }
-        catalogRows.value = rows
-        status.value = Status(
-            loading = false,
-            error = if (rows.isEmpty()) "Couldn't load any catalogs. Check your connection and installed addons." else null,
-        )
+            // Drop rows that came back empty this time.
+            specRows.value = specRows.value.filter { r -> items[r.key]?.isNotEmpty() ?: true }
+            status.value = Status(
+                loading = false,
+                error = if (specRows.value.isEmpty()) "Couldn't load any catalogs. Check your connection and installed addons." else null,
+            )
+            // Prepare the next launch's rotation in the background.
+            delay(5_000)
+            val next = buildSpecs(kotlin.random.Random.nextLong())
+            val nextItems = fetchAll(next) { _, _ -> }
+            writeSnapshot(RowSnapshot(next, nextItems.mapValues { (_, v) -> v.map { it.slim() } }))
+        }
+    }
+
+    private suspend fun fetchAll(specs: List<RowSpec>, onRow: (String, List<Meta>) -> Unit): Map<String, List<Meta>> = kotlinx.coroutines.coroutineScope {
+        val gate = kotlinx.coroutines.sync.Semaphore(6)
+        specs.map { spec ->
+            async {
+                val list = gate.withPermit { runCatching { fetch(spec) }.getOrDefault(emptyList()) }
+                if (list.isNotEmpty()) onRow(spec.key, list)
+                spec.key to list
+            }
+        }.awaitAll().toMap()
+    }
+
+    private suspend fun fetch(spec: RowSpec): List<Meta> {
+        spec.tmdb?.let { return c.tmdb.discover(spec.type, it).take(spec.limit) }
+        val addon = c.addons.addons.value.firstOrNull { it.manifest.id == spec.addonId } ?: return emptyList()
+        return c.addons.catalog(addon, spec.catalogType ?: spec.type, spec.catalogId ?: return emptyList(), spec.extra).take(spec.limit)
+    }
+
+    private suspend fun readSnapshot(): RowSnapshot? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { c.json.decodeFromString(RowSnapshot.serializer(), snapshotFile.readText()) }.getOrNull()
+    }
+
+    private suspend fun writeSnapshot(s: RowSnapshot) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { snapshotFile.writeText(c.json.encodeToString(RowSnapshot.serializer(), s)) }
+    }
+
+    private fun buildSpecs(seed: Long): List<RowSpec> {
+        val addons = c.addons.addons.value
+        val taste = c.tasteProfile().topGenres(4)
+        val specs = mutableListOf<RowSpec>()
+        if (page == "anime") {
+            val kitsu = c.addons.kitsu
+            if (kitsu != null) {
+                val labels = mapOf("kitsu-anime-trending" to "Trending Anime", "kitsu-anime-airing" to "Airing Now", "kitsu-anime-popular" to "Most Popular Anime", "kitsu-anime-rating" to "Top Rated Anime")
+                kitsu.manifest.catalogs.filter { it.requiredExtras.isEmpty() && it.id in labels }.forEachIndexed { i, d ->
+                    specs += RowSpec("anime/${d.id}", labels.getValue(d.id), 3 + i, "series", addonId = kitsu.manifest.id, catalogType = d.type, catalogId = d.id)
+                }
+                kitsu.manifest.catalogs.firstOrNull { it.id == "kitsu-anime-popular" }?.optionsFor("genre").orEmpty()
+                    .shuffled(kotlin.random.Random(seed)).take(4).forEachIndexed { i, g ->
+                        specs += RowSpec("anime/genre-$g", "Popular $g Anime", 30 + i, "series", addonId = kitsu.manifest.id, catalogType = "anime", catalogId = "kitsu-anime-popular", extra = mapOf("genre" to g))
+                    }
+            }
+            if (c.tmdb.enabled) listOf(StreamingService.CRUNCHYROLL, StreamingService.NETFLIX, StreamingService.HULU).forEachIndexed { i, s ->
+                specs += RowSpec("anime/svc-${s.name}", "Anime on ${s.label}", 20 + i, "series",
+                    tmdb = DiscoverParams.service(s) + DiscoverParams.popular() + mapOf("with_genres" to "16", "with_original_language" to "ja"), service = s.name)
+            }
+            return specs
+        }
+        val cinemeta = addons.firstOrNull { it.manifest.id == AddonRepository.CINEMETA_ID }
+        if (cinemeta != null) {
+            fun cat(type: String, id: String) = cinemeta.manifest.catalogs.firstOrNull { it.type == type && it.id == id }
+            fun spec(type: String, id: String, title: String, priority: Int, extra: Map<String, String> = emptyMap()) =
+                RowSpec("$type/$id/${extra.values.joinToString()}", title, priority, type, addonId = cinemeta.manifest.id, catalogType = type, catalogId = id, extra = extra)
+            val types = if (isHome) listOf("movie", "series") else listOf(page)
+            types.forEach { type ->
+                val noun = if (type == "series") "Series" else "Movies"
+                val o = if (type == "series") 1 else 0
+                cat(type, "top")?.let { specs += spec(type, "top", if (isHome) "Popular $noun" else "Popular", 3 + o) }
+                cat(type, "year")?.optionsFor("genre")?.firstOrNull()?.let { y -> specs += spec(type, "year", "New $noun · $y", 11 + o * 4, mapOf("genre" to y)) }
+                cat(type, "imdbRating")?.let { specs += spec(type, "imdbRating", "Top Rated $noun", 13 + o * 3) }
+                specs += Categories.genreRows(cinemeta, type, seed, taste, count = if (isHome) (if (type == "movie") 2 else 1) else 3, priority = 30 + o * 5)
+            }
+        }
+        if (c.tmdb.enabled) specs += Categories.tmdbRows(page, seed, taste)
+        // Catalogs from any other installed addon that don't need extra input.
+        var p = 50
+        addons.filter { it !== cinemeta && it.manifest.id != AddonRepository.KITSU_ID }.forEach { addon ->
+            addon.manifest.catalogs.filter { it.requiredExtras.isEmpty() && it.type in (if (isHome) setOf("movie", "series") else setOf(page)) }.take(4).forEach { cat ->
+                specs += RowSpec("${addon.manifest.id}/${cat.type}/${cat.id}", "${cat.name ?: cat.id} · ${addon.manifest.name}", p++, cat.type, addonId = addon.manifest.id, catalogType = cat.type, catalogId = cat.id)
+            }
+        }
+        return specs
     }
 
     private suspend fun loadDaily(profile: TasteProfile, history: List<com.zemu.tv.data.WatchEntry>, myList: List<Meta>) {
         c.addons.ready.first { it }
         val rows = runCatching { c.recommender.dailyRows(profile, history, myList) }.getOrDefault(emptyList())
         dailyRows.value = rows.map { it.toHomeRow() }
+            .map { r -> if (isHome) r else r.copy(items = r.items.filter { it.onPage() }) }
+            .filter { isHome || it.items.size >= 6 }
+            // The New Episodes row is already built from [NewEpisodes].
+            .filter { isHome || it.key != "new-episodes" }
     }
 
     private fun SuggestionRow.toHomeRow() = HomeRow(
@@ -225,41 +353,4 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         subtitles = subtitles,
         match = match,
     )
-
-    private data class CatalogSpec(
-        val addon: Addon,
-        val catalog: CatalogDef,
-        val title: String,
-        val priority: Int,
-        val extra: Map<String, String> = emptyMap(),
-    )
-
-    private fun catalogSpecs(addons: List<Addon>): List<CatalogSpec> {
-        val specs = mutableListOf<CatalogSpec>()
-        val cinemeta = addons.firstOrNull { it.manifest.id == AddonRepository.CINEMETA_ID }
-        if (cinemeta != null) {
-            fun cat(type: String, id: String) = cinemeta.manifest.catalogs.firstOrNull { it.type == type && it.id == id }
-            cat("movie", "top")?.let { specs += CatalogSpec(cinemeta, it, "Popular Movies", 3) }
-            cat("series", "top")?.let { specs += CatalogSpec(cinemeta, it, "Popular Series", 4) }
-            cat("movie", "year")?.let { c -> c.optionsFor("genre").firstOrNull()?.let { y -> specs += CatalogSpec(cinemeta, c, "New Movies · $y", 11, mapOf("genre" to y)) } }
-            cat("movie", "imdbRating")?.let { specs += CatalogSpec(cinemeta, it, "Top Rated Movies", 13) }
-            cat("series", "year")?.let { c -> c.optionsFor("genre").firstOrNull()?.let { y -> specs += CatalogSpec(cinemeta, c, "New Series · $y", 15, mapOf("genre" to y)) } }
-            cat("series", "imdbRating")?.let { specs += CatalogSpec(cinemeta, it, "Top Rated Series", 16) }
-            listOf("Action", "Comedy", "Sci-Fi", "Thriller", "Animation", "Horror", "Romance", "Documentary").forEachIndexed { i, g ->
-                cat("movie", "top")?.takeIf { g in it.optionsFor("genre") }?.let { specs += CatalogSpec(cinemeta, it, "$g Movies", 20 + i, mapOf("genre" to g)) }
-            }
-            listOf("Drama", "Crime", "Comedy").forEachIndexed { i, g ->
-                cat("series", "top")?.takeIf { g in it.optionsFor("genre") }?.let { specs += CatalogSpec(cinemeta, it, "$g Series", 30 + i, mapOf("genre" to g)) }
-            }
-        }
-        // Catalogs from any other installed addon that don't need extra input.
-        var p = 40
-        addons.filter { it !== cinemeta }.forEach { addon ->
-            addon.manifest.catalogs.filter { it.requiredExtras.isEmpty() && it.type in setOf("movie", "series") }.take(4).forEach { cat ->
-                specs += CatalogSpec(addon, cat, "${cat.name ?: cat.id} · ${addon.manifest.name}", p++)
-            }
-        }
-        return specs
-    }
-
 }

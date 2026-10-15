@@ -50,7 +50,7 @@ import com.zemu.tv.ui.components.TvChip
 import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 
-private enum class BrowseDialog { CATALOG, GENRE, RATING, DECADE, SORT }
+private enum class BrowseDialog { CATALOG, GENRE, RATING, DECADE, SORT, SERVICE, STUDIO }
 
 private val ratingOptions = listOf(null, 6.0, 7.0, 7.5, 8.0)
 private val decadeOptions = listOf(null, 2020, 2010, 2000, 1990, 1980, 1970, -1)
@@ -61,9 +61,9 @@ private fun ratingLabel(r: Double?) = if (r == null) "Any" else "${if (r % 1.0 =
 
 /** Movies, Series and Anime pages: hero for the focused title, filter chips, then a poster grid. */
 @Composable
-fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
+fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, studio: String? = null) {
     val c = LocalContext.current.container
-    val vm: BrowseViewModel = viewModel(key = "browse-$type") { BrowseViewModel(c, type) }
+    val vm: BrowseViewModel = viewModel(key = "browse-$type-$service-$studio") { BrowseViewModel(c, type, service, studio) }
     val ui by vm.state.collectAsStateWithLifecycle()
     val settings by c.userStore.settings.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<BrowseDialog?>(null) }
@@ -110,7 +110,9 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
         else -> emptyList()
     }
 
-    val title = when (type) { "series" -> "Series"; "anime" -> "Anime"; else -> "Movies" }
+    val svc = com.zemu.tv.data.StreamingService.of(f.service)
+    val std = com.zemu.tv.data.Studio.of(f.studio)
+    val title = listOfNotNull(svc?.label ?: std?.label, when (if (f.tmdbMode) f.tmdbType else type) { "series" -> "Series"; "anime" -> "Anime"; else -> "Movies" }).joinToString(" · ")
     val catalogLabel = ui.catalogs.firstOrNull { it.id == f.catalog }?.label ?: ""
     val genreAllowed = ui.catalogs.firstOrNull { it.id == f.catalog }?.genres != false
 
@@ -142,6 +144,18 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
                         }
                     }
                     item { TvChip("$catalogLabel ▾", selected = false, onClick = { dialog = BrowseDialog.CATALOG }) }
+                } else if (f.tmdbMode) {
+                    // A service lists both movies and series; a studio or network has one kind.
+                    if (svc != null) listOf("movie" to "Movies", "series" to "Series").forEachIndexed { i, (t, label) ->
+                        item {
+                            TvChip(label, selected = f.tmdbType == t, onClick = { vm.setFilters { it.copy(tmdbType = t) } },
+                                modifier = if (i == 0) Modifier.focusRequester(topFocus) else Modifier)
+                        }
+                    }
+                    item {
+                        TvChip("${svc?.label ?: std?.label} ✕", selected = false, onClick = { vm.setFilters { it.copy(service = null, studio = null) } },
+                            modifier = if (svc == null) Modifier.focusRequester(topFocus) else Modifier)
+                    }
                 } else {
                     item { TvChip("$catalogLabel ▾", selected = false, onClick = { dialog = BrowseDialog.CATALOG }, modifier = Modifier.focusRequester(topFocus)) }
                 }
@@ -194,7 +208,11 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
             title = "Filters",
             onDismiss = { filtersOpen = false },
             actions = buildList {
-                if (genreAllowed && ui.genres.isNotEmpty()) add(SheetAction("Genre", f.genre ?: "All") { dialog = BrowseDialog.GENRE })
+                if (!vm.isAnime && c.tmdb.enabled) {
+                    add(SheetAction("Streaming service", svc?.label ?: "Any") { dialog = BrowseDialog.SERVICE })
+                    add(SheetAction(if (type == "series") "Network" else "Studio", std?.label ?: "Any") { dialog = BrowseDialog.STUDIO })
+                }
+                if ((genreAllowed || f.tmdbMode) && ui.genres.isNotEmpty()) add(SheetAction("Genre", f.genre ?: "All") { dialog = BrowseDialog.GENRE })
                 add(SheetAction("Rating", ratingLabel(f.minRating)) { dialog = BrowseDialog.RATING })
                 add(SheetAction("Decade", decadeLabel(f.decade)) { dialog = BrowseDialog.DECADE })
                 add(SheetAction("Sort", f.sort.label) { dialog = BrowseDialog.SORT })
@@ -244,6 +262,22 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit) {
             selected = setOf(f.sort.name),
             multiSelect = false,
             onToggle = { v -> vm.setFilters { it.copy(sort = BrowseSort.valueOf(v)) } },
+            onDismiss = { dialog = null },
+        )
+        BrowseDialog.SERVICE -> ChoiceDialog(
+            title = "Streaming service",
+            options = listOf(ChoiceOption("", "Any")) + com.zemu.tv.data.StreamingService.entries.map { ChoiceOption(it.name, it.label) },
+            selected = setOf(f.service.orEmpty()),
+            multiSelect = false,
+            onToggle = { v -> vm.setFilters { it.copy(service = v.ifEmpty { null }, studio = null, tmdbType = if (type == "series") "series" else "movie") } },
+            onDismiss = { dialog = null },
+        )
+        BrowseDialog.STUDIO -> ChoiceDialog(
+            title = if (type == "series") "Network" else "Studio",
+            options = listOf(ChoiceOption("", "Any")) + com.zemu.tv.data.Studio.forType(if (type == "series") "series" else "movie").map { ChoiceOption(it.key, it.label) },
+            selected = setOf(f.studio.orEmpty()),
+            multiSelect = false,
+            onToggle = { v -> vm.setFilters { it.copy(studio = v.ifEmpty { null }, service = null, tmdbType = if (type == "series") "series" else "movie") } },
             onDismiss = { dialog = null },
         )
         null -> {}

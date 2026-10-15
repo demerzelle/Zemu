@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 
 /** Manual dependency container; one instance per process. */
 class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.ProfileStore.DEFAULT_ID) {
-    private val appContext: Context = context.applicationContext
+    val appContext: Context = context.applicationContext
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val json = Json {
