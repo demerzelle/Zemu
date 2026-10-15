@@ -2,6 +2,7 @@ package com.zemu.tv.ui
 
 import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.theme.appBackground
+import com.zemu.tv.ui.theme.sceneTint
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.graphicsLayer
@@ -267,7 +268,7 @@ fun AppShell() {
             }
         }
     }
-        com.zemu.tv.ui.theme.StyleFloor(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(floor))
+        com.zemu.tv.ui.theme.StyleFloor(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(floor).sceneTint())
     }
     if (kidsTheme) com.zemu.tv.ui.kids.KidsThemePicker { kidsTheme = false }
     if (parentCheck) com.zemu.tv.ui.kids.ParentCheck("Leave this kid profile?", onDismiss = { parentCheck = false }) {
@@ -307,7 +308,7 @@ fun AppShell() {
 
 /** The page's background plus the whole-app style's animated scene (PS2 towers, kids' sky, …). */
 @Composable
-private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground()) {
+private fun StyleBackdrop(modifier: Modifier) = Box(modifier.appBackground().then(Modifier.sceneTint())) {
     // Kids themes' sub-themes have their own scenes, whatever the age.
     val kidsScene = com.zemu.tv.ui.theme.Palette.colors.variant.takeIf {
         com.zemu.tv.ui.theme.Palette.Style in setOf(com.zemu.tv.ui.theme.UiStyle.TODDLER, com.zemu.tv.ui.theme.UiStyle.GRADE, com.zemu.tv.ui.theme.UiStyle.TEEN)

@@ -23,6 +23,7 @@ import com.zemu.tv.ui.profiles.ProfilePicker
 import com.zemu.tv.ui.theme.DynamicTheme
 import com.zemu.tv.ui.theme.DynamicThemeLayer
 import com.zemu.tv.ui.theme.ZemuTheme
+import com.zemu.tv.ui.theme.sceneTint
 import com.zemu.tv.ui.theme.resolvedColors
 import com.zemu.tv.ui.theme.variantOf
 
@@ -215,7 +216,7 @@ class MainActivity : ComponentActivity() {
                                 AppShell()
                             }
                         }
-                        DynamicThemeLayer(dynamic, settings.variantOf(dynamic), onAccent = { rgbAccent = it })
+                        DynamicThemeLayer(dynamic, settings.variantOf(dynamic), onAccent = { rgbAccent = it }, modifier = Modifier.sceneTint())
                         // The Cat Rave is a 30-second party, then your theme comes back.
                         LaunchedEffect(dynamic) {
                             if (dynamic != DynamicTheme.CATRAVE) return@LaunchedEffect

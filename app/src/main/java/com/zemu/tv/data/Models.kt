@@ -210,6 +210,8 @@ data class AppSettings(
     val hideWatchedInRows: Boolean = true,
     /** Per-theme color overrides: "<theme>/<dark|light>/<role>" to ARGB. */
     val colorOverrides: Map<String, Long> = emptyMap(),
+    /** Palettes you saved and named (Appearance → Customize colors). */
+    val savedPalettes: List<com.zemu.tv.ui.theme.SavedPalette> = emptyList(),
 )
 
 /**

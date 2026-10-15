@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalContentColor
@@ -39,6 +41,10 @@ data class ThemeColors(
     val variant: String = "",
     /** Accessibility: pure black and white, full-strength text and a bold outline on what's focused. */
     val highContrast: Boolean = false,
+    /** Recolors the animated theme's scene (its hue), set by a palette or by hand. */
+    val sceneTint: Color? = null,
+    /** Degrees [sceneTint] turns the scene's hues; see [sceneTint]. */
+    val sceneHueShift: Float = 0f,
 ) {
     /** In light mode the theme's dark background becomes a pale tint of its accent. */
     val base: Color = customBase ?: if (light) lerp(Color(0xFFF4F4F7), accent, 0.05f) else background
@@ -65,6 +71,7 @@ data class ThemeColors(
             customPanel = get(ColorRole.PANEL) ?: customPanel,
             customButton = get(ColorRole.BUTTON) ?: customButton,
             customText = get(ColorRole.TEXT) ?: customText,
+            sceneTint = get(ColorRole.SCENE) ?: sceneTint,
         )
     }
 }
@@ -79,7 +86,35 @@ enum class ColorRole(val key: String, val label: String) {
     PANEL("panel", "Panels & rows"),
     BUTTON("button", "Buttons"),
     TEXT("text", "Text"),
+    SCENE("scene", "Animated scene"),
 }
+
+/** A palette the user saved and named; [theme] is the color scope's theme ("RETRO-XP", "ACIDWAVE", …) or "" for any. */
+@kotlinx.serialization.Serializable
+data class SavedPalette(val name: String, val colors: Map<String, Long>, val theme: String = "")
+
+/**
+ * Recolors an animated scene: turns every hue by the gap between the scene tint and the theme's
+ * own accent, so the scene keeps its light, shade and variety.
+ * shortcut: Android 12+ only (needs RenderEffect); older devices keep the scene's own colors.
+ */
+fun androidx.compose.ui.Modifier.sceneTint(): androidx.compose.ui.Modifier {
+    val shift = Palette.colors.sceneHueShift
+    if (shift == 0f || android.os.Build.VERSION.SDK_INT < 31) return this
+    val a = Math.toRadians(shift.toDouble()); val c = kotlin.math.cos(a).toFloat(); val n = kotlin.math.sin(a).toFloat()
+    // The standard hue-rotate matrix (as in CSS/SVG feColorMatrix).
+    val m = floatArrayOf(
+        0.213f + c * 0.787f - n * 0.213f, 0.715f - c * 0.715f - n * 0.715f, 0.072f - c * 0.072f + n * 0.928f, 0f, 0f,
+        0.213f - c * 0.213f + n * 0.143f, 0.715f + c * 0.285f + n * 0.140f, 0.072f - c * 0.072f - n * 0.283f, 0f, 0f,
+        0.213f - c * 0.213f - n * 0.787f, 0.715f - c * 0.715f + n * 0.715f, 0.072f + c * 0.928f + n * 0.072f, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f,
+    )
+    val effect = android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(m))
+    return graphicsLayer { renderEffect = effect.asComposeRenderEffect() }
+}
+
+/** Hue of [c] in degrees (0–360). */
+fun hueOf(c: Color): Float = FloatArray(3).also { android.graphics.Color.colorToHSV(c.toArgb(), it) }[0]
 
 /**
  * The five color palettes. Every color is spelled out for dark and light mode, so what the swatch
@@ -153,8 +188,9 @@ fun AppSettings.variantOf(d: DynamicTheme): String = themeVariants[d.name] ?: d.
 fun AppSettings.resolvedColors(light: Boolean = lightMode): ThemeColors {
     val d = DynamicTheme.of(dynamicTheme)
     val variant = variantOf(d)
-    return d.applyTo(themeColors(light), variant).copy(style = d.style, variant = d.resolveVariant(variant))
-        .withOverrides(colorOverrides, colorScope(light))
+    val own = d.applyTo(themeColors(light), variant).copy(style = d.style, variant = d.resolveVariant(variant))
+    val c = own.withOverrides(colorOverrides, colorScope(light))
+    return c.copy(sceneHueShift = c.sceneTint?.let { hueOf(it) - hueOf(own.accent) } ?: 0f)
 }
 
 fun Color.toArgbLong(): Long = toArgb().toLong() and 0xFFFFFFFFL

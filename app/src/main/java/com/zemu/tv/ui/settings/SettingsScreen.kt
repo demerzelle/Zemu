@@ -104,6 +104,30 @@ class SettingsViewModel(private val c: AppContainer, private val appRef: com.zem
         if (before.trustDirectLinks != after.trustDirectLinks) c.streams.invalidate()
     }
 
+    /** The look before the change waiting on "Keep changes?"; [lookChanges] restarts its countdown. */
+    val pendingLook = MutableStateFlow<AppSettings?>(null)
+    val lookChanges = MutableStateFlow(0)
+
+    /** A theme change: applies now, then asks "Keep changes?" and reverts unless kept in time. */
+    fun updateLook(transform: (AppSettings) -> AppSettings) {
+        if (pendingLook.value == null) pendingLook.value = c.userStore.settings.value
+        lookChanges.value++
+        update(transform)
+    }
+
+    fun keepLook() { pendingLook.value = null }
+
+    fun revertLook() {
+        val b = pendingLook.value ?: return
+        pendingLook.value = null
+        update {
+            it.copy(
+                theme = b.theme, customAccent = b.customAccent, dynamicTheme = b.dynamicTheme, themeVariants = b.themeVariants,
+                themeBeforeRave = b.themeBeforeRave, colorOverrides = b.colorOverrides, lightMode = b.lightMode, glassStyle = b.glassStyle,
+            )
+        }
+    }
+
     fun clearHistory() = viewModelScope.launch {
         c.userStore.clearHistory()
         message.value = "Watch history cleared"
@@ -223,6 +247,9 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
         )
         null -> {}
     }
+    val pendingLook by vm.pendingLook.collectAsStateWithLifecycle()
+    val lookChanges by vm.lookChanges.collectAsStateWithLifecycle()
+    if (pendingLook != null) KeepChangesDialog(lookChanges, onKeep = vm::keepLook, onRevert = vm::revertLook)
 }
 
 @Composable
@@ -332,8 +359,8 @@ private fun LazyListScope.quickCategory(vm: SettingsViewModel, settings: AppSett
         ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "Pick the ones you subscribe to" }) { onOpenServices() }
     }
     group("q-look", "4 · Look") {
-        ToggleRow("Light mode", "Light backgrounds with dark text.", settings.lightMode) { vm.update { it.copy(lightMode = !it.lightMode) } }
-        ThemePicker(settings) { t -> vm.update(t) }
+        ToggleRow("Light mode", "Light backgrounds with dark text.", settings.lightMode) { vm.updateLook { it.copy(lightMode = !it.lightMode) } }
+        ThemePicker(settings) { t -> vm.updateLook(t) }
     }
 }
 
@@ -529,21 +556,21 @@ private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: App
 private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
     group("mode", "Look") {
         ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
-            vm.update { it.copy(lightMode = !it.lightMode) }
+            vm.updateLook { it.copy(lightMode = !it.lightMode) }
         }
         ToggleRow("Glass style", "Frosted, see-through panels and menus over a soft glow of your theme color. On Android 12 and newer, menus also blur what's behind them.", settings.glassStyle) {
-            vm.update { it.copy(glassStyle = !it.glassStyle) }
+            vm.updateLook { it.copy(glassStyle = !it.glassStyle) }
         }
     }
-    group("theme", "Color theme") {
-        ThemePicker(settings) { t -> vm.update(t) }
+    group("theme", "Color theme", "With an animated theme on, a palette recolors it: its menus and its scene.") {
+        ThemePicker(settings) { t -> vm.updateLook(t) }
     }
     group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
         val current = DynamicTheme.of(settings.dynamicTheme)
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(DynamicTheme.entries.filter { !it.kids && (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
                 TvChip(d.label, selected = current == d, onClick = {
-                    vm.update { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
+                    vm.updateLook { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
                 })
             }
         }
@@ -553,7 +580,7 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(current.variants, key = { it.first }) { (k, label) ->
                     val shown = if (k == "AUTO") "$label: ${com.zemu.tv.ui.theme.Holiday.today().label}" else label
-                    TvChip(shown, selected = chosen == k, onClick = { vm.update { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
+                    TvChip(shown, selected = chosen == k, onClick = { vm.updateLook { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
                 }
             }
         }
@@ -576,8 +603,8 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
             }
         }
     }
-    group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors — including the white of light mode and the black of dark mode. Each theme keeps its own, separately for light and dark mode.") {
-        ColorCustomizer(settings) { t -> vm.update(t) }
+    group("colors", "Customize colors", "Every color the theme uses, as a palette: pick one to change it. Each theme keeps its own, separately for light and dark mode. Save palettes to reuse them, for every theme or just this one.") {
+        ColorCustomizer(settings, vm::updateLook) { t -> vm.update(t) }
     }
     group("rows", "Home & browsing", "Change, reorder, remove or add the rows on each page.") {
         listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
