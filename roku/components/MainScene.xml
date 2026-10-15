@@ -20,6 +20,14 @@
   <script type="text/brightscript" uri="MainScene.brs" />
   <children>
     <Rectangle id="bg" width="1280" height="720" color="0x07090AFF" />
+    <!-- animated theme: wallpaper and a looping particle layer (behind every screen) -->
+    <Poster id="wall" width="1280" height="720" visible="false" />
+    <Group id="fxClip" clippingRect="[0,0,1280,720]">
+      <Poster id="fx" visible="false" />
+    </Group>
+    <Animation id="fxAnim" repeat="true" easeFunction="linear">
+      <Vector2DFieldInterpolator id="fxMove" key="[0.0, 1.0]" fieldToInterp="fx.translation" />
+    </Animation>
     <Group id="views" />
     <NavRail id="rail" visible="false" />
     <Group id="overlay" />

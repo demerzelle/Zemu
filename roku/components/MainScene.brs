@@ -2,6 +2,11 @@
 
 sub init()
     m.bg = m.top.findNode("bg")
+    m.wall = m.top.findNode("wall")
+    m.fx = m.top.findNode("fx")
+    m.fxAnim = m.top.findNode("fxAnim")
+    m.fxMove = m.top.findNode("fxMove")
+    m.fxClip = m.top.findNode("fxClip")
     m.views = m.top.findNode("views")
     m.rail = m.top.findNode("rail")
     m.overlay = m.top.findNode("overlay")
@@ -18,6 +23,7 @@ sub init()
         addonsReady: false
         myList: []
         history: []
+        episodes: {}
         watched: {}
         ratings: {}
         userVersion: 0
@@ -95,6 +101,9 @@ sub startProfile(pid as String)
     v = regRead(sec, "hist")
     if not isArr(v) then v = []
     m.global.history = v
+    v = regRead(sec, "eps")
+    if not isAA(v) then v = {}
+    m.global.episodes = v
     w = {}
     v = regRead(sec, "watched")
     if isArr(v)
@@ -144,7 +153,37 @@ sub onThemeChanged()
     t = m.global.theme
     m.bg.color = t.bg
     m.top.backgroundColor = t.bg
+    m.wall.uri = t.wall
+    m.wall.visible = t.wall <> ""
+    m.fxAnim.control = "stop"
+    m.fx.visible = t.fx <> ""
+    if t.fx <> ""
+        ' tiles are 640×360 drawn at 2× (1280×720); two tiles stacked (or side by side for "left")
+        m.fx.uri = "pkg:/images/fx_" + t.fx + ".png"
+        if t.fxDir = "left"
+            m.fx.width = 2560
+            m.fx.height = 720
+            m.fxMove.keyValue = [[0, 0], [-1280, 0]]
+        else
+            m.fx.width = 1280
+            m.fx.height = 1440
+            if t.fxDir = "up" then m.fxMove.keyValue = [[0, 0], [0, -720]] else m.fxMove.keyValue = [[0, -720], [0, 0]]
+        end if
+        m.fxAnim.duration = t.fxSec
+    end if
+    updateFx()
     m.rail.applyTheme = true
+end sub
+
+' The particle layer only moves on browsing screens; it's paused under the player.
+sub updateFx()
+    moving = m.fx.visible and not (m.current <> invalid and m.current.subtype() = "PlayerView")
+    if moving
+        if m.fxAnim.state = "paused" then m.fxAnim.control = "resume" else if m.fxAnim.state <> "running" then m.fxAnim.control = "start"
+    else if m.fxAnim.state = "running"
+        m.fxAnim.control = "pause"
+    end if
+    m.fxClip.visible = moving
 end sub
 
 function applySettings(params as Object) as Object
@@ -152,7 +191,7 @@ function applySettings(params as Object) as Object
     s = params.settings
     m.global.settings = s
     if not saveSettings(m.global.profileId, s) then toast("Couldn't save settings on this TV")
-    if old.theme <> s.theme or old.customAccent <> s.customAccent or old.customBackground <> s.customBackground
+    if old.theme <> s.theme or old.customAccent <> s.customAccent or old.customBackground <> s.customBackground or old.dynamicTheme <> s.dynamicTheme
         applyTheme(s)
         ' rebuild cached screens so they pick up the new colors (keep the settings screen)
         for each k in m.topViews
@@ -255,6 +294,7 @@ sub popView()
         m.current.active = true
         m.current.setFocus(true)
     end if
+    updateFx()
 end sub
 
 sub onViewNavigate(e as Object)
@@ -282,6 +322,7 @@ function navigate(p as Object) as Object
     else
         showTop(t)
     end if
+    updateFx()
     return invalid
 end function
 

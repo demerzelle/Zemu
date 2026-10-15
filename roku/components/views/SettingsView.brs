@@ -57,9 +57,10 @@ sub build()
     add(items, "", "header", "Theme")
     themeLabel = "Custom"
     for each p in THEME_PRESETS()
-        if p.id = s.theme then themeLabel = p.label
+        if p.id = themePresetId(tostr(s.theme)) then themeLabel = p.label
     end for
-    add(items, "theme", "value", "Theme", "", themeLabel)
+    add(items, "theme", "value", "Color theme", "", themeLabel)
+    add(items, "dynamicTheme", "value", "Animated theme", "Wallpapers from the Android app, with drifting rain, petals, stars and more. Brings its own colors.", animatedTheme(tostr(s.dynamicTheme)).label)
     if s.theme = "CUSTOM"
         add(items, "customAccent", "value", "Custom accent color", "", "#" + s.customAccent)
         add(items, "customBackground", "value", "Custom background", "", "#" + s.customBackground)
@@ -124,7 +125,7 @@ sub setSetting(key as String, value as Dynamic)
     s = m.global.settings
     s[key] = value
     m.top.getScene().callFunc("applySettings", { settings: s })
-    if key = "theme" or key = "customAccent" or key = "customBackground"
+    if key = "theme" or key = "customAccent" or key = "customBackground" or key = "dynamicTheme"
         ' list items cache colors: rebuild this page in the new theme, keeping the position
         if not m.global.hasField("settingsFocus") then m.global.addFields({ settingsFocus: 0 })
         m.global.settingsFocus = m.list.itemFocused
@@ -164,10 +165,16 @@ sub onSelected()
     else if k = "theme"
         opts = []
         for each p in THEME_PRESETS()
-            opts.Push({ id: p.id, label: p.label, checked: p.id = s.theme })
+            opts.Push({ id: p.id, label: p.label, checked: p.id = themePresetId(tostr(s.theme)) })
         end for
         opts.Push({ id: "CUSTOM", label: "Custom colors", checked: s.theme = "CUSTOM" })
-        choose(k, "Theme", opts)
+        choose(k, "Color theme", opts)
+    else if k = "dynamicTheme"
+        opts = []
+        for each d in ANIMATED_THEMES()
+            opts.Push({ id: d.id, label: d.label, checked: d.id = tostr(s.dynamicTheme) })
+        end for
+        choose(k, "Animated theme", opts)
     else if k = "customAccent" or k = "customBackground"
         opts = []
         list = ACCENT_CHOICES()
