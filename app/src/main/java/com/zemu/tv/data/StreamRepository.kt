@@ -46,8 +46,8 @@ class StreamRepository(
                 }
             }.awaitAll()
         }
-        val parsed = responses.flatMap { (addon, r) ->
-            r.getOrNull().orEmpty().map { StreamParser.parse(it, addon.manifest.name, trustDirect) }
+        val parsed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            responses.flatMap { (addon, r) -> r.getOrNull().orEmpty().map { StreamParser.parse(it, addon.manifest.name, trustDirect) } }
         }
         val result = StreamLoadResult(
             cached = parsed.filter { it.isCached }.distinctBy { it.key },

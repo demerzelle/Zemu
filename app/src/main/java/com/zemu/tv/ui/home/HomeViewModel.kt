@@ -336,7 +336,10 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
 
     private suspend fun loadDaily(profile: TasteProfile, history: List<com.zemu.tv.data.WatchEntry>, myList: List<Meta>) {
         c.addons.ready.first { it }
-        val rows = runCatching { c.recommender.dailyRows(profile, history, myList) }.getOrDefault(emptyList())
+        // Scoring hundreds of titles: keep it off the main thread.
+        val rows = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching { c.recommender.dailyRows(profile, history, myList) }.getOrDefault(emptyList())
+        }
         dailyRows.value = rows.map { it.toHomeRow() }
             .map { r -> if (isHome) r else r.copy(items = r.items.filter { it.onPage() }) }
             .filter { isHome || it.items.size >= 6 }

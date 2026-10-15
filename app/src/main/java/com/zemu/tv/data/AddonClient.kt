@@ -20,13 +20,15 @@ class AddonClient(private val http: OkHttpClient, private val json: Json) {
     }
 
     suspend fun catalog(base: String, type: String, id: String, extra: Map<String, String> = emptyMap()): List<Meta> =
-        json.decodeFromString(CatalogResponse.serializer(), get(resourceUrl(base, "catalog", type, id, extra)))
-            .metas.filter { it.id.isNotBlank() }.distinctBy { it.id }
+        get(resourceUrl(base, "catalog", type, id, extra)) { body ->
+            json.decodeFromString(CatalogResponse.serializer(), body).metas.filter { it.id.isNotBlank() }.distinctBy { it.id }
+        }
 
     /** Catalogs like Cinemeta's `last-videos` answer with `metasDetailed` (full metas incl. videos). */
     suspend fun catalogDetailed(base: String, type: String, id: String, extra: Map<String, String> = emptyMap()): List<Meta> =
-        json.decodeFromString(CatalogDetailedResponse.serializer(), get(resourceUrl(base, "catalog", type, id, extra)))
-            .metasDetailed.filter { it.id.isNotBlank() }
+        get(resourceUrl(base, "catalog", type, id, extra)) { body ->
+            json.decodeFromString(CatalogDetailedResponse.serializer(), body).metasDetailed.filter { it.id.isNotBlank() }
+        }
 
     /** Lists addons from an addon catalog (`/addon_catalog/{type}/{id}.json`). Unparseable entries are skipped. */
     suspend fun addonCatalog(base: String, type: String, id: String): List<CatalogAddon> {
@@ -42,19 +44,25 @@ class AddonClient(private val http: OkHttpClient, private val json: Json) {
     }
 
     suspend fun meta(base: String, type: String, id: String): Meta? =
-        json.decodeFromString(MetaResponse.serializer(), get(resourceUrl(base, "meta", type, id))).meta
+        get(resourceUrl(base, "meta", type, id)) { json.decodeFromString(MetaResponse.serializer(), it).meta }
 
     suspend fun streams(base: String, type: String, id: String): List<Stream> =
-        json.decodeFromString(StreamResponse.serializer(), get(resourceUrl(base, "stream", type, id))).streams
+        get(resourceUrl(base, "stream", type, id)) { json.decodeFromString(StreamResponse.serializer(), it).streams }
 
     suspend fun subtitles(base: String, type: String, id: String): List<SubtitleTrack> =
-        json.decodeFromString(SubtitlesResponse.serializer(), get(resourceUrl(base, "subtitles", type, id))).subtitles
+        get(resourceUrl(base, "subtitles", type, id)) { json.decodeFromString(SubtitlesResponse.serializer(), it).subtitles }
 
     private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
         http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code} for $url")
             resp.body?.string() ?: throw IOException("Empty body for $url")
         }
+    }
+
+    /** Fetches and parses off the main thread: big catalogs take long enough to freeze the UI. */
+    private suspend fun <T> get(url: String, parse: (String) -> T): T {
+        val body = get(url)
+        return withContext(Dispatchers.Default) { parse(body) }
     }
 
     companion object {

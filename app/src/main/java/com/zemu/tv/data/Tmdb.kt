@@ -239,9 +239,10 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         val key = "$media?$query"
         val now = System.currentTimeMillis()
         discoverCache[key]?.let { (at, list) -> if (now - at < 30 * 60_000L) return list }
-        val list = json.decodeFromString(TmdbPage.serializer(), get("/discover/$media", query)).results
-            .filter { it.posterPath != null }
-            .map { it.toMeta(type) }
+        val body = get("/discover/$media", query)
+        val list = withContext(Dispatchers.Default) {
+            json.decodeFromString(TmdbPage.serializer(), body).results.filter { it.posterPath != null }.map { it.toMeta(type) }
+        }
         discoverCache[key] = now to list
         return list
     }
