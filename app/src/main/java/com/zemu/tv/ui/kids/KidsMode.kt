@@ -67,7 +67,7 @@ fun <T> kidsSafe(items: List<T>, meta: (T) -> Meta): List<T> {
     val gate = LocalContext.current.container.kids
     val kids = rememberKids()
     if (!kids.on) return items
-    return produceState(items.filter { gate.knownAllowed(meta(it)) == true }, items, kids.maxLevel) {
+    return produceState(items.filter { gate.knownAllowed(meta(it)) == true }, items, kids.allowed) {
         value = gate.filter(items, meta)
     }.value
 }
@@ -153,66 +153,50 @@ fun ParentCheck(title: String, onDismiss: () -> Unit, onUnlocked: () -> Unit) {
 
 val KIDS_THEMES = listOf("TODDLER" to "Toddler", "GRADE_SCHOOL" to "Grade School", "YOUNG_ADULT" to "Young Adult")
 
-/**
- * Starting Kids Mode: the highest rating allowed, the kids theme and (the first time) a new
- * parent code, entered twice.
- */
+/** A new parent code, entered twice; [onDone] runs once it's saved. */
 @Composable
-fun KidsModeSetup(onDismiss: () -> Unit) {
+fun CreateParentCode(onDismiss: () -> Unit, onDone: () -> Unit) {
     val context = LocalContext.current
-    val kids = rememberKids()
-    var level by remember { mutableIntStateOf(kids.maxLevel) }
-    var theme by remember { mutableStateOf(kids.theme) }
-    var step by remember { mutableIntStateOf(0) } // 0 = options, 1 = new code, 2 = confirm code
-    var firstCode by remember { mutableStateOf("") }
-    val first = remember { FocusRequester() }
-    fun start(pinHash: String) {
-        // The app's scope: this dialog's own scope ends as it closes, which would cancel the save.
-        context.container.appScope.launch { context.app.profiles.updateKids { it.copy(on = true, maxLevel = level, theme = theme, pinHash = pinHash) } }
-        onDismiss()
-    }
-    when (step) {
-        1 -> ParentCodeDialog("Create a parent code", "4 digits. You'll need it to leave Kids Mode.", onDismiss) { firstCode = it; step = 2; true }
-        2 -> ParentCodeDialog("Enter it again", null, onDismiss) { code ->
-            (code == firstCode).also { if (it) start(Ratings.hash(code)) }
+    var firstCode by remember { mutableStateOf<String?>(null) }
+    val again = firstCode
+    if (again == null) ParentCodeDialog("Create a parent code", "4 digits. It's needed to leave a kid profile or open Settings there.", onDismiss) { firstCode = it; true }
+    else ParentCodeDialog("Enter it again", null, onDismiss) { code ->
+        (code == again).also {
+            if (!it) return@also
+            // The app's scope: this dialog's own scope ends as it closes, which would cancel the save.
+            context.container.appScope.launch { context.app.profiles.updateKids { k -> k.copy(pinHash = Ratings.hash(code)) } }
+            onDone()
         }
-        else -> Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-            DialogBackdropBlur()
-            Column(Modifier.width(680.dp).glassPanel(RoundedCornerShape(18.dp)).padding(26.dp)) {
-                Text("Kids Mode", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Only titles rated up to your pick show and play. Settings and profiles lock, and leaving needs the parent code. Titles without a US rating are hidden. Ratings come from TMDB, so a TMDB key is needed (anime uses Kitsu).",
-                    color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
-                )
-                Text("Highest rating allowed", fontWeight = FontWeight.SemiBold)
-                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Ratings.LEVELS.forEachIndexed { i, label ->
-                        TvChip(label, level == i, { level = i }, if (i == level) Modifier.focusRequester(first) else Modifier)
+    }
+}
+
+/** The kid's own theme picker: changes only the look, and it's remembered for this profile. */
+@Composable
+fun KidsThemePicker(onDismiss: () -> Unit) {
+    val c = LocalContext.current.container
+    val current = c.userStore.settings.collectAsStateWithLifecycle().value.dynamicTheme
+    val first = remember { FocusRequester() }
+    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        DialogBackdropBlur()
+        Column(Modifier.glassPanel(RoundedCornerShape(24.dp)).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("🎨  Pick your theme", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                KIDS_THEMES.forEachIndexed { i, (key, label) ->
+                    FocusSurface(
+                        onClick = { c.appScope.launch { c.userStore.updateSettings { it.copy(dynamicTheme = key) } } },
+                        modifier = Modifier.size(170.dp, 110.dp).then(if (key == current || (i == 0 && KIDS_THEMES.none { it.first == current })) Modifier.focusRequester(first) else Modifier),
+                        shape = RoundedCornerShape(20.dp),
+                    ) {
+                        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(listOf("🎈", "✏️", "🌙")[i], fontSize = 34.sp)
+                            Text((if (key == current) "✓ " else "") + label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-                Text(
-                    "Movies up to ${Ratings.LEVELS[level]}, shows up to ${Ratings.TV[level].substringAfterLast(", ")}",
-                    color = Palette.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp, bottom = 14.dp),
-                )
-                Text("Theme", fontWeight = FontWeight.SemiBold)
-                Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    KIDS_THEMES.forEach { (key, label) -> TvChip(label, theme == key, { theme = key }) }
-                }
-                Spacer(Modifier.size(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton("Cancel", onClick = onDismiss)
-                    TvButton(if (kids.pinHash.isEmpty()) "Next: parent code" else "Start Kids Mode", primary = true, onClick = {
-                        if (kids.pinHash.isEmpty()) step = 1 else start(kids.pinHash)
-                    })
-                }
-                if (kids.pinHash.isNotEmpty()) Text(
-                    "Uses your parent code. To change it: Settings → Kids Mode → Change parent code.",
-                    color = Palette.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp),
-                )
             }
-            LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { first.requestFocus() } }
         }
     }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { first.requestFocus() } }
 }
 
 /** In Kids Mode, [content] (Settings, add-ons) shows only after the parent code. */
@@ -238,7 +222,7 @@ fun KidsTitleGate(type: String, id: String, content: @Composable () -> Unit) {
     var unlocked by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     if (!kids.on || unlocked) return content()
-    val ok by produceState<Boolean?>(gate.knownAllowed(Meta(id = id, type = type)), id, kids.maxLevel) {
+    val ok by produceState<Boolean?>(gate.knownAllowed(Meta(id = id, type = type)), id, kids.allowed) {
         value = gate.allowed(Meta(id = id, type = type))
     }
     when (ok) {
@@ -246,7 +230,7 @@ fun KidsTitleGate(type: String, id: String, content: @Composable () -> Unit) {
         null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Checking the rating…", color = Palette.TextSecondary) }
         false -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CenteredMessage("🙈 Not for Kids Mode", "This title is above the allowed rating, or has no rating. Ask a grown-up.") {
+                CenteredMessage("🙈 Not for Kids Mode", "This title isn't a kids' title or its rating isn't allowed. Ask a grown-up.") {
                     TvButton("Parent code", primary = true, onClick = { asking = true })
                 }
             }

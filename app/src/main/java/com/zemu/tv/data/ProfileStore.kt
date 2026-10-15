@@ -20,7 +20,7 @@ import java.util.UUID
 
 /** [avatar] is "preset:<index>" or "file:<absolute path>". */
 @Serializable
-data class Profile(val id: String, val name: String, val avatar: String = "preset:0")
+data class Profile(val id: String, val name: String, val avatar: String = "preset:0", val kids: Boolean = false)
 
 /** The list of profiles and which one is active. Each profile's own data lives in its [UserStore]. */
 class ProfileStore(private val context: Context, private val json: Json, scope: CoroutineScope) {
@@ -45,9 +45,14 @@ class ProfileStore(private val context: Context, private val json: Json, scope: 
     private val kidsKey = stringPreferencesKey("kids")
     private fun decodeKids(raw: String?) = raw?.let { runCatching { json.decodeFromString(KidsSettings.serializer(), it) }.getOrNull() } ?: KidsSettings()
 
-    /** Kids Mode covers every profile, so it lives here rather than in a profile's settings. */
-    val kids: StateFlow<KidsSettings> = ds.data.map { decodeKids(it[kidsKey]) }
-        .stateIn(scope, SharingStarted.Eagerly, runBlocking { decodeKids(ds.data.first()[kidsKey]) })
+    /** Parental controls cover every profile, so they live here; [KidsSettings.on] follows the active profile. */
+    val kids: StateFlow<KidsSettings> = ds.data.map { kidsOf(it) }
+        .stateIn(scope, SharingStarted.Eagerly, runBlocking { kidsOf(ds.data.first()) })
+
+    private fun kidsOf(p: androidx.datastore.preferences.core.Preferences): KidsSettings {
+        val active = p[activeKey] ?: DEFAULT_ID
+        return decodeKids(p[kidsKey]).copy(on = decode(p[listKey]).any { it.id == active && it.kids })
+    }
 
     suspend fun updateKids(change: (KidsSettings) -> KidsSettings) = ds.edit { it[kidsKey] = json.encodeToString(KidsSettings.serializer(), change(decodeKids(it[kidsKey]))) }
 
@@ -57,8 +62,8 @@ class ProfileStore(private val context: Context, private val json: Json, scope: 
 
     private suspend fun save(list: List<Profile>) = ds.edit { it[listKey] = json.encodeToString(ser, list) }
 
-    suspend fun add(name: String, avatar: String): Profile {
-        val p = Profile(UUID.randomUUID().toString().take(8), name.ifBlank { "Profile ${profiles.value.size + 1}" }, avatar)
+    suspend fun add(name: String, avatar: String, kids: Boolean = false): Profile {
+        val p = Profile(UUID.randomUUID().toString().take(8), name.ifBlank { "Profile ${profiles.value.size + 1}" }, avatar, kids)
         save(profiles.value + p)
         return p
     }

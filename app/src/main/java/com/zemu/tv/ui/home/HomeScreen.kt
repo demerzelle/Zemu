@@ -141,8 +141,6 @@ fun HomeScreen(
         Column(Modifier.fillMaxSize()) {
             HeroInfo(heroShown, heroShown?.let { vm.match(it) }, Modifier.fillMaxWidth().fillMaxHeight(0.40f).heroTrailerTap())
             when {
-                kids.on && !c.tmdb.enabled ->
-                    CenteredMessage("Kids Mode needs a TMDB key", "Titles are checked against their ratings on TMDB. Ask a grown-up to add a TMDB key in Settings → Quick setup.")
                 state.rows.isEmpty() && state.loading ->
                     StatusLine("Loading catalogs…")
                 state.rows.isEmpty() && state.error != null ->

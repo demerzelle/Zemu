@@ -45,7 +45,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Home
@@ -122,7 +121,8 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
     PROFILES("@profiles", "Profiles", Icons.Filled.Person, bottom = true),
-    KIDS("@kids", "Kids Mode", Icons.Filled.Face, bottom = true),
+    /** Kid profiles only: the kid picks their own theme. */
+    THEME("@theme", "Theme", AppIcons.Palette, bottom = true),
 }
 
 private val RAIL_WIDTH = 76.dp
@@ -153,9 +153,9 @@ fun AppShell() {
     var railOpen by remember { mutableStateOf(false) }
     val kids = com.zemu.tv.ui.kids.rememberKids()
     val switchProfile = com.zemu.tv.LocalSwitchProfile.current
-    // Bottom-left menu dialogs: start Kids Mode, or the parent code to leave it / switch profiles.
-    var kidsSetup by remember { mutableStateOf(false) }
-    var parentFor by remember { mutableStateOf<Dest?>(null) }
+    // Bottom-left menu dialogs: a kid's theme picker, and the parent code to leave a kid profile.
+    var kidsTheme by remember { mutableStateOf(false) }
+    var parentCheck by remember { mutableStateOf(false) }
     LaunchedEffect(showRail) { if (!showRail) railOpen = false }
     // A movie just finished: back to Home.
     val goHome = com.zemu.tv.PendingOpen.goHome
@@ -254,8 +254,8 @@ fun AppShell() {
             NavRail(current, railOpen, kids.on, onTouchOpen = { railOpen = it }) { d ->
                 railOpen = false
                 when {
-                    d == Dest.KIDS -> if (kids.on) parentFor = d else kidsSetup = true
-                    d == Dest.PROFILES -> if (kids.on) parentFor = d else switchProfile()
+                    d == Dest.THEME -> kidsTheme = true
+                    d == Dest.PROFILES -> if (kids.on) parentCheck = true else switchProfile()
                     else -> {
                         if (d.route != current) Haptics.buzz(context)
                         nav.navigateTop(d.route)
@@ -264,13 +264,10 @@ fun AppShell() {
             }
         }
     }
-    if (kidsSetup) com.zemu.tv.ui.kids.KidsModeSetup { kidsSetup = false }
-    parentFor?.let { d ->
-        com.zemu.tv.ui.kids.ParentCheck(if (d == Dest.KIDS) "Leave Kids Mode?" else "Switch profiles?", onDismiss = { parentFor = null }) {
-            parentFor = null
-            if (d == Dest.KIDS) scope.launch { context.app.profiles.updateKids { it.copy(on = false) } }
-            else switchProfile()
-        }
+    if (kidsTheme) com.zemu.tv.ui.kids.KidsThemePicker { kidsTheme = false }
+    if (parentCheck) com.zemu.tv.ui.kids.ParentCheck("Leave this kid profile?", onDismiss = { parentCheck = false }) {
+        parentCheck = false
+        switchProfile()
     }
     menuFor?.let { m ->
         CardMenuDialog(
@@ -343,7 +340,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
     val progress = ((width - RAIL_WIDTH) / (RAIL_OPEN_WIDTH - RAIL_WIDTH)).coerceIn(0f, 1f)
     // Settings is for grown-ups; in Kids Mode it's off the menu.
     val main = Dest.entries.filter { !it.bottom && !(kidsOn && it == Dest.SETTINGS) }
-    val bottom = Dest.entries.filter { it.bottom }
+    val bottom = Dest.entries.filter { it.bottom && (kidsOn || it != Dest.THEME) }
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val requesters = remember { Dest.entries.associateWith { FocusRequester() } }
     val selected = Dest.entries.firstOrNull { it.route == current }
@@ -471,8 +468,9 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
             (main + bottom).forEach { d ->
                 if (d == bottom.first()) Spacer(Modifier.height(gap - 2.dp))
                 val isCurrent = current == d.route
-                val label = if (d == Dest.KIDS && kidsOn) "Exit Kids Mode" else d.label
-                val icon = if (d == Dest.KIDS && kidsOn) Icons.Filled.Lock else d.icon
+                // A kid profile's way out is locked.
+                val label = d.label
+                val icon = if (d == Dest.PROFILES && kidsOn) Icons.Filled.Lock else d.icon
                 val shape = RoundedCornerShape(10.dp)
                 // Plain TV surface: remote only. Touch is handled by the rail above.
                 Surface(
@@ -485,7 +483,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
-                        contentColor = if (d == Dest.KIDS && kidsOn) Palette.Accent else Palette.Text,
+                        contentColor = Palette.Text,
                         focusedContainerColor = Palette.Focus,
                         focusedContentColor = Palette.OnFocus,
                     ),

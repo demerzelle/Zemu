@@ -116,7 +116,7 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
     QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look."),
     ADDONS("Addons & accounts", "Stream addons, your debrid service, title details and cast info."),
     PROFILES("Profiles", "Who's watching, pictures and the profile picker."),
-    KIDS("Kids Mode", "Parental controls: the highest rating allowed, the kids themes and the parent code. Kids Mode is also on the menu's bottom left."),
+    KIDS("Kids", "Parental controls: kid profiles, the ratings a kid may watch and the parent code."),
     PLAYBACK("Playback", "Instant play, autoplay, players and decoders."),
     STREAMS("Streams & languages", "Which cached streams are shown and preferred."),
     SUBTITLES("Subtitles", "How subtitles look and the skip-intro button."),
@@ -259,8 +259,7 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "TMDB key (cast, studios, streaming services)" to SettingsCategory.ADDONS,
     "My streaming services" to SettingsCategory.ADDONS,
     "Profiles and profile pictures" to SettingsCategory.PROFILES,
-    "Kids Mode, parental controls, maximum rating, parent code" to SettingsCategory.KIDS,
-    "Kids themes (Toddler, Grade School, Young Adult)" to SettingsCategory.KIDS,
+    "Kid profiles, parental controls, allowed ratings, parent code" to SettingsCategory.KIDS,
     "Instant play" to SettingsCategory.PLAYBACK,
     "Autoplay next episode" to SettingsCategory.PLAYBACK,
     "Play something similar" to SettingsCategory.PLAYBACK,
@@ -669,21 +668,40 @@ private fun Modifier.subtitleBox(c: androidx.compose.ui.graphics.Color): Modifie
 private fun KidsSection() {
     val context = LocalContext.current
     val kids = com.zemu.tv.ui.kids.rememberKids()
+    val store = context.app.profiles
     val scope = rememberCoroutineScope()
-    var setup by remember { mutableStateOf(false) }
+    var newCode by remember { mutableStateOf(false) }
+    fun update(change: (com.zemu.tv.data.KidsSettings) -> com.zemu.tv.data.KidsSettings) = scope.launch { store.updateKids(change) }
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            "Highest rating: ${com.zemu.tv.data.Ratings.LEVELS[kids.maxLevel.coerceIn(0, 3)]} / ${com.zemu.tv.data.Ratings.TV[kids.maxLevel.coerceIn(0, 3)]}  ·  Theme: ${com.zemu.tv.ui.kids.KIDS_THEMES.firstOrNull { it.first == kids.theme }?.second ?: "Grade School"}  ·  Parent code: ${if (kids.pinHash.isEmpty()) "not set" else "set"}",
-            color = Palette.TextSecondary, fontSize = 14.sp,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvButton("Start Kids Mode", primary = true, onClick = { setup = true })
-            if (kids.pinHash.isNotEmpty()) TvButton("Change parent code", onClick = {
-                // Settings is locked in Kids Mode, so whoever is here already knows the code.
-                scope.launch { context.app.profiles.updateKids { it.copy(pinHash = "") } }
-                setup = true
-            })
+        ToggleRow(
+            "Kid profiles",
+            "Lets a profile be made a kid profile (Settings → Profiles → edit or add a profile). A kid profile only shows family and kids' titles with the ratings below; leaving it or opening Settings needs the parent code.",
+            kids.enabled,
+        ) {
+            if (!kids.enabled && kids.pinHash.isEmpty()) newCode = true
+            update { it.copy(enabled = !it.enabled) }
+        }
+        if (kids.enabled) {
+            Text("Ratings a kid may watch", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "Only family or kids' titles show at all, whatever their rating. Movie ratings come from Wikidata (or TMDB with a key). TV ratings need a TMDB key; without one, kids' shows count as unrated.",
+                color = Palette.TextSecondary, fontSize = 13.sp,
+            )
+            listOf("Movies" to com.zemu.tv.data.Ratings.MOVIE, "TV" to com.zemu.tv.data.Ratings.TV, "Other" to listOf(com.zemu.tv.data.Ratings.UNRATED)).forEach { (group, certs) ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(group, color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.width(60.dp))
+                    certs.forEach { cert ->
+                        TvChip(if (cert == com.zemu.tv.data.Ratings.UNRATED) "Unrated kids' titles" else cert, cert in kids.allowed, {
+                            update { it.copy(allowed = if (cert in it.allowed) it.allowed - cert else it.allowed + cert) }
+                        })
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
+                TvButton(if (kids.pinHash.isEmpty()) "Set parent code" else "Change parent code", onClick = { newCode = true })
+            }
         }
     }
-    if (setup) com.zemu.tv.ui.kids.KidsModeSetup { setup = false }
+    // Settings is locked for kids, so whoever is here may set a new code.
+    if (newCode) com.zemu.tv.ui.kids.CreateParentCode(onDismiss = { newCode = false }) { newCode = false }
 }

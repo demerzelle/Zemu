@@ -114,7 +114,7 @@ fun ProfilesSection(phoneAddress: String?) {
             initial = Profile("", "", "preset:${profiles.size % AvatarPresets.all.size}"),
             canDelete = false,
             phoneAddress = null,
-            onSave = { name, avatar -> store.add(name, avatar) },
+            onSave = { name, avatar, kids -> store.add(name, avatar, kids) },
             onDelete = {},
             onDismiss = { adding = false },
         )
@@ -125,7 +125,7 @@ fun ProfilesSection(phoneAddress: String?) {
             initial = p,
             canDelete = p.id != ProfileStore.DEFAULT_ID && p.id != currentId,
             phoneAddress = phoneAddress,
-            onSave = { name, avatar -> store.update(p.copy(name = name.ifBlank { p.name }, avatar = avatar)) },
+            onSave = { name, avatar, kids -> store.update(p.copy(name = name.ifBlank { p.name }, avatar = avatar, kids = kids)) },
             onDelete = { store.delete(p.id) },
             onDismiss = { editing = null },
         )
@@ -161,7 +161,7 @@ private fun ProfileEditor(
     initial: Profile,
     canDelete: Boolean,
     phoneAddress: String?,
-    onSave: suspend (String, String) -> Unit,
+    onSave: suspend (name: String, avatar: String, kids: Boolean) -> Unit,
     onDelete: suspend () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -172,6 +172,11 @@ private fun ProfileEditor(
     val uploaded = live.firstOrNull { it.id == initial.id }?.avatar?.takeIf { it.startsWith("file:") }
     var name by remember { mutableStateOf(initial.name) }
     var avatar by remember { mutableStateOf(initial.avatar) }
+    var kid by remember { mutableStateOf(initial.kids) }
+    val kidsSettings = com.zemu.tv.ui.kids.rememberKids()
+    // A kid profile needs a parent code to lock it; asked for before saving if there isn't one yet.
+    var needCode by remember { mutableStateOf(false) }
+    val save = { scope.launch { onSave(name.trim(), avatar, kid); onDismiss() } }
     LaunchedEffect(uploaded) { if (uploaded != null) avatar = uploaded }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
@@ -224,10 +229,12 @@ private fun ProfileEditor(
             )
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvButton("Save", primary = true, onClick = { scope.launch { onSave(name.trim(), avatar); onDismiss() } })
+                if (kidsSettings.enabled || initial.kids) TvChip("🧸 Kid profile", kid, { kid = !kid })
+                TvButton("Save", primary = true, onClick = { if (kid && kidsSettings.pinHash.isEmpty()) needCode = true else save() })
                 TvButton("Cancel", onClick = onDismiss)
                 if (canDelete) TvButton("Delete profile", onClick = { scope.launch { onDelete(); onDismiss() } })
             }
         }
     }
+    if (needCode) com.zemu.tv.ui.kids.CreateParentCode(onDismiss = { needCode = false }) { needCode = false; save() }
 }
