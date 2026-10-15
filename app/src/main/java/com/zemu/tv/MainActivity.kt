@@ -157,8 +157,10 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(settings.screensaver, resumed) {
                             if (!settings.screensaver || !resumed) return@LaunchedEffect
                             // A fresh pick of suggestions each run; art for them is looked up ahead of time.
+                            // Wait until startup's own loading (rows, images) is done before fetching art.
+                            kotlinx.coroutines.delay(45_000)
                             var titles = c.screensaverTitles()
-                            runCatching { c.screensaverImages.refresh(titles) }
+                            launch { runCatching { c.screensaverImages.refresh(titles) } }
                             while (true) {
                                 kotlinx.coroutines.delay(1_000)
                                 val idle = android.os.SystemClock.uptimeMillis() - lastInput

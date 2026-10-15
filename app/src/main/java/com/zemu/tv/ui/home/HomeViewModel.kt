@@ -253,8 +253,8 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
                 loading = false,
                 error = if (specRows.value.isEmpty()) "Couldn't load any catalogs. Check your connection and installed addons." else null,
             )
-            // Prepare the next launch's rotation in the background.
-            delay(5_000)
+            // Prepare the next launch's rotation once startup traffic (images, personal rows) is done.
+            delay(90_000)
             val next = buildSpecs(kotlin.random.Random.nextLong())
             val nextItems = fetchAll(next) { _, _ -> }
             writeSnapshot(RowSnapshot(next, nextItems.mapValues { (_, v) -> v.map { it.slim() } }))
