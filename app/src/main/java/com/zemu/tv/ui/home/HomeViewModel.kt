@@ -56,7 +56,8 @@ data class HomeRow(
  * rows occupy by default, so new rows still show up where they normally would); favorites go first.
  */
 fun arrangeRows(rows: List<HomeRow>, prefs: com.zemu.tv.data.RowPrefs): List<HomeRow> {
-    val byKey = rows.associateBy { it.key }
+    val byKey = rows.filterNot { it.key in prefs.hidden }.associateBy { it.key }
+    @Suppress("NAME_SHADOWING") val rows = rows.filter { it.key in byKey }
     val keys = rows.map { it.key }.toMutableList()
     val saved = prefs.order.filter { it in byKey }
     if (saved.isNotEmpty()) {
@@ -186,6 +187,63 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
 
     private val arrangedRows = combine(baseRows, prefs) { rows, p -> arrangeRows(rows, p) }
 
+    /** Every row in its arranged order, removed ones included (for Settings → Manage rows). */
+    val manageRows: StateFlow<Pair<List<HomeRow>, RowPrefs>> = combine(baseRows, prefs) { rows, p -> arrangeRows(rows, p.copy(hidden = emptyList())) to p }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList<HomeRow>() to RowPrefs())
+
+    fun hideRow(key: String) = viewModelScope.launch {
+        val p = prefs.value
+        // A row you added is simply taken off again; anything else is hidden and can be restored.
+        if (p.added.any { it.key == key }) {
+            c.userStore.saveRowPrefs(page, p.copy(added = p.added.filterNot { it.key == key }, favorites = p.favorites - key))
+            specRows.value = specRows.value.filterNot { it.key == key }
+        } else c.userStore.saveRowPrefs(page, p.copy(hidden = (p.hidden + key).distinct(), favorites = p.favorites - key))
+    }
+
+    fun showRow(key: String) = viewModelScope.launch {
+        val p = prefs.value
+        c.userStore.saveRowPrefs(page, p.copy(hidden = p.hidden - key))
+    }
+
+    /** Adds a row of your own choosing; it stays on this page, loads now, and can be removed again. */
+    fun addRow(spec: RowSpec) = viewModelScope.launch {
+        val p = prefs.value
+        if (p.added.any { it.key == spec.key }) return@launch
+        c.userStore.saveRowPrefs(page, p.copy(added = p.added + spec, hidden = p.hidden - spec.key))
+        val items = runCatching { fetch(spec) }.getOrDefault(emptyList())
+        if (items.isNotEmpty()) specRows.value = (specRows.value.filterNot { it.key == spec.key } + spec.toRow(items)).sortedBy { it.priority }
+    }
+
+    /** Rows that can be added to this page: services, studios, genres, catalogs. */
+    fun addableRows(): List<RowSpec> {
+        val out = mutableListOf<RowSpec>()
+        val types = when (page) { "home" -> listOf("movie", "series"); "anime" -> emptyList(); else -> listOf(page) }
+        val noun = { t: String -> if (t == "series") "Series" else "Movies" }
+        if (c.tmdb.enabled) types.forEach { t ->
+            val services = (c.userStore.settings.value.myServices.map { (id, n) -> com.zemu.tv.data.Provider(id, n) } + StreamingService.entries.map { it.provider }).distinctBy { it.ids }
+            services.forEach { s -> out += RowSpec("$t/added-svc-${s.ids}", "${noun(t)} on ${s.label}", 5, t, tmdb = DiscoverParams.service(s) + DiscoverParams.popular(), service = s.ids, serviceLabel = s.label) }
+            com.zemu.tv.data.Studio.forType(t).forEach { st -> out += RowSpec("$t/added-studio-${st.key}", "From ${st.label}", 5, t, tmdb = mapOf(st.param) + DiscoverParams.popular(), studio = st.key) }
+        }
+        val cinemeta = c.addons.cinemeta
+        if (cinemeta != null) types.forEach { t ->
+            cinemeta.manifest.catalogs.firstOrNull { it.type == t && it.id == "top" }?.optionsFor("genre")?.forEach { g ->
+                out += RowSpec("$t/added-genre-$g", "$g ${noun(t)}", 5, t, addonId = cinemeta.manifest.id, catalogType = t, catalogId = "top", extra = mapOf("genre" to g))
+            }
+        }
+        if (page == "anime") c.addons.kitsu?.let { k ->
+            k.manifest.catalogs.firstOrNull { it.id == "kitsu-anime-popular" }?.optionsFor("genre")?.forEach { g ->
+                out += RowSpec("anime/added-genre-$g", "$g Anime", 5, "series", addonId = k.manifest.id, catalogType = "anime", catalogId = "kitsu-anime-popular", extra = mapOf("genre" to g))
+            }
+        }
+        // Any catalog from any installed addon.
+        c.addons.addons.value.forEach { a ->
+            a.manifest.catalogs.filter { it.requiredExtras.isEmpty() && (page == "home" || it.type == page || (page == "anime" && a.manifest.id == AddonRepository.KITSU_ID)) }.forEach { cat ->
+                out += RowSpec("${a.manifest.id}/added-${cat.type}/${cat.id}", "${cat.name ?: cat.id} · ${a.manifest.name}", 5, cat.type, addonId = a.manifest.id, catalogType = cat.type, catalogId = cat.id)
+            }
+        }
+        return out.distinctBy { it.key }
+    }
+
     init {
         // The screensaver suggests titles from Home's discovery rows (not your own history).
         if (isHome) viewModelScope.launch {
@@ -296,7 +354,7 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
             if (isHome) c.addons.ensureDefaults()
             if (page == "anime") c.addons.ensureKitsu()
             loadedFor = c.addons.addons.value.map { it.transportUrl }
-            val specs = snapshot?.specs?.takeIf { it.isNotEmpty() } ?: buildSpecs(kotlin.random.Random.nextLong())
+            val specs = ((snapshot?.specs?.takeIf { it.isNotEmpty() } ?: buildSpecs(kotlin.random.Random.nextLong())) + prefs.value.added).distinctBy { it.key }
             val items = fetchAll(specs) { key, list ->
                 val spec = specs.first { it.key == key }
                 specRows.value = (specRows.value.filterNot { it.key == key } + spec.toRow(list)).sortedBy { it.priority }

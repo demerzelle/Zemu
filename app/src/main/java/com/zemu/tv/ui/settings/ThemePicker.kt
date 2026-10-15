@@ -64,7 +64,7 @@ private data class Hsv(val h: Float, val s: Float, val v: Float) {
     }
 }
 
-/** Preset theme swatches; colors of any theme are changed with [ColorCustomizer]. */
+/** The five palettes and Custom, each swatch drawn in its exact colors for the current mode. */
 @Composable
 fun ThemePicker(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
     LazyRow(
@@ -72,9 +72,34 @@ fun ThemePicker(settings: AppSettings, update: ((AppSettings) -> AppSettings) ->
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(ThemePreset.entries.toList(), key = { it.name }) { p ->
-            ThemeSwatch(p.label, p.colors, selected = ThemePreset.of(settings.theme) == p && settings.theme != ThemePreset.CUSTOM) { update { it.copy(theme = p.name) } }
+            ThemeSwatch(p.label, p.colors(settings.lightMode, settings.glassStyle), selected = settings.theme == p.name) { update { it.copy(theme = p.name) } }
+        }
+        item(key = "custom") {
+            val mine = settings.copy(theme = ThemePreset.CUSTOM, dynamicTheme = "NONE").resolvedColors()
+            ThemeSwatch("Custom", mine, selected = settings.theme == ThemePreset.CUSTOM) { update { seedCustom(it) } }
         }
     }
+}
+
+/**
+ * Switches to the Custom palette, starting it from the palette in use (both modes) unless it
+ * already has colors, so nothing changes until you edit.
+ */
+fun seedCustom(s: AppSettings): AppSettings {
+    if (s.theme == ThemePreset.CUSTOM) return s
+    val preset = ThemePreset.of(s.theme)
+    var o = s.colorOverrides
+    for (light in listOf(false, true)) {
+        val mode = if (light) "light" else "dark"
+        if (o.keys.any { it.startsWith("CUSTOM/$mode/") }) continue
+        val c = preset.colors(light, s.glassStyle)
+        listOf(
+            com.zemu.tv.ui.theme.ColorRole.ACCENT to c.accent, com.zemu.tv.ui.theme.ColorRole.BACKGROUND to c.base,
+            com.zemu.tv.ui.theme.ColorRole.PANEL to c.surface, com.zemu.tv.ui.theme.ColorRole.BUTTON to c.surfaceHigh,
+            com.zemu.tv.ui.theme.ColorRole.TEXT to (c.customText ?: Color.White),
+        ).forEach { (r, col) -> o = o + ("CUSTOM/$mode/${r.key}" to col.toArgbLong()) }
+    }
+    return s.copy(theme = ThemePreset.CUSTOM, customAccent = preset.accent, colorOverrides = o)
 }
 
 @Composable
@@ -82,9 +107,11 @@ private fun ThemeSwatch(label: String, colors: ThemeColors, selected: Boolean, o
     FocusSurface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        containerColor = colors.background,
-        focusedContainerColor = colors.surfaceHigh,
-        focusedContentColor = Palette.Text,
+        // Exactly the palette's colors, focused or not (focus shows as the outline).
+        containerColor = colors.base,
+        contentColor = colors.customText ?: Palette.Text,
+        focusedContainerColor = colors.base,
+        focusedContentColor = colors.customText ?: Palette.Text,
         focusedBorder = Palette.FocusBorder,
         focusedScale = 1.06f,
     ) {
@@ -173,7 +200,8 @@ fun ColorCustomizer(settings: AppSettings, update: ((AppSettings) -> AppSettings
     }
     val key = "$scope/${role.key}"
     val themeName = scope.substringBefore('/').let { n ->
-        com.zemu.tv.ui.theme.DynamicTheme.entries.firstOrNull { it.name == n }?.label
+        if (n.startsWith("RETRO-")) "Cybercore " + n.removePrefix("RETRO-").lowercase().replaceFirstChar { it.uppercase() }
+        else com.zemu.tv.ui.theme.DynamicTheme.entries.firstOrNull { it.name == n }?.label
             ?: ThemePreset.entries.firstOrNull { it.name == n }?.label ?: "Custom"
     }
     Text(
@@ -187,7 +215,12 @@ fun ColorCustomizer(settings: AppSettings, update: ((AppSettings) -> AppSettings
         }
     }
     val hsv = Hsv.of(current)
-    fun set(h: Hsv) = update { it.copy(colorOverrides = it.colorOverrides + (key to h.color().toArgbLong())) }
+    // Exact: what you pick is stored and used as-is. Editing a preset palette turns it into Custom.
+    fun set(h: Hsv) = update { s0 ->
+        val s = if (scope.substringBefore('/') == s0.theme && s0.theme != ThemePreset.CUSTOM) seedCustom(s0) else s0
+        s.copy(colorOverrides = s.colorOverrides + ("${s.colorScope()}/${role.key}" to h.color().toArgbLong()))
+    }
+    Text("%s  #%06X".format(role.label, current.toArgbLong() and 0xFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
     val hueBrush = Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 1f, 1f) })
     TvSlider("Hue", hsv.h / 360f, 1f / 72, hueBrush) { set(hsv.copy(h = it * 360f, s = hsv.s.coerceAtLeast(0.05f))) }
     TvSlider("Saturation", hsv.s, 0.05f, Brush.horizontalGradient(listOf(hsv.copy(s = 0f).color(), hsv.copy(s = 1f).color()))) { set(hsv.copy(s = it)) }

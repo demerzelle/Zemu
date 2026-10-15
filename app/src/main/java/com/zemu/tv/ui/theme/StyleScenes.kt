@@ -270,3 +270,214 @@ fun DrawScope.acidOverlay(t: Float) {
         drawRect(Color(0xFFFF2BD6).copy(alpha = 0.25f), Offset(size.width * 0.2f, y + 5f), Size(size.width * 0.5f, 2f))
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Ethereal · Aurora
+// ---------------------------------------------------------------------------------------------
+
+/** Deep twilight with slow aurora curtains, drifting light orbs and faint stars. */
+@Composable
+fun EtherealBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(30)
+    val light = Palette.Light
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFF3EEFF), Color(0xFFE2F3FF), Color(0xFFFBEFFF)) else listOf(Color(0xFF07061A), Color(0xFF1A1240), Color(0xFF0B1A2E))))
+        val r = Random(3)
+        repeat(80) {
+            drawCircle(Color.White.copy(alpha = (0.15f + 0.4f * r.nextFloat()) * (0.6f + 0.4f * sin(t + it))), 1.2f, Offset(r.nextFloat() * size.width, r.nextFloat() * size.height * 0.6f))
+        }
+        val bands = listOf(Color(0xFF8B5CF6), Color(0xFF22D3EE), Color(0xFFF472B6), Color(0xFF34D399))
+        bands.forEachIndexed { i, c ->
+            val path = Path()
+            val base = size.height * (0.15f + i * 0.09f)
+            path.moveTo(0f, base)
+            var x = 0f
+            while (x <= size.width) {
+                path.lineTo(x, base + sin(x / size.width * 5f + t * (0.15f + i * 0.05f) + i) * 60f)
+                x += 24f
+            }
+            path.lineTo(size.width, 0f); path.lineTo(0f, 0f); path.close()
+            drawPath(path, Brush.verticalGradient(listOf(c.copy(alpha = 0f), c.copy(alpha = if (light) 0.14f else 0.22f)), startY = 0f, endY = base + 80f))
+        }
+        repeat(6) { i ->
+            val c = Offset(size.width * (0.1f + ((i * 0.19f + t * 0.01f) % 1f) * 0.8f), size.height * (0.55f + 0.3f * sin(t * 0.2f + i)))
+            drawCircle(Brush.radialGradient(listOf(bands[i % 4].copy(alpha = 0.18f), Color.Transparent), center = c, radius = 180f), 180f, c)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cybercore (vintage PC)
+// ---------------------------------------------------------------------------------------------
+
+/** The desktop: Classic (teal + gray taskbar), Kawaii (pastel hearts and clouds), XP (blue sky and the green hill). */
+@Composable
+fun RetroBackdrop(variant: String, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val clock = sceneClock(4)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        val bar = 34.dp.toPx()
+        when (variant) {
+            "KAWAII" -> {
+                drawRect(Brush.verticalGradient(listOf(Color(0xFFFFD6EC), Color(0xFFE9D9FF))))
+                val step = 64f
+                var y = 0f; var row = 0
+                while (y < size.height) {
+                    var x = if (row % 2 == 0) 0f else step / 2
+                    while (x < size.width) {
+                        if ((x / step + row).toInt() % 3 == 0) drawCircle(Color.White.copy(alpha = 0.55f), 3f, Offset(x, y))
+                        else drawPath(Path().apply { moveTo(x, y + 4f); cubicTo(x - 8f, y - 2f, x - 3f, y - 7f, x, y - 2f); cubicTo(x + 3f, y - 7f, x + 8f, y - 2f, x, y + 4f) }, Color(0x66FF7CC8))
+                        x += step
+                    }
+                    y += step / 1.6f; row++
+                }
+                repeat(3) { i ->
+                    val cx = ((t * 6f + i * 420f) % (size.width + 300f)) - 150f
+                    val cy = size.height * (0.15f + i * 0.2f)
+                    listOf(0f to 0f, 30f to -14f, 60f to 0f, 30f to 10f).forEach { (dx, dy) -> drawCircle(Color.White.copy(alpha = 0.8f), 26f, Offset(cx + dx, cy + dy)) }
+                }
+                drawRect(Color(0xFFFFB8DE), Offset(0f, size.height - bar), Size(size.width, bar))
+                drawText(measurer.measure("♡ start", TextStyle(fontFamily = FontFamily.Cursive, fontSize = 16.sp, color = Color(0xFF5A2346))), topLeft = Offset(16f, size.height - bar + 6f))
+            }
+            "XP" -> {
+                drawRect(Brush.verticalGradient(listOf(Color(0xFF2E6FD8), Color(0xFF6FA8F0), Color(0xFFB8D8F8)), endY = size.height * 0.7f))
+                repeat(4) { i ->
+                    val cx = ((t * 4f + i * 500f) % (size.width + 400f)) - 200f
+                    drawOval(Color.White.copy(alpha = 0.75f), Offset(cx, size.height * (0.12f + i * 0.08f)), Size(260f, 50f))
+                }
+                drawPath(Path().apply {
+                    moveTo(0f, size.height * 0.72f)
+                    cubicTo(size.width * 0.3f, size.height * 0.52f, size.width * 0.7f, size.height * 0.62f, size.width, size.height * 0.7f)
+                    lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                }, Brush.verticalGradient(listOf(Color(0xFF6CC24A), Color(0xFF2F8A1F)), startY = size.height * 0.55f, endY = size.height))
+                drawRect(Brush.verticalGradient(listOf(Color(0xFF3D86F5), Color(0xFF1F4FC7))), Offset(0f, size.height - bar), Size(size.width, bar))
+                drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF5FC24A), Color(0xFF2E8B1F))), Offset(0f, size.height - bar), Size(110.dp.toPx(), bar), androidx.compose.ui.geometry.CornerRadius(0f, 0f))
+                drawText(measurer.measure("start", TextStyle(fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.Bold)), topLeft = Offset(28.dp.toPx(), size.height - bar + 5f))
+            }
+            else -> {
+                drawRect(Color(0xFF008080))
+                // Desktop icons in a row just above the taskbar, bottom right.
+                listOf("My Computer", "Movies", "Recycle Bin").forEachIndexed { i, label ->
+                    val x = size.width - (330 - i * 105).dp.toPx(); val y = size.height - bar - 80.dp.toPx()
+                    drawRect(Color(0xFFC0C0C0), Offset(x + 14f, y), Size(48f, 36f))
+                    drawRect(Color(0xFF000080), Offset(x + 20f, y + 5f), Size(36f, 24f))
+                    drawText(measurer.measure(label, TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = Color.White)), topLeft = Offset(x, y + 44f))
+                }
+                drawRect(Color(0xFFC0C0C0), Offset(0f, size.height - bar), Size(size.width, bar))
+                drawLine(Color.White, Offset(0f, size.height - bar), Offset(size.width, size.height - bar), 2f)
+                drawRect(Color(0xFFC0C0C0), Offset(4f, size.height - bar + 4f), Size(90.dp.toPx(), bar - 8f))
+                drawText(measurer.measure("▣ Start", TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Bold)), topLeft = Offset(14f, size.height - bar + 8f))
+            }
+        }
+        val clockText = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date())
+        drawText(measurer.measure(clockText, TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = if (variant == "XP") Color.White else Color.Black)), topLeft = Offset(size.width - 90.dp.toPx(), size.height - bar + 8f))
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Graffiti
+// ---------------------------------------------------------------------------------------------
+
+/** A subway wall: dark bricks, layered tags with drips, a big bubble-letter piece. */
+@Composable
+fun GraffitiBackdrop(modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val accent = Palette.Accent
+    Canvas(modifier.fillMaxSize()) {
+        drawRect(Color(0xFF1A1A1A))
+        val bw = 120f; val bh = 44f
+        var row = 0; var y = 0f
+        while (y < size.height) {
+            var x = if (row % 2 == 0) 0f else -bw / 2
+            while (x < size.width) {
+                val shade = 0.10f + 0.05f * ((x.toInt() * 7 + row * 13) % 5) / 5f
+                drawRect(Color(0xFF7A3B2E).copy(alpha = shade + 0.12f), Offset(x + 3f, y + 3f), Size(bw - 6f, bh - 6f))
+                x += bw
+            }
+            y += bh; row++
+        }
+        val r = Random(11)
+        val paints = listOf(accent, Color(0xFF00E5FF), Color(0xFFFFE600), Color(0xFF39FF14), Color.White)
+        repeat(9) {
+            val c = paints[r.nextInt(paints.size)].copy(alpha = 0.32f)
+            val x0 = r.nextFloat() * size.width; val y0 = r.nextFloat() * size.height
+            val p = Path().apply {
+                moveTo(x0, y0)
+                repeat(4) { cubicTo(x0 + r.nextFloat() * 180f - 40f, y0 - r.nextFloat() * 80f, x0 + r.nextFloat() * 220f, y0 + r.nextFloat() * 60f, x0 + r.nextFloat() * 260f, y0 + r.nextFloat() * 30f - 15f) }
+            }
+            drawPath(p, c, style = Stroke(6f + r.nextFloat() * 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            repeat(3) { val dx = x0 + r.nextFloat() * 200f; drawLine(c, Offset(dx, y0), Offset(dx, y0 + 20f + r.nextFloat() * 70f), 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round) }
+        }
+        val piece = measurer.measure("ZEMU", TextStyle(fontFamily = FontFamily(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.NORMAL)), fontSize = 190.sp, color = accent.copy(alpha = 0.18f)))
+        rotate(-8f, Offset(size.width * 0.6f, size.height * 0.65f)) {
+            drawText(piece, topLeft = Offset(size.width * 0.45f + 8f, size.height * 0.52f + 8f), color = Color.Black.copy(alpha = 0.35f))
+            drawText(piece, topLeft = Offset(size.width * 0.45f, size.height * 0.52f))
+            drawText(piece, topLeft = Offset(size.width * 0.45f, size.height * 0.52f), color = Color.White.copy(alpha = 0.2f), drawStyle = Stroke(4f))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Liquid Glass
+// ---------------------------------------------------------------------------------------------
+
+/** A vivid, slowly flowing wallpaper for the glass to sit on (big soft color blobs). */
+@Composable
+fun LiquidBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(24)
+    val light = Palette.Light
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(if (light) Color(0xFFEFF3FA) else Color(0xFF060914))
+        val blobs = listOf(Color(0xFF0A84FF), Color(0xFFBF5AF2), Color(0xFFFF9F0A), Color(0xFF30D5C8), Color(0xFFFF375F))
+        blobs.forEachIndexed { i, c ->
+            val cx = size.width * (0.5f + 0.38f * sin(t * (0.05f + i * 0.013f) + i * 1.3f))
+            val cy = size.height * (0.5f + 0.36f * sin(t * (0.04f + i * 0.011f) + i * 2.1f))
+            val rad = size.maxDimension * (0.32f + 0.05f * i)
+            drawCircle(Brush.radialGradient(listOf(c.copy(alpha = if (light) 0.35f else 0.55f), Color.Transparent), center = Offset(cx, cy), radius = rad), rad, Offset(cx, cy))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cat Rave
+// ---------------------------------------------------------------------------------------------
+
+/** A dark dance floor: a spinning disco ball, sweeping spotlights and a pulsing grid. */
+@Composable
+fun CatRaveBackdrop(modifier: Modifier = Modifier) {
+    val clock = sceneClock(30)
+    Canvas(modifier.fillMaxSize()) {
+        val t = clock.floatValue
+        drawRect(Color(0xFF07000F))
+        val beat = (t * 2.13f) % 1f
+        // Pulsing floor grid.
+        val horizon = size.height * 0.7f
+        for (i in -14..14) drawLine(Color.hsv((t * 60f + i * 12f + 360f) % 360f, 1f, 1f).copy(alpha = 0.25f), Offset(size.width / 2 + i * 40f, horizon), Offset(size.width / 2 + i * 260f, size.height), 2f)
+        var y = horizon
+        var gap = 8f
+        while (y < size.height) { drawLine(Color(0xFFFF00E6).copy(alpha = 0.25f * (1f - beat) + 0.08f), Offset(0f, y), Offset(size.width, y), 2f); y += gap; gap *= 1.35f }
+        // Spotlights.
+        for (i in 0 until 3) {
+            val top = Offset(size.width * (0.25f + i * 0.25f), 0f)
+            val a = sin(t * (0.8f + i * 0.3f) + i) * 0.5f
+            val bottomC = Offset(top.x + a * size.width * 0.5f, size.height)
+            drawPath(Path().apply { moveTo(top.x, top.y); lineTo(bottomC.x - 140f, bottomC.y); lineTo(bottomC.x + 140f, bottomC.y); close() },
+                Brush.verticalGradient(listOf(Color.hsv((t * 80f + i * 120f) % 360f, 0.8f, 1f).copy(alpha = 0.22f), Color.Transparent)))
+        }
+        // Disco ball with spinning facets.
+        val c = Offset(size.width / 2, 70f)
+        drawLine(Color.Gray, Offset(c.x, 0f), Offset(c.x, c.y - 44f), 2f)
+        drawCircle(Color(0xFFB0B0C8), 44f, c)
+        for (row in -3..3) for (col in 0 until 10) {
+            val ang = (col / 10f * 6.283f + t * 1.5f)
+            val x = c.x + kotlin.math.cos(ang) * 44f * kotlin.math.cos(row * 0.4f)
+            if (kotlin.math.sin(ang) < 0) continue
+            drawRect(Color.hsv((col * 36f + t * 200f) % 360f, 0.3f, 1f), Offset(x - 4f, c.y + row * 11f - 4f), Size(7f, 7f))
+        }
+        catFace(Offset(size.width * 0.12f, size.height * 0.4f + sin(t * 4f) * 20f), 60f, Color.hsv((t * 100f) % 360f, 0.6f, 1f).copy(alpha = 0.3f))
+        catFace(Offset(size.width * 0.88f, size.height * 0.4f + sin(t * 4f + 1.5f) * 20f), 60f, Color.hsv((t * 100f + 180f) % 360f, 0.6f, 1f).copy(alpha = 0.3f))
+    }
+}

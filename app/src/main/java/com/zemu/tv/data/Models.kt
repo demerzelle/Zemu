@@ -128,6 +128,10 @@ data class AppSettings(
     val customBackground: Long = 0xFF0A0A0E,
     /** A [com.zemu.tv.ui.theme.DynamicTheme] name. */
     val dynamicTheme: String = "NONE",
+    /** Sub-theme per animated theme (e.g. WEATHER to "RAIN", HOLIDAYS to "AUTO", RETRO to "XP"). */
+    val themeVariants: Map<String, String> = emptyMap(),
+    /** Found the secret (click the logo ten times). */
+    val catRaveUnlocked: Boolean = false,
     /** Full-screen slideshow of library backdrops after the app sits idle. */
     val screensaver: Boolean = false,
     val screensaverIdleSec: Int = 60,
@@ -184,9 +188,17 @@ data class AppSettings(
     val colorOverrides: Map<String, Long> = emptyMap(),
 )
 
-/** A screen's row arrangement: [order] is the row keys as last arranged; [favorites] are pinned to the top. */
+/**
+ * A screen's row arrangement: [order] is the row keys as last arranged; [favorites] are pinned to
+ * the top; [hidden] rows are removed; [added] are rows you added yourself (Settings → Manage rows).
+ */
 @Serializable
-data class RowPrefs(val order: List<String> = emptyList(), val favorites: List<String> = emptyList())
+data class RowPrefs(
+    val order: List<String> = emptyList(),
+    val favorites: List<String> = emptyList(),
+    val hidden: List<String> = emptyList(),
+    val added: List<RowSpec> = emptyList(),
+)
 
 /** Identifies a played stream: [key] matches the exact release, [bingeGroup] the release group across episodes. */
 @Serializable

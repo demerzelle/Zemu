@@ -34,6 +34,8 @@ data class ThemeColors(
     val customPanel: Color? = null,
     val customButton: Color? = null,
     val customText: Color? = null,
+    /** Sub-style of [style] (e.g. Cybercore's "CLASSIC", "KAWAII", "XP"). */
+    val variant: String = "",
 ) {
     /** In light mode the theme's dark background becomes a pale tint of its accent. */
     val base: Color = customBase ?: if (light) lerp(Color(0xFFF4F4F7), accent, 0.05f) else background
@@ -56,16 +58,16 @@ data class ThemeColors(
         fun get(r: ColorRole) = all["$scope/${r.key}"]?.let { Color(it.toInt()) }
         return copy(
             accent = get(ColorRole.ACCENT) ?: accent,
-            customBase = get(ColorRole.BACKGROUND),
-            customPanel = get(ColorRole.PANEL),
-            customButton = get(ColorRole.BUTTON),
-            customText = get(ColorRole.TEXT),
+            customBase = get(ColorRole.BACKGROUND) ?: customBase,
+            customPanel = get(ColorRole.PANEL) ?: customPanel,
+            customButton = get(ColorRole.BUTTON) ?: customButton,
+            customText = get(ColorRole.TEXT) ?: customText,
         )
     }
 }
 
 /** Whole-app looks that go beyond colors: shapes, type, panels and a backdrop scene. */
-enum class UiStyle { NORMAL, PS2, ACID }
+enum class UiStyle { NORMAL, PS2, ACID, ETHEREAL, RETRO, GRAFFITI, LIQUID, CATRAVE }
 
 /** Colors the user can set per theme and per light/dark mode. */
 enum class ColorRole(val key: String, val label: String) {
@@ -76,46 +78,70 @@ enum class ColorRole(val key: String, val label: String) {
     TEXT("text", "Text"),
 }
 
-enum class ThemePreset(val label: String, val accent: Long, val background: Long) {
-    CLASSIC("Zemu Neon", 0xFF39FF14, 0xFF07090A),
-    CRIMSON("Crimson", 0xFFE50914, 0xFF0A0A0E),
-    OCEAN("Ocean Blue", 0xFF2F80ED, 0xFF070B14),
-    EMERALD("Emerald", 0xFF10B981, 0xFF06100C),
-    PURPLE("Royal Purple", 0xFF8B5CF6, 0xFF0C0814),
-    ROSE("Rose", 0xFFEC4899, 0xFF12070D),
-    SUNSET("Sunset", 0xFFF97316, 0xFF120A06),
-    GOLD("Gold", 0xFFEAB308, 0xFF0E0C05),
-    SLATE("Slate", 0xFF94A3B8, 0xFF0F1115);
+/**
+ * The five color palettes. Every color is spelled out for dark and light mode, so what the swatch
+ * shows is exactly what the app uses; nothing is tinted or derived.
+ */
+enum class ThemePreset(
+    val label: String,
+    val accent: Long,
+    val dark: List<Long>,
+    val light: List<Long>,
+) {
+    // Colors: background, panels & rows, buttons, text.
+    CLASSIC("Zemu Neon", 0xFF39FF14, listOf(0xFF07090A, 0xFF121516, 0xFF1D2122, 0xFFFFFFFF), listOf(0xFFF3F6F2, 0xFFFFFFFF, 0xFFE4E9E3, 0xFF101410)),
+    CRIMSON("Crimson", 0xFFE50914, listOf(0xFF0A0A0E, 0xFF16161B, 0xFF222229, 0xFFFFFFFF), listOf(0xFFF7F3F3, 0xFFFFFFFF, 0xFFEBE4E4, 0xFF161012)),
+    OCEAN("Ocean Blue", 0xFF2F80ED, listOf(0xFF070B14, 0xFF111827, 0xFF1C2537, 0xFFFFFFFF), listOf(0xFFF1F5FB, 0xFFFFFFFF, 0xFFE1E8F3, 0xFF0D1422)),
+    PURPLE("Royal Purple", 0xFF8B5CF6, listOf(0xFF0C0814, 0xFF171222, 0xFF231C31, 0xFFFFFFFF), listOf(0xFFF5F2FB, 0xFFFFFFFF, 0xFFE8E2F4, 0xFF15101F)),
+    SUNSET("Sunset", 0xFFF97316, listOf(0xFF120A06, 0xFF1E140E, 0xFF2B1E15, 0xFFFFFFFF), listOf(0xFFFBF5F0, 0xFFFFFFFF, 0xFFF1E6DC, 0xFF1C120C)),
+    ;
 
-    val colors: ThemeColors get() = ThemeColors(Color(accent.toInt()), Color(background.toInt()))
+    /** The exact colors; with [glass], panels and buttons stay see-through instead. */
+    fun colors(light: Boolean = false, glass: Boolean = false): ThemeColors {
+        val c = (if (light) this.light else dark).map { Color(it.toInt()) }
+        return ThemeColors(
+            accent = Color(accent.toInt()), background = Color(dark[0].toInt()), light = light, glass = glass,
+            customBase = c[0], customPanel = c[1].takeUnless { glass }, customButton = c[2].takeUnless { glass }, customText = c[3],
+        )
+    }
+
+    val colors: ThemeColors get() = colors()
 
     companion object {
-        /** Older "Custom" theme: still honored, but colors are now set with Customize colors. */
+        /** Your own palette: starts from the one you were using, every color editable. */
         const val CUSTOM = "CUSTOM"
-        /** Removed presets map to their nearest one. */
-        private val RENAMED = mapOf("OLED" to "CRIMSON", "ARCTIC" to "OCEAN")
+        /** Removed palettes map to their nearest one. */
+        private val RENAMED = mapOf("OLED" to "CRIMSON", "ARCTIC" to "OCEAN", "EMERALD" to "CLASSIC", "ROSE" to "PURPLE", "GOLD" to "SUNSET", "SLATE" to "OCEAN")
 
         fun of(name: String) = entries.firstOrNull { it.name == (RENAMED[name] ?: name) } ?: CLASSIC
     }
 }
 
-fun AppSettings.themeColors(): ThemeColors =
-    (if (theme == ThemePreset.CUSTOM) ThemeColors(Color(customAccent.toInt()), Color(customBackground.toInt()))
-    else ThemePreset.of(theme).colors)
-        .copy(light = lightMode, glass = glassStyle)
+/** The palette's own colors (Custom: Zemu Neon's, plus your saved picks applied later). */
+fun AppSettings.themeColors(light: Boolean = lightMode): ThemeColors =
+    if (theme == ThemePreset.CUSTOM) ThemePreset.CLASSIC.colors(light, glassStyle).copy(accent = Color(customAccent.toInt()))
+    else ThemePreset.of(theme).colors(light, glassStyle)
 
-/** Which theme's custom colors apply: an animated theme with its own palette, else the color theme. */
+/** Which colors your edits change: an animated theme with its own palette, else your palette. */
 fun AppSettings.colorScope(light: Boolean = lightMode): String {
     val d = DynamicTheme.of(dynamicTheme)
-    val name = if (d.accent != null) d.name else theme
+    val name = when {
+        // Each Cybercore desktop keeps its own colors.
+        d == DynamicTheme.RETRO -> "RETRO-${variantOf(d)}"
+        d.colorsFor(variantOf(d)) != null -> d.name
+        else -> theme
+    }
     return "$name/${if (light) "light" else "dark"}"
 }
 
-/** Everything applied: color theme, animated theme, light/dark and the user's custom colors. */
+/** The chosen sub-theme of [d] (weather kind, holiday, Cybercore style). */
+fun AppSettings.variantOf(d: DynamicTheme): String = themeVariants[d.name] ?: d.variants.firstOrNull()?.first.orEmpty()
+
+/** Everything applied: palette, animated theme, light/dark and the user's exact colors. */
 fun AppSettings.resolvedColors(light: Boolean = lightMode): ThemeColors {
     val d = DynamicTheme.of(dynamicTheme)
-    val style = when (d) { DynamicTheme.Y2K -> UiStyle.PS2; DynamicTheme.ACIDWAVE -> UiStyle.ACID; else -> UiStyle.NORMAL }
-    return d.applyTo(themeColors().copy(light = light)).copy(style = style)
+    val variant = variantOf(d)
+    return d.applyTo(themeColors(light), variant).copy(style = d.style, variant = d.resolveVariant(variant))
         .withOverrides(colorOverrides, colorScope(light))
 }
 
@@ -154,7 +180,8 @@ object Palette {
     /** Hairline edge of glass panels. */
     val Edge: Color get() = if (Light) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.16f)
     val Imdb = Color(0xFFF5C518)
-    val Match: Color get() = if (Light) Color(0xFF14853B) else Color(0xFF46D369)
+    // Cybercore desktops are colorful, so its labels use the text color to stay readable.
+    val Match: Color get() = if (Style == UiStyle.RETRO) Text else if (Light) Color(0xFF14853B) else Color(0xFF46D369)
     val Cached: Color get() = if (Light) Color(0xFF9A5B00) else Color(0xFFFFC94D)
     val Info: Color get() = if (Light) Color(0xFF1E62C8) else Color(0xFF5AA9FF)
 }
@@ -173,45 +200,15 @@ fun ZemuTheme(colors: ThemeColors, content: @Composable () -> Unit) {
             surfaceVariant = colors.surface,
             onSurfaceVariant = Palette.TextSecondary,
         ),
-        typography = when (colors.style) { UiStyle.PS2 -> ps2Typography; UiStyle.ACID -> acidTypography; else -> androidx.tv.material3.Typography() },
+        typography = styleTypography(colors.style, colors.variant),
     ) {
         CompositionLocalProvider(
             LocalContentColor provides Palette.Text,
-            androidx.tv.material3.LocalTextStyle provides when (colors.style) {
-                UiStyle.PS2 -> PS2_TEXT
-                UiStyle.ACID -> ACID_TEXT
-                else -> androidx.compose.ui.text.TextStyle.Default
-            },
+            androidx.tv.material3.LocalTextStyle provides styleTextStyle(colors.style, colors.variant),
             content = content,
         )
     }
 }
-
-/** PS2: the soft blue glow of the PS2 system menus, slightly spaced. */
-private val PS2_TEXT = androidx.compose.ui.text.TextStyle(
-    shadow = androidx.compose.ui.graphics.Shadow(Color(0x996FB4FF), androidx.compose.ui.geometry.Offset.Zero, 10f),
-    letterSpacing = androidx.compose.ui.unit.TextUnit(0.5f, androidx.compose.ui.unit.TextUnitType.Sp),
-)
-
-/** Acidwave: technical monospace, wide tracking, like an interface readout. */
-private val ACID_TEXT = androidx.compose.ui.text.TextStyle(
-    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-    letterSpacing = androidx.compose.ui.unit.TextUnit(0.6f, androidx.compose.ui.unit.TextUnitType.Sp),
-)
-
-private fun styled(extra: androidx.compose.ui.text.TextStyle): androidx.tv.material3.Typography {
-    val t = androidx.tv.material3.Typography()
-    fun androidx.compose.ui.text.TextStyle.x() = merge(extra)
-    return t.copy(
-        displayLarge = t.displayLarge.x(), displayMedium = t.displayMedium.x(), displaySmall = t.displaySmall.x(),
-        headlineLarge = t.headlineLarge.x(), headlineMedium = t.headlineMedium.x(), headlineSmall = t.headlineSmall.x(),
-        titleLarge = t.titleLarge.x(), titleMedium = t.titleMedium.x(), titleSmall = t.titleSmall.x(),
-        bodyLarge = t.bodyLarge.x(), bodyMedium = t.bodyMedium.x(), bodySmall = t.bodySmall.x(),
-        labelLarge = t.labelLarge.x(), labelMedium = t.labelMedium.x(), labelSmall = t.labelSmall.x(),
-    )
-}
-private val ps2Typography by lazy { styled(PS2_TEXT) }
-private val acidTypography by lazy { styled(ACID_TEXT) }
 
 /** Acidwave's clipped corners (top-right and bottom-left), used for every button and panel. */
 val AcidShape = androidx.compose.foundation.shape.CutCornerShape(topStart = 0.dp, topEnd = 12.dp, bottomEnd = 0.dp, bottomStart = 12.dp)
@@ -221,11 +218,12 @@ val AcidShape = androidx.compose.foundation.shape.CutCornerShape(topStart = 0.dp
  * top sheen and a hairline edge) when the glass style is on.
  */
 fun androidx.compose.ui.Modifier.glassPanel(shape: androidx.compose.ui.graphics.Shape, solid: Color = Palette.Surface): androidx.compose.ui.Modifier =
-    if (Palette.Style == UiStyle.PS2) this.then(
+    stylePanel(shape, solid) ?: if (Palette.Style == UiStyle.PS2) this.then(
         // PS2 system menu: deep translucent blue with a faint glowing rim.
         androidx.compose.ui.Modifier
             .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
+                // A custom panel color is used exactly; otherwise the PS2 blue.
+                Palette.colors.customPanel?.let { androidx.compose.ui.graphics.SolidColor(it) } ?: androidx.compose.ui.graphics.Brush.verticalGradient(
                     if (Palette.Light) listOf(Color(0xF2EEF3FF), Color(0xF2D5DEF2)) else listOf(Color(0xEE0E1A3A), Color(0xEE030818)),
                 ),
                 shape,

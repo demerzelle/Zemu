@@ -3,6 +3,8 @@ package com.zemu.tv.ui
 import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.theme.appBackground
 import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -124,7 +126,7 @@ fun AppShell() {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val current = route
-    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person") && !route.startsWith("browse") && !route.startsWith("services")
+    val showRail = route != null && !route.startsWith("details") && !route.startsWith("person") && !route.startsWith("browse") && !route.startsWith("services") && !route.startsWith("rows/")
     val context = LocalContext.current
     val c = context.container
     // With Instant play on, selecting a title starts it; the long-press menu's "Details" still opens the page.
@@ -154,12 +156,26 @@ fun AppShell() {
         when (com.zemu.tv.ui.theme.Palette.Style) {
             com.zemu.tv.ui.theme.UiStyle.PS2 -> com.zemu.tv.ui.theme.Ps2Backdrop()
             com.zemu.tv.ui.theme.UiStyle.ACID -> com.zemu.tv.ui.theme.AcidBackdrop()
+            com.zemu.tv.ui.theme.UiStyle.ETHEREAL -> com.zemu.tv.ui.theme.EtherealBackdrop()
+            com.zemu.tv.ui.theme.UiStyle.RETRO -> com.zemu.tv.ui.theme.RetroBackdrop(com.zemu.tv.ui.theme.Palette.colors.variant)
+            com.zemu.tv.ui.theme.UiStyle.GRAFFITI -> com.zemu.tv.ui.theme.GraffitiBackdrop()
+            com.zemu.tv.ui.theme.UiStyle.LIQUID -> com.zemu.tv.ui.theme.LiquidBackdrop()
+            com.zemu.tv.ui.theme.UiStyle.CATRAVE -> com.zemu.tv.ui.theme.CatRaveBackdrop()
             else -> {}
         }
         NavHost(
             navController = nav,
             startDestination = "home",
-            modifier = Modifier.fillMaxSize().padding(start = if (showRail) RAIL_WIDTH else 0.dp),
+            modifier = Modifier.fillMaxSize().padding(start = if (showRail) RAIL_WIDTH else 0.dp)
+                // Cat Rave: the whole interface bounces and sways to the beat.
+                .then(
+                    if (com.zemu.tv.ui.theme.Palette.Style != com.zemu.tv.ui.theme.UiStyle.CATRAVE) Modifier
+                    else Modifier.graphicsLayer {
+                        val t = com.zemu.tv.ui.theme.RaveClock.t
+                        scaleX = 1f + 0.015f * (1f - (t * 2.13f) % 1f); scaleY = scaleX
+                        rotationZ = kotlin.math.sin(t * 1.6f) * 0.8f
+                    },
+                ),
         ) {
             val browse: (com.zemu.tv.ui.home.BrowseTarget) -> Unit = { t ->
                 nav.navigate("browse/${t.type}?service=${Uri.encode(t.service.orEmpty())}&label=${Uri.encode(t.serviceLabel.orEmpty())}&studio=${t.studio.orEmpty()}")
@@ -188,7 +204,8 @@ fun AppShell() {
             composable("services/{type}") { e -> com.zemu.tv.ui.browse.ServicesScreen(e.arguments?.getString("type") ?: "movie", onBrowse = browse) }
             composable("search") { SearchScreen(onOpen = open) }
             composable("mylist") { MyListScreen(onOpen = open) }
-            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }) }
+            composable("settings") { SettingsScreen(onOpenAddons = { nav.navigate("addons") }, onOpenServices = { nav.navigate("services/movie") }, onManageRows = { nav.navigate("rows/$it") }) }
+            composable("rows/{page}") { e -> com.zemu.tv.ui.settings.RowsManagerScreen(e.arguments?.getString("page") ?: "home") }
             composable("addons") { AddonBrowserScreen() }
             composable("person/{key}") { e -> PersonScreen(key = Uri.decode(e.arguments?.getString("key").orEmpty()), onOpen = open) }
             composable(
@@ -274,6 +291,27 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
     val width by animateDpAsState(if (expanded) 210.dp else RAIL_WIDTH, label = "rail")
     val requesters = remember { Dest.entries.associateWith { FocusRequester() } }
     val selected = Dest.entries.firstOrNull { it.route == current }
+    // Ten quick presses on the logo unlock something.
+    val ctx = LocalContext.current
+    val logoScope = rememberCoroutineScope()
+    var logoTaps by remember { mutableStateOf(0) }
+    var lastLogoTap by remember { mutableStateOf(0L) }
+    var logoFocused by remember { mutableStateOf(false) }
+    // Stable across recompositions (it only touches remembered state), so the touch handler can keep it.
+    val onLogo: () -> Unit = remember { {
+        val now = System.currentTimeMillis()
+        if (now - lastLogoTap > 3_000) logoTaps = 0
+        lastLogoTap = now
+        logoTaps++
+        when {
+            logoTaps >= 10 -> {
+                logoTaps = 0
+                logoScope.launch { ctx.container.userStore.updateSettings { it.copy(catRaveUnlocked = true, dynamicTheme = "CATRAVE") } }
+                android.widget.Toast.makeText(ctx, "😼  CAT RAVE UNLOCKED  😼", android.widget.Toast.LENGTH_LONG).show()
+            }
+            logoTaps >= 7 -> android.widget.Toast.makeText(ctx, "${10 - logoTaps}…", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    } }
     // Where each icon is on screen, for working out which one a finger is over.
     val bounds = remember { mutableStateMapOf<Dest, Rect>() }
     var railOrigin by remember { mutableStateOf(Offset.Zero) }
@@ -316,7 +354,12 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                     }
                     if (mode == 0) {
                         val tapped = destAt(start)
-                        if (tapped != null) { setOpen(false); select(tapped) } else setOpen(!latestOpen)
+                        when {
+                            // Taps on the logo count toward the secret instead of opening the menu.
+                            start.y < 64.dp.toPx() -> onLogo()
+                            tapped != null -> { setOpen(false); select(tapped) }
+                            else -> setOpen(!latestOpen)
+                        }
                     }
                 }
             },
@@ -332,7 +375,11 @@ private fun NavRail(current: String?, touchOpen: Boolean, onTouchOpen: (Boolean)
                 .align(Alignment.TopStart)
                 .padding(start = 20.dp, top = 22.dp, end = 16.dp)
                 .height(if (expanded) 30.dp else 26.dp)
-                .width(if (expanded) 170.dp else 36.dp),
+                .width(if (expanded) 170.dp else 36.dp)
+                // Up from the top of the menu reaches the logo; OK (or a tap) presses it.
+                .onFocusChanged { logoFocused = it.isFocused }
+                .graphicsLayer { if (logoFocused) { scaleX = 1.15f; scaleY = 1.15f } }
+                .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onLogo),
         )
         Column(
             Modifier

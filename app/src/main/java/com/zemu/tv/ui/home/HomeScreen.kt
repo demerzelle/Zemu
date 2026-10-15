@@ -247,7 +247,9 @@ fun HomeScreen(
         val row = state.rows.firstOrNull { it.key == key }
         if (row == null) editingRow = null
         else RowEditor(
+            title = row.title,
             favorite = row.favorite,
+            onRemove = { vm.hideRow(key) },
             onFavorite = { vm.toggleFavoriteRow(key) },
             onUp = { vm.moveRow(key, -1) },
             onDown = { vm.moveRow(key, 1) },
@@ -258,18 +260,24 @@ fun HomeScreen(
 
 /** Heart (favorite), up and down: the only controls, per the row's long-press. Stays open for repeated moves. */
 @Composable
-private fun RowEditor(favorite: Boolean, onFavorite: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onDismiss: () -> Unit) {
+private fun RowEditor(title: String, favorite: Boolean, onFavorite: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(60); runCatching { first.requestFocus() } }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         com.zemu.tv.ui.theme.DialogBackdropBlur()
-        androidx.compose.foundation.layout.Row(
-            Modifier.glassPanel(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).padding(12.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        Column(
+            Modifier.glassPanel(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RowEditorButton(if (favorite) AppIcons.Heart else AppIcons.HeartOutline, if (favorite) "Remove from favorites" else "Add to favorites", Modifier.focusRequester(first), active = favorite, onClick = onFavorite)
-            RowEditorButton(AppIcons.ArrowUp, "Move up", onClick = onUp)
-            RowEditorButton(AppIcons.ArrowDown, "Move down", onClick = onDown)
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1)
+            Text("Pin to top · Move up · Move down · Remove", color = Palette.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
+            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                RowEditorButton(if (favorite) AppIcons.Heart else AppIcons.HeartOutline, if (favorite) "Unpin" else "Pin to top", Modifier.focusRequester(first), active = favorite, onClick = onFavorite)
+                RowEditorButton(AppIcons.ArrowUp, "Move up", onClick = onUp)
+                RowEditorButton(AppIcons.ArrowDown, "Move down", onClick = onDown)
+                RowEditorButton(AppIcons.Close, "Remove row", onClick = { onRemove(); onDismiss() })
+            }
+            Text("Removed rows come back from Settings → Appearance → Manage rows.", color = Palette.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
         }
     }
 }

@@ -123,7 +123,7 @@ private enum class SettingsCategory(val label: String, val blurb: String) {
 }
 
 @Composable
-fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}) {
+fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, onManageRows: (String) -> Unit = {}) {
     val context = LocalContext.current
     val c = context.container
     val vm: SettingsViewModel = viewModel { SettingsViewModel(c, context.app) }
@@ -177,7 +177,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}) {
                 SettingsCategory.PLAYBACK -> playbackCategory(vm, settings) { dialog = it }
                 SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
                 SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings)
-                SettingsCategory.APPEARANCE -> appearanceCategory(vm, settings)
+                SettingsCategory.APPEARANCE -> appearanceCategory(vm, settings, onManageRows)
                 SettingsCategory.DEVICE -> deviceCategory(vm, settings)
             }
         }
@@ -278,6 +278,8 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.APPEARANCE,
     "Customize colors (background, buttons, text, accent)" to SettingsCategory.APPEARANCE,
     "Hide watched titles in rows" to SettingsCategory.APPEARANCE,
+    "Manage rows (pin, move, remove, add categories)" to SettingsCategory.APPEARANCE,
+    "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.APPEARANCE,
     "Screensaver" to SettingsCategory.APPEARANCE,
     "Vibration" to SettingsCategory.APPEARANCE,
     "Trailers (autoplay, sound)" to SettingsCategory.APPEARANCE,
@@ -437,7 +439,7 @@ private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: App
     }
 }
 
-private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings) {
+private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
     group("mode", "Look") {
         ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
             vm.update { it.copy(lightMode = !it.lightMode) }
@@ -449,17 +451,31 @@ private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: Ap
     group("theme", "Color theme") {
         ThemePicker(settings) { t -> vm.update(t) }
     }
-    group("animated", "Animated themes", "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. PS2 · Y2K and Acidwave restyle the whole app; change any of their colors under Customize colors. RGB keeps your color theme.") {
+    group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
+        val current = DynamicTheme.of(settings.dynamicTheme)
         LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(DynamicTheme.entries.toList(), key = { it.name }) { d ->
-                TvChip(d.label, selected = settings.dynamicTheme == d.name, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
+            items(DynamicTheme.entries.filter { !it.hidden || settings.catRaveUnlocked }, key = { it.name }) { d ->
+                TvChip(d.label, selected = current == d, onClick = { vm.update { it.copy(dynamicTheme = d.name) } })
+            }
+        }
+        // Sub-themes: the kind of weather, the holiday, the vintage desktop.
+        if (current.variants.isNotEmpty()) {
+            val chosen = settings.themeVariants[current.name] ?: current.variants.first().first
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(current.variants, key = { it.first }) { (k, label) ->
+                    val shown = if (k == "AUTO") "$label: ${com.zemu.tv.ui.theme.Holiday.today().label}" else label
+                    TvChip(shown, selected = chosen == k, onClick = { vm.update { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
+                }
             }
         }
     }
     group("colors", "Customize colors", "Pick your own accent, background, panel, button and text colors — including the white of light mode and the black of dark mode. Each theme keeps its own, separately for light and dark mode.") {
         ColorCustomizer(settings) { t -> vm.update(t) }
     }
-    group("rows", "Home & browsing") {
+    group("rows", "Home & browsing", "Change, reorder, remove or add the rows on each page.") {
+        listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
+            ValueRow("Manage $label rows", "Pin · move · remove · add") { onManageRows(page) }
+        }
         ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
             vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
         }

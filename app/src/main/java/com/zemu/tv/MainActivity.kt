@@ -24,6 +24,7 @@ import com.zemu.tv.ui.theme.DynamicTheme
 import com.zemu.tv.ui.theme.DynamicThemeLayer
 import com.zemu.tv.ui.theme.ZemuTheme
 import com.zemu.tv.ui.theme.resolvedColors
+import com.zemu.tv.ui.theme.variantOf
 
 /** Opens the "Who's watching?" screen (from Settings). */
 val LocalSwitchProfile = staticCompositionLocalOf<() -> Unit> { {} }
@@ -175,7 +176,7 @@ class MainActivity : ComponentActivity() {
                                 AppShell()
                             }
                         }
-                        DynamicThemeLayer(dynamic, onAccent = { rgbAccent = it })
+                        DynamicThemeLayer(dynamic, settings.variantOf(dynamic), onAccent = { rgbAccent = it })
                         // PS2 theme: a short boot splash on a cold start (rows keep loading underneath).
                         var booted by remember { mutableStateOf(bootShown) }
                         if (dynamic == DynamicTheme.Y2K && !booted && !picking) com.zemu.tv.ui.theme.Ps2Boot { booted = true; bootShown = true }

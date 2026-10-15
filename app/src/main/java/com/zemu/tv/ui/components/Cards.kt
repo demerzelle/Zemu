@@ -1,5 +1,27 @@
 package com.zemu.tv.ui.components
 
+import androidx.compose.runtime.remember
+
+import androidx.compose.runtime.setValue
+
+import androidx.compose.runtime.getValue
+
+import androidx.compose.runtime.mutableStateOf
+
+import androidx.compose.foundation.focusable
+
+import androidx.compose.ui.input.key.type
+
+import androidx.compose.ui.input.key.key
+
+import androidx.compose.ui.input.key.KeyEventType
+
+import androidx.compose.ui.input.key.Key
+
+import androidx.compose.ui.input.key.onKeyEvent
+
+import androidx.compose.ui.focus.focusProperties
+
 import androidx.compose.foundation.layout.size
 import androidx.tv.material3.Icon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +74,7 @@ import com.zemu.tv.data.backdropUrl
 import com.zemu.tv.data.posterUrl
 import com.zemu.tv.data.title
 import com.zemu.tv.ui.theme.Palette
+import com.zemu.tv.ui.theme.styleDecor
 
 @Composable
 fun RemoteImage(url: String?, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, alignment: Alignment = Alignment.Center) {
@@ -94,10 +117,11 @@ fun PosterCard(
             .touchClick(onClick, onLongClick ?: { menu(meta) })
             .then(if (width.isSpecified) Modifier.width(width) else Modifier.fillMaxWidth())
             .aspectRatio(2f / 3f)
-            .onFocusChanged { if (it.isFocused) onFocused(meta) },
+            .onFocusChanged { if (it.isFocused) onFocused(meta) }
+            .styleDecor(seed = meta.id.hashCode(), bevel = false),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) 1f else 1.1f),
+        border = ClickableSurfaceDefaults.border(focusedBorder = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) Border.None else Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.Surface, focusedContainerColor = Palette.Surface),
     ) {
         Text(
@@ -167,10 +191,11 @@ fun ContinueCard(
             // Same height as a poster (132 × 3/2), so every row is the same height.
             .height(198.dp)
             .aspectRatio(16f / 9f)
-            .onFocusChanged { if (it.isFocused) onFocused(meta) },
+            .onFocusChanged { if (it.isFocused) onFocused(meta) }
+            .styleDecor(seed = meta.id.hashCode(), bevel = false),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) 1f else 1.08f),
+        border = ClickableSurfaceDefaults.border(focusedBorder = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) Border.None else Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.Surface, focusedContainerColor = Palette.Surface),
     ) {
         RemoteImage(meta.backdropUrl(), Modifier.fillMaxSize())
@@ -207,12 +232,31 @@ fun <T> MediaRow(
     onTitleLongPress: (() -> Unit)? = null,
     itemContent: @Composable (index: Int, item: T, itemModifier: Modifier) -> Unit,
 ) {
-    Column(modifier) {
+    var rowFocused by remember { mutableStateOf(false) }
+    var titleFocused by remember { mutableStateOf(false) }
+    Column(modifier.onFocusChanged { rowFocused = it.hasFocus }) {
         val titleTouch = if (onTitleLongPress == null) Modifier else Modifier.pointerInput(onTitleLongPress) { detectTapGestures(onLongPress = { onTitleLongPress() }) }
-        Row(Modifier.padding(start = 48.dp).then(titleTouch), verticalAlignment = Alignment.CenterVertically) {
-            if (favorite) Icon(AppIcons.Heart, contentDescription = "Favorite", tint = Palette.Accent, modifier = Modifier.padding(end = 8.dp).size(18.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (trailingTitle != null) {
+        // Up from a row's posters lands on its name; OK (or holding OK) there opens the row editor.
+        // Only focusable while the row has focus, so Up/Down between rows never stops on names.
+        val titleKeys = if (onTitleLongPress == null) Modifier else Modifier
+            .focusProperties { canFocus = rowFocused }
+            .onFocusChanged { titleFocused = it.isFocused }
+            .onKeyEvent { e ->
+                val ok = e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter
+                if (ok && e.type == KeyEventType.KeyUp) { onTitleLongPress(); true } else ok
+            }
+            .focusable()
+        Row(
+            Modifier.padding(start = 48.dp).then(titleTouch).then(titleKeys)
+                .background(if (titleFocused) Palette.Accent else Color.Transparent, RoundedCornerShape(6.dp))
+                .padding(horizontal = if (titleFocused) 8.dp else 0.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val ink = if (titleFocused) Palette.OnAccent else Palette.Text
+            if (favorite) Icon(AppIcons.Heart, contentDescription = "Pinned", tint = if (titleFocused) ink else Palette.Accent, modifier = Modifier.padding(end = 8.dp).size(18.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ink)
+            if (titleFocused) Text("   OK: pin, move or remove", color = ink.copy(alpha = 0.75f), fontSize = 13.sp)
+            else if (trailingTitle != null) {
                 Text("  ·  $trailingTitle", color = Palette.TextMuted, fontSize = 13.sp)
             }
         }
@@ -237,12 +281,12 @@ fun ServiceCard(m: Meta, modifier: Modifier = Modifier, selected: Boolean = fals
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.touchClick(onClick, onLongClick).size(168.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
+        modifier = modifier.touchClick(onClick, onLongClick).size(168.dp).onFocusChanged { if (it.isFocused) onFocused(m) }.styleDecor(seed = m.id.hashCode(), bevel = false),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) 1f else 1.08f),
         border = ClickableSurfaceDefaults.border(
             border = if (selected) Border(BorderStroke(3.dp, Palette.Accent), shape = shape) else Border.None,
-            focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
+            focusedBorder = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) Border.None else Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape),
         ),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.SurfaceHigh, focusedContainerColor = Palette.SurfaceHigh),
     ) {
@@ -260,10 +304,10 @@ fun StudioCard(m: Meta, modifier: Modifier = Modifier, onFocused: (Meta) -> Unit
     val shape = RoundedCornerShape(14.dp)
     Surface(
         onClick = onClick,
-        modifier = modifier.touchClick(onClick, null).size(width = 260.dp, height = 146.dp).onFocusChanged { if (it.isFocused) onFocused(m) },
+        modifier = modifier.touchClick(onClick, null).size(width = 260.dp, height = 146.dp).onFocusChanged { if (it.isFocused) onFocused(m) }.styleDecor(seed = m.id.hashCode(), bevel = false),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) 1f else 1.08f),
+        border = ClickableSurfaceDefaults.border(focusedBorder = if (Palette.Style == com.zemu.tv.ui.theme.UiStyle.RETRO) Border.None else Border(BorderStroke(3.dp, Palette.FocusBorder), shape = shape)),
         colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFFF2F2F4), focusedContainerColor = Color.White),
     ) {
         if (m.poster == null) Text(m.name.orEmpty(), modifier = Modifier.align(Alignment.Center), color = Color(0xFF121216), fontWeight = FontWeight.Black, fontSize = 20.sp)
