@@ -1,0 +1,5 @@
+Zemu.xcodeproj/
+build/
+Zemu.ipa
+.DS_Store
+*.log
