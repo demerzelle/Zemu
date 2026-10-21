@@ -39,6 +39,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -470,6 +472,29 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
             Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start, unbounded = true).requiredWidth(screenWidth),
         )
         Box(Modifier.matchParentSize().background(Palette.Background.copy(alpha = if (Palette.Glass) 0.55f else if (styled) 0.8f else 1f)))
+        // Collapsed menu: the mark breathes with a slow glow in the theme's accent.
+        if (!expanded) {
+            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "logoGlow")
+            val glow by pulse.animateFloat(
+                0.35f, 1f,
+                androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(2600, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                    androidx.compose.animation.core.RepeatMode.Reverse,
+                ),
+                label = "logoGlowAlpha",
+            )
+            Image(
+                painter = painterResource(R.drawable.logo_mark_glow),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Palette.Accent),
+                // The glow image is the mark with 35% room on each side; centred on the mark (26dp tall, ~32dp wide).
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 8.9.dp, y = 10.9.dp)
+                    .size(width = 54.dp, height = 48.dp)
+                    .graphicsLayer { alpha = glow; scaleX = 1f + glow * 0.25f; scaleY = scaleX },
+            )
+        }
         Image(
             painter = painterResource(if (expanded) R.drawable.logo_wordmark else R.drawable.logo_mark),
             contentDescription = "Zemu",

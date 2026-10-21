@@ -104,17 +104,15 @@ const embed = (file, w, h) => {
   const b64 = fs.readFileSync(file).toString('base64')
   return render(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}"><image width="${w}" height="${h}" href="data:image/png;base64,${b64}"/></svg>`)
 }
-save('logo_mark.png', embed(path.join(zemu, 'app/src/main/res/drawable-nodpi/logo_mark.png'), 92, 82))
 save('logo_wordmark.png', embed(path.join(zemu, 'app/src/main/res/drawable-nodpi/logo_wordmark.png'), 348, 83))
 
+// logo_mark(.glow).png and the channel icons come from branding/icons.mjs.
 const banner = fs.readFileSync(path.join(zemu, 'branding/zemu-tv-banner.svg'), 'utf8')
 save('splash_hd.png', render(banner, 1280))
 const crop = (svg, vb, w, h) => svg
   .replace(/viewBox="[^"]*"/, `viewBox="${vb}"`)
   .replace(/width="1280" height="720"/, `width="${w}" height="${h}"`)
   .replace('<rect width="1280" height="720"', '<rect x="-2000" y="-2000" width="6000" height="6000"')
-save('icon_hd.png', render(crop(banner, '96 -48 1088 816', 290, 218), 290))
-save('icon_fhd.png', render(crop(banner, '96 -48 1088 816', 540, 405), 540))
 
 // ---- animated-theme wallpapers (ports of the Android scenes, drawn once) ----
 // Each theme gets a still wallpaper (960×540 JPEG, shown at 1280×720) and, for some, a looping

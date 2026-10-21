@@ -10,7 +10,13 @@
   <script type="text/brightscript" uri="NavRail.brs" />
   <children>
     <Rectangle id="bg" width="101" height="720" />
+    <!-- Collapsed: the mark (white, tinted with the theme accent) over a slowly pulsing glow. -->
+    <Poster id="glow" translation="[10,14]" width="82" height="73" loadDisplayMode="scaleToFit" uri="pkg:/images/logo_mark_glow.png" scaleRotateCenter="[41,36.5]" opacity="0.35" />
     <Poster id="logo" translation="[27,29]" width="48" height="43" loadDisplayMode="scaleToFit" uri="pkg:/images/logo_mark.png" />
+    <Animation id="glowPulse" duration="5.2" repeat="true" easeFunction="inOutQuad">
+      <FloatFieldInterpolator key="[0.0, 0.5, 1.0]" keyValue="[0.35, 1.0, 0.35]" fieldToInterp="glow.opacity" />
+      <Vector2DFieldInterpolator key="[0.0, 0.5, 1.0]" keyValue="[[1.0, 1.0], [1.25, 1.25], [1.0, 1.0]]" fieldToInterp="glow.scale" />
+    </Animation>
     <Poster id="wordmark" translation="[27,31]" width="168" height="40" loadDisplayMode="scaleToFit" uri="pkg:/images/logo_wordmark.png" visible="false" />
     <Group id="list" translation="[16,0]" />
   </children>

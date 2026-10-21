@@ -11,6 +11,8 @@ sub init()
     ]
     m.bg = m.top.findNode("bg")
     m.logo = m.top.findNode("logo")
+    m.glow = m.top.findNode("glow")
+    m.top.findNode("glowPulse").control = "start"
     m.wordmark = m.top.findNode("wordmark")
     m.list = m.top.findNode("list")
     m.rows = []
@@ -76,6 +78,9 @@ sub restyle()
     ex = m.top.expanded
     if ex then m.bg.width = 280 else m.bg.width = 101
     m.logo.visible = not ex
+    m.glow.visible = not ex
+    m.logo.blendColor = t.accent
+    m.glow.blendColor = t.accent
     m.wordmark.visible = ex
     for i = 0 to m.rows.Count() - 1
         r = m.rows[i]

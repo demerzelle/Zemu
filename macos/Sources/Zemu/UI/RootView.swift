@@ -192,9 +192,22 @@ private struct Logo: View {
     static let mark = Bundle.main.image(forResource: "logo_mark")
     static let wordmark = Bundle.main.image(forResource: "logo_wordmark")
 
+    @State private var glowing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        if let img = expanded ? Self.wordmark : Self.mark {
-            Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: expanded ? 150 : 34, alignment: .leading)
+        if expanded, let img = Self.wordmark {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: 150, alignment: .leading)
+        } else if !expanded, let img = Self.mark {
+            // White mark tinted with the theme's accent, with a slow pulsing glow in the same color.
+            Image(nsImage: img).renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
+                .foregroundStyle(P.accent)
+                .shadow(color: P.accent.opacity(glowing ? 0.95 : 0.35), radius: glowing ? 9 : 4)
+                .frame(maxWidth: 34, alignment: .leading)
+                .onAppear {
+                    guard !reduceMotion else { return }
+                    withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { glowing = true }
+                }
         } else {
             Text(expanded ? "ZEMU" : "Z").font(.system(size: 26, weight: .black)).foregroundStyle(P.accent).tracking(2)
         }
