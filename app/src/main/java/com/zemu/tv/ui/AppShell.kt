@@ -124,6 +124,7 @@ private enum class Dest(val route: String, val label: String, val icon: ImageVec
     SERIES("series", "Series", AppIcons.Tv),
     ANIME("anime", "Anime", AppIcons.Anime),
     MY_LIST("mylist", "My List", Icons.Filled.Favorite),
+    ADDONS("addons", "Addons", AppIcons.Puzzle),
     DOWNLOADS("downloads", "Downloads", AppIcons.Download),
     /** Plays a random title picked for you (from Home's suggestions). */
     SURPRISE("@surprise", "Surprise me", AppIcons.Dice),
@@ -379,7 +380,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
     val progress = ((width - RAIL_WIDTH) / (RAIL_OPEN_WIDTH - RAIL_WIDTH)).coerceIn(0f, 1f)
     // Settings is for grown-ups; in Kids Mode it's off the menu.
     val downloadsOn = LocalContext.current.container.userStore.settings.collectAsStateWithLifecycle().value.downloads
-    val main = Dest.entries.filter { !it.bottom && !(kidsOn && it == Dest.SETTINGS) && (downloadsOn || it != Dest.DOWNLOADS) }
+    val main = Dest.entries.filter { !it.bottom && !(kidsOn && (it == Dest.SETTINGS || it == Dest.ADDONS)) && (downloadsOn || it != Dest.DOWNLOADS) }
     val bottom = Dest.entries.filter { it.bottom && (kidsOn || it != Dest.THEME) }
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val requesters = remember { Dest.entries.associateWith { FocusRequester() } }

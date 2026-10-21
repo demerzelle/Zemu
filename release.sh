@@ -6,8 +6,8 @@
 #
 # Bumps the version (Android + Roku), builds Zemu-AndroidTV-<v>.apk/.zip and Zemu-Roku-<v>.zip,
 # commits, tags v<v>, pushes, and creates the release with the gh CLI.
-# Android only accepts the update if it's signed with the same key as the installed app: build
-# every release on this Mac (its ~/.android/debug.keystore) or switch both to one release key.
+# Android only accepts the update if it's signed with the same key as the installed app, so the
+# script refuses to publish an APK signed with any other key (see RELEASE_CERT_SHA256).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -20,6 +20,8 @@ git rev-parse "v$V" >/dev/null 2>&1 && { echo "v$V already exists."; exit 1; }
 export JAVA_HOME="${JAVA_HOME:-$HOME/Library/Java/JavaVirtualMachines/jbr-21.0.11/Contents/Home}"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 IFS=. read -r MAJOR MINOR PATCH <<<"$V"
+# The key every Zemu release so far is signed with (~/.android/debug.keystore on this Mac).
+RELEASE_CERT_SHA256=cc3a785bf11988545454c1329d0545c526079f202c821d93b0c1a8d80afd282c
 
 # Version: Android versionCode must go up for Android to accept the update.
 CODE=$(( $(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts) + 1 ))
@@ -30,7 +32,12 @@ OUT="build/release-$V"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 ./gradlew -q :app:assembleRelease
-cp app/build/outputs/apk/release/app-release.apk "$OUT/Zemu-AndroidTV-$V.apk"
+APK=app/build/outputs/apk/release/app-release.apk
+# Android keeps people's setup through an update only when the new APK has the same signing key.
+# A different key means "App not installed", an uninstall, and a wiped setup, so refuse to publish.
+SIGNER=$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "$APK" | sed -n 's/.*SHA-256 digest: //p' | head -1)
+[ "$SIGNER" = "$RELEASE_CERT_SHA256" ] || { git checkout -- app/build.gradle.kts roku/manifest; echo "APK is signed with $SIGNER, not the release key $RELEASE_CERT_SHA256. Installed copies couldn't update. Not publishing."; exit 1; }
+cp "$APK" "$OUT/Zemu-AndroidTV-$V.apk"
 (cd "$OUT" && zip -q "Zemu-AndroidTV-$V.zip" "Zemu-AndroidTV-$V.apk")
 
 (cd roku && npx --prefix tools bsc --project bsconfig.json >/dev/null && rm -f out/zemu.zip && cd out/staging && zip -qr -9 ../zemu.zip . -x '.*')
