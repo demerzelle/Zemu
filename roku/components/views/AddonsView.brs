@@ -56,8 +56,12 @@ end sub
 ' ---- tabs & filters ----
 
 function sources() as Object
-    out = []
-    seen = {}
+    ' Stremio's Official and Community lists always show, even when Cinemeta was swapped for another metadata addon.
+    out = [
+        { key: "com.linvo.cinemeta/official", name: "Official", base: "https://v3-cinemeta.strem.io", type: "all", id: "official" }
+        { key: "com.linvo.cinemeta/community", name: "Community", base: "https://v3-cinemeta.strem.io", type: "all", id: "community" }
+    ]
+    seen = { "com.linvo.cinemeta/official": true, "com.linvo.cinemeta/community": true }
     for each a in m.global.addons
         for each c in a.addonCatalogs
             if c.type = "all"

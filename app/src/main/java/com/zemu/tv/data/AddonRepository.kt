@@ -100,15 +100,21 @@ class AddonRepository(
 
     fun isInstalled(manifestId: String) = _addons.value.any { it.manifest.id == manifestId }
 
-    /** Addon catalogs to browse: those published by installed addons (Cinemeta: Official, Community) plus stremio-addons.net. */
+    /**
+     * Addon catalogs to browse: Stremio's Official and Community lists (always, even when Cinemeta was
+     * swapped for another metadata addon), those published by installed addons, and stremio-addons.net.
+     */
     fun addonCatalogSources(): List<AddonCatalogSource> {
+        val stremio = listOf("official" to "Official", "community" to "Community").map { (id, name) ->
+            AddonCatalogSource("$CINEMETA_ID/$id", name, CINEMETA_BASE, "all", id)
+        }
         val fromInstalled = _addons.value.flatMap { a ->
             a.manifest.addonCatalogs.filter { it.type == "all" }.map {
                 AddonCatalogSource("${a.manifest.id}/${it.id}", (it.name ?: it.id).replaceFirstChar { c -> c.uppercase() }, a.baseUrl, it.type, it.id)
             }
         }
         val extra = AddonCatalogSource("stremio-addons.net", "stremio-addons.net", "https://stremio-addons.net/api", "all", "stremio-addons.net")
-        return (fromInstalled + extra).distinctBy { it.key }
+        return (stremio + fromInstalled + extra).distinctBy { it.key }
     }
 
     suspend fun browse(source: AddonCatalogSource): List<CatalogAddon> = client.addonCatalog(source.base, source.type, source.id)
@@ -135,6 +141,7 @@ class AddonRepository(
 
     companion object {
         const val CINEMETA_ID = "com.linvo.cinemeta"
+        const val CINEMETA_BASE = "https://v3-cinemeta.strem.io"
         const val KITSU_ID = "community.anime.kitsu"
         const val KITSU_URL = "https://anime-kitsu.strem.fun/manifest.json"
         val DEFAULT_ADDONS = listOf(
