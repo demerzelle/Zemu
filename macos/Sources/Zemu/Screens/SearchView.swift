@@ -79,10 +79,10 @@ struct SearchView: View {
         @Bindable var vm = app.session.search
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass").font(.system(size: 18, weight: .semibold)).foregroundStyle(Palette.textSecondary)
+                Image(systemName: "magnifyingglass").font(.z(size: 18, weight: .semibold)).foregroundStyle(Palette.textSecondary)
                 TextField("Search movies, series and anime", text: $vm.query)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 22, weight: .medium))
+                    .font(.z(size: 22, weight: .medium))
                     .focused($focused)
                     .onSubmit { vm.submit() }
                     .zFocusText($vm.query, title: "Search movies, series and anime", focus: { focused = true }, onSubmit: { vm.submit() }, preferred: true)
@@ -138,7 +138,7 @@ struct SearchView: View {
                 ForEach(vm.history, id: \.query) { entry in
                     MediaRow(title: "“\(entry.query)”", items: entry.results, trailing: AnyView(
                         HStack(spacing: 8) {
-                            Text(Self.ago(entry.at)).font(.system(size: 12)).foregroundStyle(Palette.textMuted)
+                            Text(Self.ago(entry.at)).font(.z(size: 12)).foregroundStyle(Palette.textMuted)
                             Chip(title: "Search Again", icon: "magnifyingglass") { vm.query = entry.query }
                             Chip(title: "Remove", icon: "xmark") { vm.removeHistory(entry.query) }
                         }

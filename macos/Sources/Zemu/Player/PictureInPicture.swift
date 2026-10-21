@@ -169,7 +169,7 @@ private struct PiPView: View {
 
     private func pipButton(_ icon: String, help: String, big: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: big ? 22 : 13, weight: .bold))
+            Image(systemName: icon).font(.z(size: big ? 22 : 13, weight: .bold))
                 .frame(width: big ? 46 : 28, height: big ? 46 : 28)
                 .background(Circle().fill(Color.black.opacity(0.5)))
                 .foregroundStyle(.white)

@@ -82,6 +82,7 @@ struct PlayerView: View {
     var app = AppModel.shared
     @State private var dropTargeted = false
     @State private var hoveringControls = false
+    @State private var lastPointer: CGPoint?
 
     var body: some View {
         ZStack {
@@ -96,7 +97,7 @@ struct PlayerView: View {
                 ProgressView().controlSize(.large).tint(.white)
             }
             if let n = p.notice {
-                Text(n).font(.system(size: 14, weight: .semibold))
+                Text(n).font(.z(size: 14, weight: .semibold))
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -119,7 +120,13 @@ struct PlayerView: View {
         .animation(.easeInOut(duration: 0.2), value: p.controlsVisible)
         .animation(.easeInOut(duration: 0.2), value: p.notice)
         .onContinuousHover { phase in
-            if case .active = phase, !hoveringControls { p.showControls() }
+            // SwiftUI also reports hover when views change under a still cursor (controls fading out,
+            // position redraws), which made the controls reappear on their own in full screen.
+            guard case .active = phase, !hoveringControls else { return }
+            let now = NSEvent.mouseLocation
+            defer { lastPointer = now }
+            guard let last = lastPointer, hypot(now.x - last.x, now.y - last.y) > 3 else { return }
+            p.showControls()
         }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
             _ = providers.first?.loadObject(ofClass: URL.self) { url, _ in
@@ -144,9 +151,9 @@ struct PlayerView: View {
             HStack(alignment: .top, spacing: 16) {
                 IconButton(icon: "chevron.left", help: "Back (Esc / Ⓑ)", size: 40) { p.close() }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(p.title).font(.system(size: 22, weight: .black)).lineLimit(1)
-                    if let l = p.label { Text(l).font(.system(size: 14)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
-                    Text("\(p.streamLabel)  ·  \(p.engineName)").font(.system(size: 12)).foregroundStyle(Palette.textMuted).lineLimit(1)
+                    Text(p.title).font(.z(size: 22, weight: .black)).lineLimit(1)
+                    if let l = p.label { Text(l).font(.z(size: 14)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
+                    Text("\(p.streamLabel)  ·  \(p.engineName)").font(.z(size: 12)).foregroundStyle(Palette.textMuted).lineLimit(1)
                 }
                 Spacer()
             }
@@ -174,7 +181,7 @@ struct PlayerView: View {
         let inMenu = FocusEngine.shared.focused?.scope == "player"
         return Text(inMenu ? "←→ choose · Return / Ⓐ select · ↓ / Ⓑ hide"
                     : "Space / Ⓐ play · ←→ seek · Ⓧ subtitles · Ⓨ audio · LB/RB ±10s · T / View: Picture in Picture")
-            .font(.system(size: 11)).foregroundStyle(Palette.textMuted).lineLimit(1)
+            .font(.z(size: 11)).foregroundStyle(Palette.textMuted).lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -276,8 +283,8 @@ struct PlayerView: View {
         playerMenu("captions.bubble.fill", "Subtitles (S)", title: "Subtitles", active: p.currentSubtitleLabel != "Off") { subtitleItems }
             .popover(isPresented: $p.subtitleStyleOpen, arrowEdge: .top) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Subtitle Style").font(.system(size: 14, weight: .bold))
-                    Text("Changes apply right away.").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text("Subtitle Style").font(.z(size: 14, weight: .bold))
+                    Text("Changes apply right away.").font(.z(size: 12)).foregroundStyle(.secondary)
                     SubtitleStyleEditor { p.applySubtitleStyle() }
                 }
                 .padding(16)
@@ -298,7 +305,7 @@ struct PlayerView: View {
 
     private func playerMenu(_ icon: String, _ help: String, title: String, active: Bool = false, items: @escaping () -> [ActionItem]) -> some View {
         ZMenu(title: title, items: items) { lit in
-            Image(systemName: icon).font(.system(size: 15, weight: .semibold))
+            Image(systemName: icon).font(.z(size: 15, weight: .semibold))
                 .frame(width: 38, height: 38)
                 .foregroundStyle(active ? P.onAccent : .white)
                 .background(Circle().fill(active ? P.accent.opacity(0.9) : Color.white.opacity(lit ? 0.26 : 0.14)))
@@ -330,15 +337,15 @@ struct PlayerView: View {
         if let next = p.upNext, let seconds = p.countdown {
             let recommended = p.nextUp == nil
             VStack(alignment: .leading, spacing: 4) {
-                Text(recommended ? "Up next · recommended for you" : "Next episode").font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary)
-                Text(recommended ? next.displayTitle : "S\(next.season ?? 0) E\(next.episodeNumber) · \(next.displayTitle)").font(.system(size: 17, weight: .bold)).lineLimit(2)
-                Text(seconds > 0 ? "Playing in \(seconds)s" : "Starting…").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
+                Text(recommended ? "Up next · recommended for you" : "Next episode").font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary)
+                Text(recommended ? next.displayTitle : "S\(next.season ?? 0) E\(next.episodeNumber) · \(next.displayTitle)").font(.z(size: 17, weight: .bold)).lineLimit(2)
+                Text(seconds > 0 ? "Playing in \(seconds)s" : "Starting…").font(.z(size: 13)).foregroundStyle(Palette.textSecondary)
                 HStack(spacing: 10) {
                     ZButton(title: "Play Now", icon: "play.fill", primary: true) { p.playNextNow() }
                     ZButton(title: "Cancel") { p.cancelCountdown() }
                 }
                 .padding(.top, 10)
-                Text("Return / Ⓐ play now · Esc / Ⓑ cancel").font(.system(size: 11)).foregroundStyle(Palette.textMuted).padding(.top, 4)
+                Text("Return / Ⓐ play now · Esc / Ⓑ cancel").font(.z(size: 11)).foregroundStyle(Palette.textMuted).padding(.top, 4)
             }
             .padding(20)
             .frame(width: 380, alignment: .leading)
@@ -348,7 +355,7 @@ struct PlayerView: View {
         }
         if p.stillWatchingPrompt {
             dialog {
-                Text("Are you still watching?").font(.system(size: 26, weight: .black))
+                Text("Are you still watching?").font(.z(size: 26, weight: .black))
                 Text(p.title).foregroundStyle(Palette.textSecondary).padding(.bottom, 12)
                 ZButton(title: "Continue Watching", primary: true, preferred: true) { p.answerStillWatching(true) }
                 ZButton(title: "Continue and Don't Ask Again") { p.answerStillWatching(true, dontAskAgain: true) }
@@ -358,8 +365,8 @@ struct PlayerView: View {
         }
         if let f = p.failure {
             dialog {
-                Text("This video can't be played here").font(.system(size: 24, weight: .black))
-                Text(f.detail).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).padding(.bottom, 12).textSelection(.enabled)
+                Text("This video can't be played here").font(.z(size: 24, weight: .black))
+                Text(f.detail).font(.z(size: 13)).foregroundStyle(Palette.textSecondary).padding(.bottom, 12).textSelection(.enabled)
                 HStack(spacing: 10) {
                     ZButton(title: "Open in \(ExternalPlayer.installed.first ?? "External Player")", icon: "arrow.up.forward.app", primary: true, preferred: true) { p.openExternally() }
                     ZButton(title: "Retry", icon: "arrow.clockwise") { p.retry() }
@@ -397,10 +404,10 @@ private struct SeekBar: View {
         VStack(alignment: .leading, spacing: 6) {
             if let t = p.scrubTargetMs {
                 let delta = t - p.positionMs
-                Text("\(PlayerModel.formatTime(t))   (\(delta >= 0 ? "+" : "−")\(PlayerModel.formatTime(abs(delta))))").font(.system(size: 16, weight: .bold))
+                Text("\(PlayerModel.formatTime(t))   (\(delta >= 0 ? "+" : "−")\(PlayerModel.formatTime(abs(delta))))").font(.z(size: 16, weight: .bold))
             }
             HStack(spacing: 12) {
-                Text(PlayerModel.formatTime(shown)).font(.system(size: 13, weight: .medium).monospacedDigit()).frame(width: 64, alignment: .leading)
+                Text(PlayerModel.formatTime(shown)).font(.z(size: 13, weight: .medium).monospacedDigit()).frame(width: 64, alignment: .leading)
                 GeometryReader { g in
                     let w = g.size.width
                     let frac = { (ms: Int64) in CGFloat(min(1, max(0, Double(ms) / Double(duration)))) }
@@ -413,7 +420,7 @@ private struct SeekBar: View {
                             .offset(x: w * frac(shown) - 8)
                         if let x = hoverX, p.durationMs > 0 {
                             Text(PlayerModel.formatTime(Int64(Double(duration) * Double(x / w))))
-                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                .font(.z(size: 12, weight: .semibold).monospacedDigit())
                                 .padding(.horizontal, 6).padding(.vertical, 3)
                                 .background(RoundedRectangle(cornerRadius: 5).fill(Color.black.opacity(0.8)))
                                 .offset(x: min(max(0, x - 28), w - 56), y: -24)
@@ -433,7 +440,7 @@ private struct SeekBar: View {
                 }
                 .frame(height: 20)
                 .modifier(SeekFocus(enabled: focusable, p: p, focused: $focused))
-                Text("-" + PlayerModel.formatTime(p.durationMs - shown)).font(.system(size: 13, weight: .medium).monospacedDigit()).frame(width: 70, alignment: .trailing)
+                Text("-" + PlayerModel.formatTime(p.durationMs - shown)).font(.z(size: 13, weight: .medium).monospacedDigit()).frame(width: 70, alignment: .trailing)
             }
         }
     }

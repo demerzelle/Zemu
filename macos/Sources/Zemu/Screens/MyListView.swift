@@ -68,8 +68,8 @@ struct MyListView: View {
 
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("My List").font(.system(size: 30, weight: .black))
-                Text("\(all.count) title\(all.count == 1 ? "" : "s")").font(.system(size: 14)).foregroundStyle(Palette.textMuted)
+                Text("My List").font(.z(size: 30, weight: .black))
+                Text("\(all.count) title\(all.count == 1 ? "" : "s")").font(.z(size: 14)).foregroundStyle(Palette.textMuted)
             }
             .padding(.horizontal, 48).padding(.top, 40)
 
@@ -146,7 +146,7 @@ struct MyListView: View {
     }
 
     private func count(_ n: Int) -> some View {
-        Text("\(n)").font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.textSecondary)
+        Text("\(n)").font(.z(size: 12, weight: .bold)).foregroundStyle(Palette.textSecondary)
             .padding(.horizontal, 8).padding(.vertical, 2)
             .background(Capsule().fill(Color.white.opacity(0.1)))
     }

@@ -226,7 +226,7 @@ struct BrowseView: View {
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        Text(title).font(.system(size: 22, weight: .black)).padding(.trailing, 6)
+                        Text(title).font(.z(size: 22, weight: .black)).padding(.trailing, 6)
                         if vm.isAnime {
                             ForEach(AnimeSection.allCases, id: \.self) { s in Chip(title: s.label, selected: f.section == s) { vm.setSection(s) } }
                             MenuChip(title: vm.catalogs.first { $0.id == f.catalog }?.label ?? "Catalog", heading: "Catalog") {
@@ -249,7 +249,7 @@ struct BrowseView: View {
                         MenuChip(title: "Sort: \(f.sort.label)", selected: f.sort != .DEFAULT, heading: "Sort") {
                             choiceItems(BrowseSort.allCases.map { ($0, $0.label) }, current: f.sort) { o in vm.setFilters { $0.sort = o } }
                         }
-                        Text(vm.loading ? "loading…" : "\(items.count) titles").font(.system(size: 12)).foregroundStyle(Palette.textMuted).padding(.leading, 6)
+                        Text(vm.loading ? "loading…" : "\(items.count) titles").font(.z(size: 12)).foregroundStyle(Palette.textMuted).padding(.leading, 6)
                     }
                     .padding(.horizontal, 48).padding(.vertical, 12)
                 }

@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         NSWindow.allowsAutomaticWindowTabbing = false
-        MainActor.assumeIsolated { InputRouter.shared.start() }
+        MainActor.assumeIsolated { InputRouter.shared.start(); Screensaver.shared.start(); registerBundledFonts() }
         // Leaving Zemu while a video plays moves it to Picture in Picture; coming back restores it.
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
@@ -133,8 +133,17 @@ private struct ZemuCommands: Commands {
             Divider()
             Text("Keys: Space play · ←/→ seek · ↑/↓ volume · Return controls · F full screen · S subtitles · A audio · C subtitle style · T Picture in Picture · Z/X subtitle delay · [ ] speed")
         }
+        CommandGroup(after: .toolbar) {
+            Button("Command Palette") { app.showShortcuts = false; app.showPalette.toggle() }.keyboardShortcut("k")
+            Button(app.showShortcuts ? "Hide Keyboard Shortcuts" : "Keyboard Shortcuts") { app.showPalette = false; app.showShortcuts.toggle() }
+                .keyboardShortcut("/")
+            Divider()
+            Button("Light Mode") { app.toggleLight() }.keyboardShortcut("l", modifiers: [.command, .shift])
+            Button("Liquid Glass Look") { app.toggleGlass() }.keyboardShortcut("g", modifiers: [.command, .shift])
+        }
         CommandMenu("Profile") {
             Button("Switch Profile…") { app.picking = true }.keyboardShortcut("p", modifiers: [.command, .shift])
+            Button("Surprise Me") { app.surprise() }.keyboardShortcut("r", modifiers: [.command, .shift])
             Divider()
             ForEach(app.profiles.profiles) { p in
                 Button(p.name) { app.switchProfile(p.id) }

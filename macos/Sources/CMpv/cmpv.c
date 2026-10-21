@@ -14,6 +14,7 @@ static int loaded = 0;
 FN(unsigned long, mpv_client_api_version, (void), ())
 FN(const char *, mpv_error_string, (int error), (error))
 VFN(mpv_free, (void *data), (data))
+VFN(mpv_free_node_contents, (mpv_node *node), (node))
 FN(mpv_handle *, mpv_create, (void), ())
 FN(int, mpv_initialize, (mpv_handle *ctx), (ctx))
 VFN(mpv_terminate_destroy, (mpv_handle *ctx), (ctx))
@@ -39,7 +40,7 @@ VFN(mpv_render_context_free, (mpv_render_context *ctx), (ctx))
 #define LOAD(name) if (!(p_##name = dlsym(h, #name))) return 0;
 
 static int resolve(void *h) {
-    LOAD(mpv_client_api_version) LOAD(mpv_error_string) LOAD(mpv_free) LOAD(mpv_create)
+    LOAD(mpv_client_api_version) LOAD(mpv_error_string) LOAD(mpv_free) LOAD(mpv_free_node_contents) LOAD(mpv_create)
     LOAD(mpv_initialize) LOAD(mpv_terminate_destroy) LOAD(mpv_set_option_string) LOAD(mpv_command)
     LOAD(mpv_command_async) LOAD(mpv_set_property) LOAD(mpv_set_property_string) LOAD(mpv_get_property)
     LOAD(mpv_get_property_string) LOAD(mpv_observe_property) LOAD(mpv_request_log_messages)

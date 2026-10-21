@@ -16,8 +16,8 @@ struct ZButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 7) {
-                if let icon { Image(systemName: icon).font(.system(size: small ? 11 : 13, weight: .bold)) }
-                Text(title).font(.system(size: small ? 12 : 14, weight: .semibold)).lineLimit(1)
+                if let icon { Image(systemName: icon).font(.z(size: small ? 11 : 13, weight: .bold)) }
+                Text(title).font(.z(size: small ? 12 : 14, weight: .semibold)).lineLimit(1)
             }
             .padding(.horizontal, small ? 12 : 18)
             .padding(.vertical, small ? 6 : 9)
@@ -50,7 +50,7 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: size * 0.42, weight: .semibold))
+                .font(.z(size: size * 0.42, weight: .semibold))
                 .frame(width: size, height: size)
                 .foregroundStyle(active ? P.onAccent : .white)
                 .background(Circle().fill(active ? P.accent.opacity(0.9) : Color.white.opacity(hover ? 0.26 : 0.14)))
@@ -76,8 +76,8 @@ struct Chip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon { Image(systemName: icon).font(.system(size: 10, weight: .bold)) }
-                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
+                if let icon { Image(systemName: icon).font(.z(size: 10, weight: .bold)) }
+                Text(title).font(.z(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -135,8 +135,8 @@ struct MenuChip: View {
     var body: some View {
         ZMenu(title: heading ?? title, items: items) { lit in
             HStack(spacing: 4) {
-                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                Text(title).font(.z(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.z(size: 9, weight: .bold))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -159,7 +159,7 @@ struct Tag: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10.5, weight: .bold))
+            .font(.z(size: 10.5, weight: .bold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .foregroundStyle(filled ? .black : color)
@@ -173,10 +173,10 @@ struct ImdbBadge: View {
     var body: some View {
         if let r = rating, let v = Double(r), v > 0 {
             HStack(spacing: 4) {
-                Text("IMDb").font(.system(size: 9.5, weight: .black)).foregroundStyle(.black)
+                Text("IMDb").font(.z(size: 9.5, weight: .black)).foregroundStyle(.black)
                     .padding(.horizontal, 3).padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 2).fill(Palette.imdb))
-                Text(String(format: "%.1f", v)).font(.system(size: 13, weight: .bold))
+                Text(String(format: "%.1f", v)).font(.z(size: 13, weight: .bold))
             }
         }
     }
@@ -184,7 +184,7 @@ struct ImdbBadge: View {
 
 struct SectionTitle: View {
     let text: String
-    var body: some View { Text(text).font(.system(size: 19, weight: .bold)) }
+    var body: some View { Text(text).font(.z(size: 19, weight: .bold)) }
 }
 
 struct CenteredMessage<Action: View>: View {
@@ -194,7 +194,7 @@ struct CenteredMessage<Action: View>: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(title).font(.system(size: 20, weight: .bold))
+            Text(title).font(.z(size: 20, weight: .bold))
             if let message { Text(message).foregroundStyle(Palette.textSecondary).multilineTextAlignment(.center).frame(maxWidth: 520) }
             action()
         }
@@ -214,17 +214,66 @@ extension CenteredMessage where Action == EmptyView {
 struct MetaLine: View {
     let meta: Meta
     var matchPercent: Int?
+    @State private var cert: String?
+    @State private var scores: TitleScores?
 
     var body: some View {
         HStack(spacing: 12) {
-            if let m = matchPercent { Text("\(m)% Match").foregroundStyle(Palette.match).font(.system(size: 14, weight: .bold)) }
+            if let m = matchPercent { Text("\(m)% Match").foregroundStyle(Palette.match).font(.z(size: 14, weight: .bold)) }
             if let r = meta.releaseInfo?.nilIfBlank { Text(r).foregroundStyle(Palette.textSecondary) }
             if let r = meta.runtimeLabel { Text(r).foregroundStyle(Palette.textSecondary) }
+            if let c = scores?.rated ?? cert { RatingBadge(cert: c) }
             Tag(text: meta.type == "series" ? "SERIES" : "MOVIE")
             ImdbBadge(rating: meta.imdbRating)
+            if let rt = scores?.rottenTomatoes {
+                // Fresh (60%+) gets the red tomato, rotten the green splat, like the real site.
+                Text((rt >= 60 ? "🍅 " : "🤢 ") + "\(rt)%").font(.z(size: 13, weight: .bold))
+            }
+            if let mc = scores?.metacritic { MetacriticBadge(score: mc) }
         }
-        .font(.system(size: 14))
+        .font(.z(size: 14))
+        // The US rating and critic scores load after the line shows (both are remembered).
+        .task(id: meta.id) {
+            let s = AppModel.shared.session
+            cert = nil; scores = nil
+            scores = await s.scores.of(meta.imdbId)
+            cert = await s.kids.certification(meta)
+        }
     }
+}
+
+/**
+ * A US rating badge, drawn the way it appears on screen: movie ratings as a black-outlined white
+ * box with bold black letters, TV ratings as a white-outlined black box.
+ */
+struct RatingBadge: View {
+    let cert: String
+    var body: some View {
+        let tv = cert.hasPrefix("TV-")
+        Text(cert)
+            .font(.z(size: 12, weight: .black)).tracking(0.5)
+            .foregroundStyle(tv ? .white : .black)
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: tv ? 4 : 1).fill(tv ? .black : .white))
+            .overlay(RoundedRectangle(cornerRadius: tv ? 4 : 1).strokeBorder(tv ? .white : .black, lineWidth: tv ? 1.5 : 2))
+    }
+}
+
+/** Metacritic's colored square: green 61+, yellow 40–60, red below 40. */
+struct MetacriticBadge: View {
+    let score: Int
+    var body: some View {
+        let color: Color = score >= 61 ? Color(red: 0.4, green: 0.8, blue: 0.2) : score >= 40 ? Color(red: 1, green: 0.8, blue: 0.2) : .red
+        Text("\(score)").font(.z(size: 12, weight: .black))
+            .foregroundStyle((40...60).contains(score) ? .black : .white)
+            .frame(width: 24, height: 24)
+            .background(RoundedRectangle(cornerRadius: 3).fill(color))
+    }
+}
+
+extension Meta {
+    /** The trailer to offer, unless trailers are switched off in Settings. */
+    @MainActor var playableTrailer: String? { AppModel.shared.settings.trailers ? trailerId : nil }
 }
 
 /** The title's logo image, or its name in big type when there's none. */
@@ -233,15 +282,35 @@ struct TitleLogo: View {
     var maxHeight: CGFloat = 110
     var maxWidth: CGFloat = 440
     @State private var failed: String?
+    @State private var fallback: (id: String, url: String?)?
+    @State private var fallbackFailed: String?
+
+    /** The addon's logo, else fanart.tv's or TMDB's; plain text only when none exists or logos are off. */
+    private var logo: String? {
+        guard AppModel.shared.settings.logoArt else { return nil }
+        if failed != meta.id, let l = meta.logoUrl { return l }
+        guard fallbackFailed != meta.id, let f = fallback, f.id == meta.id else { return nil }
+        return f.url
+    }
 
     var body: some View {
-        if let logo = meta.logoUrl, failed != meta.id {
-            RemoteImage(url: logo, maxPixel: 900, contentMode: .fit, alignment: .bottomLeading) { failed = meta.id }
+        content.task(id: "\(meta.id)|\(failed == meta.id)") {
+            guard AppModel.shared.settings.logoArt, failed == meta.id || meta.logoUrl == nil else { return }
+            let url = await AppModel.shared.session.artwork.logo(meta)
+            fallback = (meta.id, url)
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let logo {
+            RemoteImage(url: logo, maxPixel: 900, contentMode: .fit, alignment: .bottomLeading) {
+                if logo == meta.logoUrl, failed != meta.id { failed = meta.id } else { fallbackFailed = meta.id }
+            }
                 .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .bottomLeading)
                 .frame(height: maxHeight, alignment: .bottomLeading)
         } else {
             Text(meta.title)
-                .font(.system(size: maxHeight > 90 ? 44 : 34, weight: .black))
+                .font(.z(size: maxHeight > 90 ? 44 : 34, weight: .black))
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: maxWidth * 1.3, alignment: .leading)
@@ -253,7 +322,7 @@ struct TitleLogo: View {
 struct ScrollingText: View {
     let text: String
     var maxHeight: CGFloat = 80
-    var font: Font = .system(size: 14)
+    var font: Font = .z(size: 14)
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -276,7 +345,7 @@ func cardMenuItems(_ meta: Meta) -> [ActionItem] {
         ActionItem(label: "Play", icon: "play.fill") { app.openDetails(meta, play: true) },
     ]
     if meta.type == "series" { items.append(ActionItem(label: "Episodes", icon: "list.number") { app.openDetails(meta, section: "episodes") }) }
-    if let t = meta.trailerId { items.append(ActionItem(label: "Watch Trailer", icon: "film") { app.playTrailer(t) }) }
+    if let t = meta.playableTrailer { items.append(ActionItem(label: "Watch Trailer", icon: "film") { app.playTrailer(t, queue: meta.officialTrailers) }) }
     items.append(ActionItem(label: s.isInMyList(meta.id) ? "Remove from My List" : "Add to My List", icon: s.isInMyList(meta.id) ? "heart.slash" : "heart") { app.toggleMyList(meta) })
     let watched = s.watched.contains(meta.id)
     items.append(ActionItem(label: watched ? "Mark as Unwatched" : "Mark as Watched", icon: watched ? "eye.slash" : "checkmark.circle") { app.setWatched(meta, !watched) })
@@ -308,7 +377,7 @@ struct ToastStack: View {
         VStack(spacing: 8) {
             ForEach(app.toasts) { t in
                 Text(t.text)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.z(size: 13, weight: .medium))
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.1)))

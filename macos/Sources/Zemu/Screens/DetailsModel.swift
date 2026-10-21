@@ -159,6 +159,12 @@ final class DetailsModel {
                              externalSubs: externalSubs, alternatives: ranked.map(\.stream))
     }
 
+    func download(_ r: RankedStream) {
+        guard let m = meta else { return }
+        let err = Downloads.shared.start(meta: m, videoId: currentVideoId(), label: episodeLabel(), stream: r.stream)
+        AppModel.shared.toast(err ?? "Downloading. Find it in Downloads.")
+    }
+
     func matchPercent(_ m: Meta) -> Int { s.matchPercent(m) }
     var rating: Int { s.store.ratings[id] ?? 0 }
     func rate(_ v: Int) { if let m = meta { s.store.rate(m, v) } }

@@ -24,26 +24,26 @@ struct PosterCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 8).fill(P.surface)
-                    Text(meta.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.textMuted)
+                    Text(meta.title).font(.z(size: 13, weight: .semibold)).foregroundStyle(Palette.textMuted)
                         .multilineTextAlignment(.center).padding(10)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     RemoteImage(url: meta.posterUrl, maxPixel: 420)
                     if let badge {
-                        Text(badge).font(.system(size: 10.5, weight: .heavy))
+                        Text(badge).font(.z(size: 10.5, weight: .heavy))
                             .padding(.horizontal, 6).padding(.vertical, 3)
                             .foregroundStyle(badge.hasSuffix("NEW") ? P.onAccent : Palette.match)
                             .background(RoundedRectangle(cornerRadius: 4).fill(badge.hasSuffix("NEW") ? P.accent : Color.black.opacity(0.72)))
                             .padding(6)
                     }
                     if watched {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 18))
+                        Image(systemName: "checkmark.circle.fill").font(.z(size: 18))
                             .foregroundStyle(.white, P.accent)
                             .frame(maxWidth: .infinity, alignment: .trailing).padding(6)
                     }
                     if let r = meta.rating {
                         HStack(spacing: 3) {
-                            Image(systemName: "star.fill").font(.system(size: 8)).foregroundStyle(Palette.imdb)
-                            Text(String(format: "%.1f", r)).font(.system(size: 10.5, weight: .bold))
+                            Image(systemName: "star.fill").font(.z(size: 8)).foregroundStyle(Palette.imdb)
+                            Text(String(format: "%.1f", r)).font(.z(size: 10.5, weight: .bold))
                         }
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.7)))
@@ -51,15 +51,15 @@ struct PosterCard: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     }
                 }
-                .frame(width: width, height: width * 1.5)
+                .frame(width: width * P.zoom, height: width * P.zoom * 1.5)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(hover ? 0.9 : 0), lineWidth: 2))
                 .scaleEffect(hover ? 1.06 : 1)
                 .shadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
 
-                Text(meta.title).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+                Text(meta.title).font(.z(size: 12.5, weight: .medium)).lineLimit(1)
                     .foregroundStyle(hover ? .white : Palette.textSecondary)
-                    .frame(width: width, alignment: .leading)
+                    .frame(width: width * P.zoom, alignment: .leading)
             }
             .contentShape(Rectangle())
         }
@@ -100,8 +100,8 @@ struct LandscapeCard: View {
                     RemoteImage(url: meta.backdropUrl, maxPixel: 640)
                     LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(meta.title).font(.system(size: 14, weight: .bold)).lineLimit(1)
-                        if let subtitle { Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
+                        Text(meta.title).font(.z(size: 14, weight: .bold)).lineLimit(1)
+                        if let subtitle { Text(subtitle).font(.z(size: 11.5)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
                     }
                     .padding(10)
                     .padding(.bottom, progress != nil ? 6 : 0)
@@ -115,11 +115,11 @@ struct LandscapeCard: View {
                         .frame(height: 4)
                     }
                     if hover && resume != nil {
-                        Image(systemName: "play.circle.fill").font(.system(size: 44)).foregroundStyle(.white.opacity(0.95))
+                        Image(systemName: "play.circle.fill").font(.z(size: 44)).foregroundStyle(.white.opacity(0.95))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .frame(width: width, height: width * 9 / 16)
+                .frame(width: width * P.zoom, height: width * P.zoom * 9 / 16)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(hover ? 0.9 : 0), lineWidth: 2))
                 .scaleEffect(hover ? 1.04 : 1)
@@ -158,7 +158,15 @@ struct MediaRow<Item: Hashable, Content: View>: View {
     @State private var hover = false
     @State private var scrollTo: Int?
 
+    /** In Kids Mode, only titles allowed for kids (looked up as needed). */
+    private var shown: [Item] { AppModel.shared.session.kids.safe(items) { ($0 as? Meta) ?? Meta(id: "") } }
+
     var body: some View {
+        let shown = shown
+        if !shown.isEmpty || items.isEmpty { row(shown) }
+    }
+
+    private func row(_ items: [Item]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 SectionTitle(text: title)
@@ -198,7 +206,7 @@ struct MediaRow<Item: Hashable, Content: View>: View {
 
     private func pageButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 18, weight: .bold))
+            Image(systemName: icon).font(.z(size: 18, weight: .bold))
                 .frame(width: 36, height: 64)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.65)))
         }
@@ -218,7 +226,8 @@ struct PosterGrid<Header: View>: View {
     var body: some View {
         ScrollView {
             header()
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: minWidth, maximum: minWidth + 40), spacing: 18, alignment: .top)], alignment: .leading, spacing: 22) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: minWidth * P.zoom, maximum: (minWidth + 40) * P.zoom), spacing: 18, alignment: .top)], alignment: .leading, spacing: 22) {
+                let items = AppModel.shared.session.kids.safe(items)
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, m in
                     PosterCard(meta: m, width: minWidth, badge: badges[m.id], onHover: onHover)
                         .onAppear { if i >= items.count - 14 { onNearEnd?() } }

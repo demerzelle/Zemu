@@ -9,12 +9,21 @@ struct PlayCandidate: Hashable {
     let headers: [String: String]
     /** Addon hint that streams with the same value come from the same release (used for next episode). */
     let bingeGroup: String?
+    /** The release's key (see ParsedStream.key), so the stream can be picked again later. */
+    let key: String
 
     init(_ s: ParsedStream) {
+        key = s.key
         url = s.raw.url ?? ""
         label = [s.resolutionLabel, s.sizeLabel, s.addonName].compactMap { $0 }.joined(separator: " · ")
         headers = s.raw.behaviorHints?.proxyHeaders?.request ?? [:]
         bingeGroup = s.raw.behaviorHints?.bingeGroup
+    }
+
+    /** The file that last played (Continue Watching replays it). */
+    init?(saved l: LastStream) {
+        guard let u = l.url?.nilIfBlank else { return nil }
+        url = u; label = l.label ?? "Last played file"; headers = l.headers ?? [:]; bingeGroup = l.bingeGroup; key = l.key
     }
 }
 
@@ -95,8 +104,10 @@ final class PlayerModel {
     @ObservationIgnored private var recommendationRequested = false
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var lastSave = Date()
+    /** Playing only the saved file from last time: if it's gone, look up cached streams and keep going. */
+    @ObservationIgnored private var savedFileOnly: Bool
 
-    init(session: Session, meta: Meta, videoId: String, label: String?, candidates: [PlayCandidate], subtitles: [SubtitleTrack], startMs: Int64) {
+    init(session: Session, meta: Meta, videoId: String, label: String?, candidates: [PlayCandidate], subtitles: [SubtitleTrack], startMs: Int64, savedFile: Bool = false) {
         self.session = session
         self.meta = meta
         self.videoId = videoId
@@ -104,6 +115,7 @@ final class PlayerModel {
         self.candidates = candidates
         self.subs = subtitles
         self.resumeMs = startMs
+        savedFileOnly = savedFile
         let s = session.settings
         softwareDecoding = s.preferSoftwareDecoders
         volume = s.volume
@@ -175,9 +187,12 @@ final class PlayerModel {
                 loadTimer?.cancel()
                 buffering = false
                 rememberWorkingMode()
+                rememberPlayingFile()
                 loadSegments()
+                scrobble("start")
             }
         case .paused(let p):
+            if isPlaying == p, reachedReady { scrobble(p ? "pause" : "start") }
             isPlaying = !p
             if p { showControls() }
             Integrations.shared.updateNowPlaying(self)
@@ -599,7 +614,7 @@ final class PlayerModel {
             softwareDecoding = s.preferSoftwareDecoders
             countdownCancelled = false
             positionMs = 0; durationMs = 0
-            session.store.rememberStream(m.id, LastStream(key: ordered.first?.key ?? "", bingeGroup: ordered.first?.raw.behaviorHints?.bingeGroup))
+            savedFileOnly = false
             start(at: 0)
             nextUp = findNext()
             Integrations.shared.updateNowPlaying(self)
@@ -617,6 +632,26 @@ final class PlayerModel {
             softwareDecoding = true
             flash("Couldn't decode (\(message)). Retrying with software decoding…")
             start(at: position)
+            return
+        }
+        if savedFileOnly {
+            // The saved debrid link expired: find what's cached now and carry on from the same spot.
+            savedFileOnly = false
+            flash("The last file is gone. Looking for cached streams…")
+            Task {
+                let r = await session.streams.load(type: meta.type, videoId: videoId)
+                let more = StreamFilter.apply(r.cached, session.streamFilter, session.capabilities, session.settings, []).map(\.stream)
+                    .filter { $0.raw.url != nil && $0.raw.url != candidates.first?.url }
+                guard !closed else { return }
+                guard !more.isEmpty else {
+                    engine.setPaused(true)
+                    failure = PlaybackFailure(detail: "The last file is gone and no cached streams were found.\n\n\(message)", positionMs: position)
+                    return
+                }
+                candidates += more.prefix(Self.maxCandidates).map(PlayCandidate.init)
+                index += 1
+                start(at: position, freshEngine: true)
+            }
             return
         }
         if index + 1 < candidates.count {
@@ -652,6 +687,19 @@ final class PlayerModel {
         flash("Stream link copied")
     }
 
+    /** Saves the exact link that's playing, so Continue Watching replays this same file. */
+    private func rememberPlayingFile() {
+        guard !isAdHoc, candidates.indices.contains(index) else { return }
+        let c = candidates[index]
+        session.store.rememberStream(meta.id, LastStream(key: c.key.isEmpty ? c.url : c.key, bingeGroup: c.bingeGroup, url: c.url, headers: c.headers, videoId: videoId, label: c.label))
+    }
+
+    /** Tells Trakt (when linked) what's playing and how far in. */
+    private func scrobble(_ action: String) {
+        guard !isAdHoc, durationMs > 0 else { return }
+        session.trakt.scrobble(action, meta: meta, videoId: videoId, progress: Double(positionMs) / Double(durationMs))
+    }
+
     private func rememberWorkingMode() {
         guard softwareDecoding && !session.settings.preferSoftwareDecoders else { return }
         session.store.updateSettings { $0.preferSoftwareDecoders = true }
@@ -678,6 +726,7 @@ final class PlayerModel {
     func close() {
         guard !closed else { return }
         saveProgress()
+        scrobble("stop")
         closed = true
         tickTask?.cancel(); countdownTask?.cancel(); scrubTask?.cancel(); loadTimer?.cancel()
         hideTask?.cancel()

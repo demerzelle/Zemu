@@ -16,7 +16,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN" "$APP/Contents/MacOS/Zemu"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-cp Resources/logo_mark.png Resources/logo_wordmark.png "$APP/Contents/Resources/"
+cp Resources/logo_mark.png Resources/logo_wordmark.png Resources/pixelify_sans.ttf "$APP/Contents/Resources/"
+cp -R Resources/sounds "$APP/Contents/Resources/"
 
 # App icon from the 1024px master.
 ICONSET=build/AppIcon.iconset

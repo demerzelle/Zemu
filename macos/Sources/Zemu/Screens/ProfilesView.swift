@@ -29,7 +29,7 @@ struct Avatar: View {
             let p = AvatarPresets.all[i]
             shape.fill(LinearGradient(colors: [Color(argb: p.from), Color(argb: p.to)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: size, height: size)
-                .overlay(Text(p.emoji).font(.system(size: size * 0.48)))
+                .overlay(Text(p.emoji).font(.z(size: size * 0.48)))
         }
     }
 }
@@ -43,7 +43,7 @@ struct ProfilePicker: View {
         ZStack {
             P.background.ignoresSafeArea()
             VStack(spacing: 40) {
-                Text("Who's watching?").font(.system(size: 44, weight: .black))
+                Text("Who's watching?").font(.z(size: 44, weight: .black))
                 HStack(spacing: 36) {
                     ForEach(app.profiles.profiles) { p in
                         Button { app.switchProfile(p.id) } label: {
@@ -51,7 +51,7 @@ struct ProfilePicker: View {
                                 Avatar(avatar: p.avatar, size: 140, corner: 22)
                                     .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(hover == p.id ? 1 : 0), lineWidth: 4))
                                     .scaleEffect(hover == p.id ? 1.08 : 1)
-                                Text(p.name).font(.system(size: 17)).foregroundStyle(hover == p.id ? .white : Palette.textSecondary)
+                                Text(p.name).font(.z(size: 17)).foregroundStyle(hover == p.id ? .white : Palette.textSecondary)
                             }
                         }
                         .buttonStyle(.plain)
@@ -61,7 +61,7 @@ struct ProfilePicker: View {
                                 preferred: p.id == app.session.profileId, ring: false)
                     }
                 }
-                Text("Manage profiles in Settings  ·  ⇧⌘P switches profile").font(.system(size: 13)).foregroundStyle(Palette.textMuted)
+                Text("Manage profiles in Settings  ·  ⇧⌘P switches profile").font(.z(size: 13)).foregroundStyle(Palette.textMuted)
             }
         }
         .onAppear { FocusEngine.shared.focusPreferred(scope: "main") }
@@ -79,15 +79,15 @@ struct ProfilesSection: View {
         let current = app.session.profileId
         VStack(alignment: .leading, spacing: 12) {
             Text("Each profile has its own addons, history, My List, likes, recommendations and settings. With more than one profile, Zemu asks who's watching at launch.")
-                .font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
+                .font(.z(size: 13)).foregroundStyle(Palette.textSecondary)
             HStack(alignment: .top, spacing: 20) {
                 ForEach(store.profiles) { p in
                     Button { editing = p } label: {
                         VStack(spacing: 6) {
                             Avatar(avatar: p.avatar, size: 90, corner: 18)
                                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(p.id == current ? P.accent : .clear, lineWidth: 3))
-                            Text(p.name).font(.system(size: 13, weight: p.id == current ? .bold : .regular)).lineLimit(1)
-                            if p.id == current { Text("Current").font(.system(size: 11)).foregroundStyle(P.accent) }
+                            Text(p.name).font(.z(size: 13, weight: p.id == current ? .bold : .regular)).lineLimit(1)
+                            if p.id == current { Text("Current").font(.z(size: 11)).foregroundStyle(P.accent) }
                         }
                         .frame(width: 104)
                     }
@@ -104,8 +104,8 @@ struct ProfilesSection: View {
                 Button { adding = true } label: {
                     VStack(spacing: 6) {
                         RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.textMuted, lineWidth: 2).frame(width: 90, height: 90)
-                            .overlay(Image(systemName: "plus").font(.system(size: 30)).foregroundStyle(Palette.textSecondary))
-                        Text("Add profile").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
+                            .overlay(Image(systemName: "plus").font(.z(size: 30)).foregroundStyle(Palette.textSecondary))
+                        Text("Add profile").font(.z(size: 13)).foregroundStyle(Palette.textSecondary)
                     }
                     .frame(width: 104)
                 }
@@ -139,6 +139,7 @@ private struct ProfileEditor: View {
     @State private var name = ""
     @State private var avatar = ""
     @State private var confirmDelete = false
+    @State private var kid = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -146,14 +147,14 @@ private struct ProfileEditor: View {
             HStack(spacing: 16) {
                 Avatar(avatar: avatar, size: 72)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(title).font(.system(size: 20, weight: .black))
+                    Text(title).font(.z(size: 20, weight: .black))
                     TextField("Profile name", text: $name).textFieldStyle(.roundedBorder).frame(width: 280)
                         .focused($nameFocused)
                         .zFocusText($name, title: "Profile name", focus: { nameFocused = true }, preferred: true)
                         .onChange(of: name) { _, n in if n.count > 20 { name = String(n.prefix(20)) } }
                 }
             }
-            Text("Choose a picture").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
+            Text("Choose a picture").font(.z(size: 13)).foregroundStyle(Palette.textSecondary)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(58), spacing: 10), count: 9), spacing: 10) {
                 ForEach(AvatarPresets.all.indices, id: \.self) { i in
                     let v = "preset:\(i)"
@@ -165,9 +166,14 @@ private struct ProfileEditor: View {
                     .zFocus(activate: { avatar = v }, cornerRadius: 12)
                 }
             }
+            if app.profiles.kids.enabled || initial.kids {
+                Toggle("🧸 Kid profile: only kids' titles with the ratings allowed in Settings → Profiles", isOn: $kid)
+                    .toggleStyle(.switch)
+                    .zFocus(activate: { kid.toggle() })
+            }
             HStack {
                 ZButton(title: "Choose Photo…", icon: "photo") { pickPhoto() }
-                Text("Or drop an image on the picture above.").font(.system(size: 12)).foregroundStyle(Palette.textMuted)
+                Text("Or drop an image on the picture above.").font(.z(size: 12)).foregroundStyle(Palette.textMuted)
             }
             HStack(spacing: 10) {
                 ZButton(title: "Save", primary: true) { save() }.keyboardShortcut(.defaultAction)
@@ -179,7 +185,7 @@ private struct ProfileEditor: View {
         .padding(24)
         .frame(width: 640)
         .background(P.surface)
-        .onAppear { name = initial.name; avatar = initial.avatar }
+        .onAppear { name = initial.name; avatar = initial.avatar; kid = initial.kids }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             _ = providers.first?.loadObject(ofClass: URL.self) { url, _ in
                 if let url { Task { @MainActor in setPhoto(url) } }
@@ -206,14 +212,25 @@ private struct ProfileEditor: View {
     }
 
     private func save() {
+        // A kid profile needs a parent code to leave it.
+        if kid && app.profiles.kids.pinHash.isEmpty {
+            dismiss()
+            app.createParentCode { commit() }
+            return
+        }
+        commit()
+        dismiss()
+    }
+
+    private func commit() {
         if initial.id.isEmpty {
-            app.profiles.add(name: name.trimmed, avatar: avatar)
+            app.profiles.add(name: name.trimmed, avatar: avatar, kids: kid)
         } else {
             var p = initial
             p.name = name.trimmed.isEmpty ? initial.name : name.trimmed
             p.avatar = avatar
+            p.kids = kid
             app.profiles.update(p)
         }
-        dismiss()
     }
 }

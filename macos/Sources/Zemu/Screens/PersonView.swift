@@ -105,10 +105,10 @@ struct PersonView: View {
                     .frame(width: 170, height: 255)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(p.name).font(.system(size: 34, weight: .black))
-                        Text(p.facts.joined(separator: "   ·   ")).font(.system(size: 13.5)).foregroundStyle(Palette.textSecondary)
+                        Text(p.name).font(.z(size: 34, weight: .black))
+                        Text(p.facts.joined(separator: "   ·   ")).font(.z(size: 13.5)).foregroundStyle(Palette.textSecondary)
                         if let bio = p.bio?.nilIfBlank { ScrollingText(text: bio, maxHeight: 170).frame(maxWidth: 760, alignment: .leading) }
-                        Text("\(p.movies.count) movies · \(p.series.count) series").font(.system(size: 12.5)).foregroundStyle(Palette.textMuted)
+                        Text("\(p.movies.count) movies · \(p.series.count) series").font(.z(size: 12.5)).foregroundStyle(Palette.textMuted)
                     }
                 }
                 .padding(.horizontal, 48)
@@ -133,13 +133,13 @@ struct PersonView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8).fill(P.surface)
-                    Text(m.title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.textMuted).multilineTextAlignment(.center).padding(8)
+                    Text(m.title).font(.z(size: 12.5, weight: .semibold)).foregroundStyle(Palette.textMuted).multilineTextAlignment(.center).padding(8)
                     RemoteImage(url: m.posterUrl, maxPixel: 420)
                 }
                 .frame(width: 140, height: 210)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                Text(m.title).font(.system(size: 12)).lineLimit(1).frame(width: 140, alignment: .leading)
-                if let y = m.releaseInfo { Text(y).font(.system(size: 11)).foregroundStyle(Palette.textMuted) }
+                Text(m.title).font(.z(size: 12)).lineLimit(1).frame(width: 140, alignment: .leading)
+                if let y = m.releaseInfo { Text(y).font(.z(size: 11)).foregroundStyle(Palette.textMuted) }
             }
         }
         .buttonStyle(.plain)

@@ -137,9 +137,9 @@ struct AddonsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Addons").font(.system(size: 30, weight: .black))
+                    Text("Addons").font(.z(size: 30, weight: .black))
                     Text("Install, remove and configure Stremio addons. Configure opens the addon's own setup page; its Install button installs here. Install links (stremio://) on any website open in Zemu too, and you can drop or paste a manifest URL anywhere in this window.")
-                        .font(.system(size: 13)).foregroundStyle(Palette.textSecondary).frame(maxWidth: 820, alignment: .leading)
+                        .font(.z(size: 13)).foregroundStyle(Palette.textSecondary).frame(maxWidth: 820, alignment: .leading)
                 }
                 DebridQuickLink()
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -163,7 +163,7 @@ struct AddonsView: View {
                     }
                 }
                 .frame(maxWidth: 900)
-                if let m = vm.message { Text(m).font(.system(size: 13)).foregroundStyle(Palette.cached) }
+                if let m = vm.message { Text(m).font(.z(size: 13)).foregroundStyle(Palette.cached) }
 
                 if vm.loading {
                     Text("Loading addons…").foregroundStyle(Palette.textSecondary)
@@ -173,7 +173,7 @@ struct AddonsView: View {
                     Text("No addons match.").foregroundStyle(Palette.textSecondary)
                 } else {
                     if vm.tab == installedTab && vm.type == .ALL && vm.query.isEmpty {
-                        Text("Addons higher in the list are asked first. Drag the handle to reorder.").font(.system(size: 12)).foregroundStyle(Palette.textMuted)
+                        Text("Addons higher in the list are asked first. Drag the handle to reorder.").font(.z(size: 12)).foregroundStyle(Palette.textMuted)
                     }
                     LazyVStack(spacing: 8) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
@@ -211,9 +211,9 @@ private struct DebridQuickLink: View {
         HStack(spacing: 12) {
             Image(systemName: "bolt.fill").foregroundStyle(Palette.cached)
             if let a = account {
-                Text("Linked to \(a.service.label). Torrentio is set up with this account.").font(.system(size: 13))
+                Text("Linked to \(a.service.label). Torrentio is set up with this account.").font(.z(size: 13))
             } else {
-                Text("Quickest setup: link your debrid account and Zemu installs Torrentio configured for it.").font(.system(size: 13))
+                Text("Quickest setup: link your debrid account and Zemu installs Torrentio configured for it.").font(.z(size: 13))
             }
             ZButton(title: account == nil ? "Link Debrid Account" : "Manage", small: true) { app.go(.settings) }
         }
@@ -245,17 +245,17 @@ private struct AddonCard: View {
             }
             ZStack {
                 RoundedRectangle(cornerRadius: 10).fill(P.surfaceHigh)
-                Text(String(m.name.prefix(1)).uppercased()).font(.system(size: 24, weight: .black)).foregroundStyle(Palette.textMuted)
+                Text(String(m.name.prefix(1)).uppercased()).font(.z(size: 24, weight: .black)).foregroundStyle(Palette.textMuted)
                 RemoteImage(url: m.logo, maxPixel: 160, contentMode: .fit)
             }
             .frame(width: 60, height: 60)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(m.name).font(.system(size: 15.5, weight: .bold)).lineLimit(1)
-                    Text("v\(m.version)").font(.system(size: 12)).foregroundStyle(Palette.textMuted)
+                    Text(m.name).font(.z(size: 15.5, weight: .bold)).lineLimit(1)
+                    Text("v\(m.version)").font(.z(size: 12)).foregroundStyle(Palette.textMuted)
                 }
-                if let d = m.description?.nilIfBlank { Text(d).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(2) }
+                if let d = m.description?.nilIfBlank { Text(d).font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(2) }
                 HStack(spacing: 6) {
                     if item.installed { Tag(text: "INSTALLED", color: Palette.match, filled: true) }
                     ForEach(m.types.prefix(4), id: \.self) { Tag(text: $0.uppercased()) }

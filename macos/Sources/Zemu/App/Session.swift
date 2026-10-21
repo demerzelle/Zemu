@@ -46,6 +46,10 @@ final class Session {
     let skipSegments = SkipSegments()
     let newEpisodes: NewEpisodes
     let capabilities: DeviceCapabilities
+    let scores: Scores
+    let artwork: Artwork
+    let trakt: Trakt
+    let kids: KidsGate
 
     /** Stream filters persist across titles for the session, like a "sticky" preference. */
     var streamFilter = FilterState()
@@ -77,11 +81,30 @@ final class Session {
         tmdb = Tmdb(key: { store.settings.tmdbApiKey })
         newEpisodes = NewEpisodes(addons: addons, store: store)
         capabilities = DeviceCaps.detect()
+        scores = Scores(key: { store.settings.omdbApiKey })
+        artwork = Artwork(tmdb: tmdb, fanartKey: { store.settings.fanartApiKey })
+        trakt = Trakt(store: store)
+        // Called later, never during AppModel's own init.
+        kids = KidsGate(tmdb: tmdb, scores: scores, settings: { AppModel.shared.profiles.kids }, on: { AppModel.shared.profiles.kidsOn })
 
         newEpisodes.onFresh = { [weak self] items in self?.announce(items) }
-        trackers.append(Tracker({ [weak self] in self?.store.history.filter { $0.meta.type == "series" }.map { "\($0.meta.id)|\($0.videoId)" } ?? [] }) { [weak self] _ in
+        trackers.append(Tracker({ [weak self] in
+            (self?.store.history.filter { $0.meta.type == "series" }.map { "\($0.meta.id)|\($0.videoId)" } ?? [])
+                + (self?.store.myList.filter { $0.type == "series" }.map(\.id) ?? [])
+        }) { [weak self] _ in
             guard let self, self.alive else { return }
             self.newEpisodes.historyChanged()
+        })
+        // Mirror My List to the Trakt watchlist, and sync from Trakt once per session.
+        var listBefore: Set<String>?
+        trackers.append(Tracker({ [weak self] in self?.store.myList.map { "\($0.id)|\($0.type)" } ?? [] }) { [weak self] ids in
+            let now = Set(ids)
+            if let before = listBefore, before != now { self?.trakt.myListChanged(from: before, to: now) }
+            listBefore = now
+        })
+        tasks.append(Task { [weak self] in
+            guard let self, self.trakt.connected else { return }
+            _ = try? await self.trakt.sync()
         })
         tasks.append(Task { [weak self] in await self?.keepDebridFresh() })
         Integrations.shared.sessionStarted(self)

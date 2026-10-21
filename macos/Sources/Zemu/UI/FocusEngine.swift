@@ -408,7 +408,7 @@ struct ActionMenuOverlay: View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea().onTapGesture { app.actionMenu = nil }
             VStack(alignment: .leading, spacing: 4) {
-                Text(request.title).font(.system(size: 17, weight: .bold)).lineLimit(2).padding(.bottom, 6).padding(.horizontal, 10)
+                Text(request.title).font(.z(size: 17, weight: .bold)).lineLimit(2).padding(.bottom, 6).padding(.horizontal, 10)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(items.enumerated()), id: \.offset) { i, item in
@@ -421,7 +421,7 @@ struct ActionMenuOverlay: View {
                     .padding(6)
                 }
                 .frame(maxHeight: 460)
-                Text("↑↓ choose · Return / Ⓐ select · Esc / Ⓑ close").font(.system(size: 11)).foregroundStyle(Palette.textMuted).padding(.horizontal, 10).padding(.top, 4)
+                Text("↑↓ choose · Return / Ⓐ select · Esc / Ⓑ close").font(.z(size: 11)).foregroundStyle(Palette.textMuted).padding(.horizontal, 10).padding(.top, 4)
             }
             .padding(14)
             .frame(width: 380)
@@ -444,10 +444,10 @@ private struct ActionMenuRow: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 if let checked = item.checked {
-                    Image(systemName: checked ? "checkmark" : "").font(.system(size: 12, weight: .bold)).frame(width: 16).foregroundStyle(P.accent)
+                    Image(systemName: checked ? "checkmark" : "").font(.z(size: 12, weight: .bold)).frame(width: 16).foregroundStyle(P.accent)
                 }
                 if let icon = item.icon { Image(systemName: icon).frame(width: 18) }
-                Text(item.label).font(.system(size: 14)).lineLimit(1)
+                Text(item.label).font(.z(size: 14)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
@@ -487,9 +487,9 @@ struct OnScreenKeyboard: View {
         ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
             VStack(spacing: 10) {
-                Text(request.title).font(.system(size: 16, weight: .bold))
+                Text(request.title).font(.z(size: 16, weight: .bold))
                 Text(request.text.wrappedValue.isEmpty ? " " : request.text.wrappedValue)
-                    .font(.system(size: 20, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.head)
+                    .font(.z(size: 20, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.head)
                     .frame(width: 620, alignment: .leading)
                     .padding(12)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.5)))
@@ -511,7 +511,7 @@ struct OnScreenKeyboard: View {
                         request.onSubmit?()
                     }
                 }
-                Text("Ⓧ backspace · Ⓨ space · Ⓑ close").font(.system(size: 11)).foregroundStyle(Palette.textMuted)
+                Text("Ⓧ backspace · Ⓨ space · Ⓑ close").font(.z(size: 11)).foregroundStyle(Palette.textMuted)
             }
             .padding(20)
             .background(RoundedRectangle(cornerRadius: 16).fill(P.surface))
@@ -531,7 +531,7 @@ private struct KeyCap: View {
 
     var body: some View {
         Button(action: action) {
-            Text(label).font(.system(size: 16, weight: .semibold))
+            Text(label).font(.z(size: 16, weight: .semibold))
                 .frame(width: width, height: 44)
                 .background(RoundedRectangle(cornerRadius: 8).fill(lit ? Color.white : primary ? P.accent : Color.white.opacity(0.12)))
                 .foregroundStyle(lit ? .black : primary ? P.onAccent : .white)

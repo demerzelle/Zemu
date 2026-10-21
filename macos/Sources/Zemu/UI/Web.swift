@@ -135,17 +135,37 @@ struct HeroTrailer: View {
 struct TrailerOverlay: View {
     let request: TrailerRequest
     var app = AppModel.shared
+    @State private var current: String?
+
+    private var playing: String { current ?? request.youtubeId }
 
     var body: some View {
+        let queue = request.queue
         ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
-            YouTubeView(videoId: request.youtubeId, muted: false, controls: true, cover: false, start: request.start, paused: !app.appActive,
-                        onEnded: { app.trailer = nil },
+            YouTubeView(videoId: playing, muted: false, controls: true, cover: false, start: current == nil ? request.start : 0, paused: !app.appActive,
+                        onEnded: {
+                            // Continue through the title's other official trailers.
+                            if let i = queue.firstIndex(where: { $0.id == playing }), i + 1 < queue.count { current = queue[i + 1].id } else { app.trailer = nil }
+                        },
                         onError: { _ in
                             // Embedding disabled by the uploader (101/150) or blocked: hand off to the browser.
-                            NSWorkspace.shared.open(URL(string: "https://www.youtube.com/watch?v=\(request.youtubeId)")!)
+                            NSWorkspace.shared.open(URL(string: "https://www.youtube.com/watch?v=\(playing)")!)
                             app.trailer = nil
                         })
+                .id(playing)
+            if queue.count > 1 {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(queue, id: \.id) { t in Chip(title: t.title, selected: t.id == playing) { current = t.id } }
+                    }
+                    .padding(10)
+                    .zSurface(Capsule(), fill: .black.opacity(0.6))
+                    .padding(.bottom, 70)
+                }
+                .frame(maxWidth: .infinity)
+            }
             ZButton(title: "Close", icon: "xmark", small: true) { app.trailer = nil }
                 .keyboardShortcut(.cancelAction)
                 .padding(20)
@@ -170,9 +190,9 @@ struct ConfigureSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Configure \(request.name)").font(.system(size: 15, weight: .bold))
+                    Text("Configure \(request.name)").font(.z(size: 15, weight: .bold))
                     Text(status ?? "The page's Install button installs the addon straight into Zemu.")
-                        .font(.system(size: 12)).foregroundStyle(status == nil ? Palette.textSecondary : Palette.cached)
+                        .font(.z(size: 12)).foregroundStyle(status == nil ? Palette.textSecondary : Palette.cached)
                 }
                 Spacer()
                 ZButton(title: "Open in Browser", icon: "safari", small: true) { NSWorkspace.shared.open(URL(string: request.url)!) }

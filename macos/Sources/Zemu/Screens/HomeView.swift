@@ -1,7 +1,13 @@
 import SwiftUI
 import ZemuCore
 
-enum RowStyle { case poster, landscape }
+enum RowStyle {
+    case poster, landscape
+    /** Streaming service logos. */
+    case services
+    /** Studio / network logos. */
+    case studios
+}
 
 struct HomeRow: Identifiable {
     let key: String
@@ -15,7 +21,18 @@ struct HomeRow: Identifiable {
     /** Per-title poster badge text, e.g. "3 NEW"; shown instead of the match percent. */
     var badges: [String: String] = [:]
     var resume: [String: WatchEntry] = [:]
+    /** "See all" opens the grid for this streaming service (provider ids) or studio. */
+    var service: String?
+    var serviceLabel: String?
+    var studio: String?
     var id: String { key }
+
+    func with(items: [Meta]) -> HomeRow {
+        var r = HomeRow(key: key, title: title, items: items, priority: priority, style: style, subtitles: subtitles, progress: progress,
+                        match: match, badges: badges, resume: resume)
+        r.service = service; r.serviceLabel = serviceLabel; r.studio = studio
+        return r
+    }
 }
 
 @MainActor @Observable
@@ -23,6 +40,22 @@ final class HomeModel {
     @ObservationIgnored private unowned let s: Session
     private var catalogRows: [HomeRow] = []
     private var dailyRows: [HomeRow] = []
+    /** Streaming service, studio and user-added rows, per page ("home" here; Movies/Series pages use Browse). */
+    private var discoverRows: [String: [HomeRow]] = [:]
+    @ObservationIgnored private var discoverLoaded: Set<String> = []
+    private(set) var providers: [Provider] = []
+    private var studioLogos: [String: String] = [:]
+
+    /**
+     * A fresh mix of suggestions for each screensaver run: mostly personal recommendations, the
+     * rest from catalogs, minus anything already watched. Falls back to My List before Home loads.
+     */
+    func screensaverTitles(count: Int = 30) -> [Meta] {
+        let daily = dailyRows.flatMap(\.items).filter { !s.store.isWatched($0.id) }.distinct(by: \.id).shuffled()
+        let catalogs = catalogRows.flatMap(\.items).filter { !s.store.isWatched($0.id) }.distinct(by: \.id).shuffled()
+        let picked = Array((Array(daily.prefix(count * 2 / 3)) + catalogs).distinct(by: \.id).prefix(count))
+        return picked.isEmpty ? Array(s.store.myList.shuffled().prefix(count)) : picked
+    }
     private(set) var loading = true
     private(set) var error: String?
     @ObservationIgnored private var loadedFor: [String]?
@@ -32,10 +65,14 @@ final class HomeModel {
     init(_ s: Session) {
         self.s = s
         Task { await load() }
+        loadDiscover("home")
         // Reload catalogs when addons are installed or removed.
         trackers.append(Tracker({ [weak s] in s?.addons.addons.map(\.transportUrl) ?? [] }) { [weak self] urls in
             guard let self, self.s.addons.ready, let loaded = self.loadedFor, loaded != urls else { return }
             Task { await self.load() }
+            let pages = self.discoverLoaded
+            self.discoverLoaded = []
+            for p in pages { self.loadDiscover(p) }
         })
         // Daily rows follow history, My List, likes and the date.
         trackers.append(Tracker({ [weak s] in
@@ -61,6 +98,12 @@ final class HomeModel {
             out.append(HomeRow(key: "new-episodes", title: "New Episodes", items: fresh.map(\.meta), priority: -1,
                                badges: Dictionary(fresh.map { ($0.meta.id, $0.badge) }, uniquingKeysWith: { a, _ in a })))
         }
+        // Calendar: the next episode of each show you follow, soonest first, with its day.
+        let upcoming = s.newEpisodes.upcoming
+        if !upcoming.isEmpty {
+            out.append(HomeRow(key: "coming-up", title: "Coming Up", items: upcoming.map(\.meta), priority: -1,
+                               badges: Dictionary(upcoming.map { ($0.meta.id, $0.badge) }, uniquingKeysWith: { a, _ in a })))
+        }
         let inProgress = s.inProgress
         if !inProgress.isEmpty {
             out.append(HomeRow(
@@ -80,9 +123,138 @@ final class HomeModel {
             out.append(HomeRow(key: "recent-series", title: "Recently Watched Series", items: series.map(\.meta), priority: 6, style: .landscape,
                                subtitles: Dictionary(series.compactMap { e in e.label.map { (e.meta.id, $0) } }, uniquingKeysWith: { a, _ in a })))
         }
-        out += dailyRows
-        out += catalogRows
-        return out.stableSortedByPriority()
+        out += hidingWatched(dailyRows + catalogRows + (discoverRows["home"] ?? []))
+        out += logoRows("home")
+        return out.filter { !s.store.hiddenRows(page: "home").contains($0.key) }.stableSortedByPriority()
+    }
+
+    /** Optionally keeps watched titles out of suggestion and category rows. */
+    private func hidingWatched(_ rows: [HomeRow]) -> [HomeRow] {
+        guard s.settings.hideWatchedInRows else { return rows }
+        return rows.compactMap { r in
+            let items = r.items.filter { !s.store.isWatched($0.id) }
+            return items.isEmpty ? nil : r.with(items: items)
+        }
+    }
+
+    /** "Surprise me": a random unwatched title from your best-matching suggestions. */
+    func surprise() -> Meta? {
+        let seen = Set(s.store.history.map(\.meta.id))
+        let pool = (dailyRows + catalogRows).flatMap(\.items)
+            .filter { !s.store.isWatched($0.id) && !seen.contains($0.id) && ["movie", "series"].contains($0.type) && s.kids.knownAllowed($0) == true }
+            .distinct(by: \.id)
+        let profile = s.tasteProfile()
+        return pool.sorted { Recommender.matchPercent($0, profile) > Recommender.matchPercent($1, profile) }.prefix(30).randomElement()
+    }
+
+    /** "Streaming Services" (your services first) and, on Movies/Series, "Studios" / "Networks". */
+    private func logoRows(_ page: String) -> [HomeRow] {
+        guard page != "anime", s.tmdb.enabled else { return [] }
+        var out: [HomeRow] = []
+        let mine = s.settings.myServices.map { id, name in Provider(ids: id, label: name, logo: providers.first { $0.ids == id }?.logo) }
+        let all = providers.isEmpty ? StreamingService.all : providers
+        let list = (mine + all).distinct(by: \.ids).prefix(24)
+        out.append(HomeRow(key: "services", title: "Streaming Services", items: list.map { Meta(id: "service:\($0.ids)", type: page == "series" ? "series" : "movie", name: $0.label, poster: $0.logo) },
+                           priority: 1, style: .services))
+        if page == "movie" || page == "series" {
+            out.append(HomeRow(key: "studios", title: page == "series" ? "Networks" : "Studios",
+                               items: Studio.forType(page).map { Meta(id: "studio:\($0.key)", type: page, name: $0.label, poster: studioLogos[$0.key]) },
+                               priority: 2, style: .studios))
+        }
+        return out
+    }
+
+    /**
+     * Loads a page's rotating streaming service, studio and genre rows (a new mix each launch) and
+     * the rows the user added there. Each row appears as soon as it loads.
+     */
+    func loadDiscover(_ page: String, force: Bool = false) {
+        guard force || !discoverLoaded.contains(page) else { return }
+        discoverLoaded.insert(page)
+        Task {
+            await s.addons.waitReady()
+            if providers.isEmpty { providers = await s.tmdb.allProviders(region: DiscoverParams.region) }
+            if page == "movie" || page == "series" {
+                for st in Studio.forType(page) where studioLogos[st.key] == nil {
+                    if let l = await s.tmdb.studioLogo(st) { studioLogos[st.key] = l }
+                }
+            }
+        }
+        Task {
+            await s.addons.waitReady()
+            let mine = s.settings.myServices.map { Provider(ids: $0.key, label: $0.value) }
+            let specs = (s.tmdb.enabled ? Categories.tmdbRows(page: page, seed: Int64.random(in: .min ... .max), taste: s.tasteProfile().topGenres(4), mine: mine) : [])
+                + s.store.addedRows(page: page)
+            discoverRows[page] = []
+            await withTaskGroup(of: Void.self) { g in
+                for spec in specs.distinct(by: \.key) {
+                    g.addTask { @MainActor in
+                        let items = await self.fetch(spec)
+                        guard !items.isEmpty else { return }
+                        self.discoverRows[page, default: []].removeAll { $0.key == spec.key }
+                        self.discoverRows[page, default: []].append(self.row(spec, items))
+                    }
+                }
+            }
+        }
+    }
+
+    /** Adds a row of your own choosing; it stays on this page and loads now. */
+    func addRow(_ spec: RowSpec, page: String) {
+        s.store.addRow(spec, page: page)
+        Task {
+            let items = await fetch(spec)
+            guard !items.isEmpty else { return }
+            discoverRows[page, default: []].removeAll { $0.key == spec.key }
+            discoverRows[page, default: []].append(row(spec, items))
+        }
+    }
+
+    private func row(_ spec: RowSpec, _ items: [Meta]) -> HomeRow {
+        var r = HomeRow(key: spec.key, title: spec.title, items: items, priority: spec.priority)
+        r.service = spec.service; r.serviceLabel = spec.serviceLabel; r.studio = spec.studio
+        return r
+    }
+
+    private func fetch(_ spec: RowSpec) async -> [Meta] {
+        if let t = spec.tmdb { return Array(((try? await s.tmdb.discover(type: spec.type, params: t)) ?? []).prefix(spec.limit)) }
+        guard let id = spec.addonId, let cat = spec.catalogId, let addon = s.addons.addons.first(where: { $0.manifest.id == id }) else { return [] }
+        return Array(((try? await s.addons.catalog(addon, type: spec.catalogType ?? spec.type, id: cat, extra: spec.extra)) ?? []).prefix(spec.limit))
+    }
+
+    /** Rows that can be added to a page: services, studios, genres and any addon catalog. */
+    func addableRows(_ page: String) -> [RowSpec] {
+        var out: [RowSpec] = []
+        let types = page == "home" ? ["movie", "series"] : page == "anime" ? [] : [page]
+        let noun = { (t: String) in t == "series" ? "Series" : "Movies" }
+        if s.tmdb.enabled {
+            for t in types {
+                let services = (s.settings.myServices.map { Provider(ids: $0.key, label: $0.value) } + StreamingService.all).distinct(by: \.ids)
+                for sv in services {
+                    out.append(RowSpec(key: "\(t)/added-svc-\(sv.ids)", title: "\(noun(t)) on \(sv.label)", priority: 5, type: t,
+                                       tmdb: DiscoverParams.service(sv.ids).merging(DiscoverParams.popular()) { a, _ in a }, service: sv.ids, serviceLabel: sv.label))
+                }
+                for st in Studio.forType(t) {
+                    out.append(RowSpec(key: "\(t)/added-studio-\(st.key)", title: "From \(st.label)", priority: 5, type: t,
+                                       tmdb: [st.param.0: st.param.1].merging(DiscoverParams.popular()) { a, _ in a }, studio: st.key))
+                }
+            }
+        }
+        if let cinemeta = s.addons.cinemeta {
+            for t in types {
+                for g in cinemeta.manifest.catalogs.first(where: { $0.type == t && $0.id == "top" })?.optionsFor("genre") ?? [] {
+                    out.append(RowSpec(key: "\(t)/added-genre-\(g)", title: "\(g) \(noun(t))", priority: 5, type: t, addonId: cinemeta.manifest.id,
+                                       catalogType: t, catalogId: "top", extra: ["genre": g]))
+                }
+            }
+        }
+        for a in s.addons.addons {
+            for c in a.manifest.catalogs where c.requiredExtras.isEmpty && (page == "home" || c.type == page || (page == "anime" && a.manifest.id == AddonRepository.kitsuId)) {
+                out.append(RowSpec(key: "\(a.manifest.id)/added-\(c.type)/\(c.id)", title: "\(c.name ?? c.id) · \(a.manifest.name)", priority: 5,
+                                   type: c.type == "anime" ? "series" : c.type, addonId: a.manifest.id, catalogType: c.type, catalogId: c.id))
+            }
+        }
+        return out.distinct(by: \.key)
     }
 
     func retry() {
@@ -196,7 +368,7 @@ struct HomeView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.cached)
                             Text("No stream addon installed yet. Link your debrid account or add a debrid-enabled addon (AIOStreams, Torrentio, Comet, MediaFusion…) to watch.")
-                                .foregroundStyle(Palette.cached).font(.system(size: 13))
+                                .foregroundStyle(Palette.cached).font(.z(size: 13))
                             ZButton(title: "Set up", small: true) { app.go(.addons) }
                         }
                         .padding(.horizontal, 48)
@@ -213,6 +385,8 @@ struct HomeView: View {
                                 LandscapeCard(meta: m, subtitle: row.subtitles[m.id], progress: row.progress[m.id], onHover: hover, resume: row.resume[m.id])
                             case .poster:
                                 PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover)
+                            case .services, .studios:
+                                LogoCard(meta: m)
                             }
                         }
                     }
@@ -221,8 +395,8 @@ struct HomeView: View {
             }
         }
         }
-        .onChange(of: rows.first?.items.first?.id) { _, _ in if hero == nil { hero = rows.first?.items.first } }
-        .onAppear { if hero == nil { hero = rows.first?.items.first } }
+        .onChange(of: rows.first?.items.first?.id) { _, _ in if hero == nil { hero = app.session.kids.safe(rows.first?.items ?? []).first } }
+        .onAppear { if hero == nil { hero = app.session.kids.safe(rows.first?.items ?? []).first } }
         .task(id: hovered?.id) {
             // Debounce so sweeping the mouse across a row doesn't thrash the backdrop.
             guard let h = hovered else { return }

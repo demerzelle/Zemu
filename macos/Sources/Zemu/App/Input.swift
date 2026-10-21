@@ -42,6 +42,7 @@ final class InputRouter {
     func start() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
+            if Screensaver.shared.keyInput(e) { return nil }
             return self.handleKey(e) ? nil : e
         }
         // Moving the mouse hands control back to the pointer: drop the focus ring.
@@ -64,6 +65,18 @@ final class InputRouter {
         let window = e.window
         let editing = window?.firstResponder is NSText
         let inSheet = window != nil && window === PlayerWindow.host?.attachedSheet
+
+        // Command palette: the field keeps typing; arrows choose, Return runs, Esc closes.
+        if app.showPalette {
+            switch e.keyCode {
+            case 125: app.paletteMove(1); return true
+            case 126: app.paletteMove(-1); return true
+            case 36, 76: app.paletteRun(); return true
+            case 53: app.showPalette = false; return true
+            default: return false
+            }
+        }
+        if app.showShortcuts, e.keyCode == 53 { app.showShortcuts = false; return true }
 
         // Typing: keys belong to the text field, except Esc (stop editing) and ↑/↓ (leave the field).
         if editing {
@@ -151,6 +164,22 @@ final class InputRouter {
 
     @discardableResult
     func route(_ action: InputAction, source: InputSource, isRepeat: Bool = false) -> Bool {
+        // Sound effects only when something happens (focus actually moved, something was chosen).
+        let before = fe.focused
+        let handled = routeAction(action, source: source, isRepeat: isRepeat)
+        if handled, app.player == nil || app.pip {
+            switch action {
+            case .move: if fe.focused !== before { SoundFx.play(.move) }
+            case .select: SoundFx.play(.select)
+            case .back: SoundFx.play(.back)
+            case .secondary, .menu: SoundFx.play(.hold)
+            default: break
+            }
+        }
+        return handled
+    }
+
+    private func routeAction(_ action: InputAction, source: InputSource, isRepeat: Bool) -> Bool {
         if case .move = action { NSCursor.setHiddenUntilMouseMoves(true) }
 
         if let osk = app.osk {
@@ -349,6 +378,8 @@ final class InputRouter {
 
     /** Fires now, then repeats while held (faster the longer it's held). */
     private func press(_ action: InputAction, repeats: Bool) {
+        // Any button wakes the screensaver; A starts the title it shows.
+        if Screensaver.shared.gamepadInput(play: action == .select) { return }
         release()
         route(action, source: .gamepad)
         guard repeats else { return }

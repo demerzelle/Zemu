@@ -100,12 +100,12 @@ private struct DetailsContent: View {
         VStack(alignment: .leading, spacing: 10) {
             TitleLogo(meta: m, maxHeight: 120)
             MetaLine(meta: m, matchPercent: vm.matchPercent(m))
-            if !m.genres.isEmpty { Text(m.genres.joined(separator: "  •  ")).font(.system(size: 13)).foregroundStyle(Palette.textSecondary) }
-            if let label = vm.episodeLabel() { Text(label).font(.system(size: 15, weight: .bold)) }
+            if !m.genres.isEmpty { Text(m.genres.joined(separator: "  •  ")).font(.z(size: 13)).foregroundStyle(Palette.textSecondary) }
+            if let label = vm.episodeLabel() { Text(label).font(.z(size: 15, weight: .bold)) }
             ScrollingText(text: m.description ?? "", maxHeight: 96)
                 .frame(maxWidth: 640, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(peopleLines(m), id: \.self) { Text($0).font(.system(size: 12.5)).foregroundStyle(Palette.textMuted).lineLimit(1) }
+                ForEach(peopleLines(m), id: \.self) { Text($0).font(.z(size: 12.5)).foregroundStyle(Palette.textMuted).lineLimit(1) }
             }
             FlowLayout(spacing: 10) {
                 let playLabel = vm.streamsLoading ? "Finding cached streams…" : best != nil ? (vm.type == "series" ? "Play Episode" : "Play") : "No cached streams"
@@ -125,18 +125,18 @@ private struct DetailsContent: View {
                         if showCast { Task { try? await Task.sleep(nanoseconds: 150_000_000); withAnimation { proxy.scrollTo("cast", anchor: .center) } } }
                     }
                 }
-                if let t = m.trailerId {
+                if let t = m.playableTrailer {
                     let playing = HeroTrailerState.shared.playingId == t
-                    ZButton(title: playing ? "Trailer Full Screen" : "Trailer", icon: "film") { app.playTrailer(t, start: playing ? Int(HeroTrailerState.shared.seconds) : 0) }
+                    ZButton(title: playing ? "Trailer Full Screen" : "Trailer", icon: "film") { app.playTrailer(playing ? (HeroTrailerState.shared.playingId ?? t) : t, start: playing ? Int(HeroTrailerState.shared.seconds) : 0, queue: m.officialTrailers) }
                 }
                 ZMenu(title: m.title, items: { cardMenuItems(m) }) { lit in
-                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .bold)).frame(width: 38, height: 38)
+                    Image(systemName: "ellipsis").font(.z(size: 15, weight: .bold)).frame(width: 38, height: 38)
                         .background(Circle().fill(Color.white.opacity(lit ? 0.26 : 0.14)))
                 }
             }
             .padding(.top, 8)
             if let b = bestSummary(best) {
-                Text("Best for this Mac: \(b)").font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary)
+                Text("Best for this Mac: \(b)").font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary)
             }
         }
         .padding(.horizontal, 48)
@@ -172,8 +172,8 @@ private struct DetailsContent: View {
             VStack(alignment: .leading, spacing: 4) {
                 if let shown {
                     Text([shown.season.map { "S\($0) E\(shown.episodeNumber)" }, shown.displayTitle, shown.released.map { String($0.prefix(10)) }].compactMap { $0 }.joined(separator: "  ·  "))
-                        .font(.system(size: 15, weight: .bold)).lineLimit(1)
-                    Text(shown.synopsis ?? "No summary available for this episode.").font(.system(size: 13.5)).foregroundStyle(Color.white.opacity(0.82))
+                        .font(.z(size: 15, weight: .bold)).lineLimit(1)
+                    Text(shown.synopsis ?? "No summary available for this episode.").font(.z(size: 13.5)).foregroundStyle(Color.white.opacity(0.82))
                         .lineLimit(3)
                 }
             }
@@ -220,7 +220,7 @@ private struct DetailsContent: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
                 SectionTitle(text: "Cached Streams")
-                Text(summary(r, shown: streams.count)).font(.system(size: 13)).foregroundStyle(Palette.textMuted).lineLimit(1)
+                Text(summary(r, shown: streams.count)).font(.z(size: 13)).foregroundStyle(Palette.textMuted).lineLimit(1)
                 Spacer()
                 if !vm.streamsLoading { Chip(title: "Refresh", icon: "arrow.clockwise") { vm.reloadStreams() } }
             }
@@ -245,7 +245,7 @@ private struct DetailsContent: View {
                         }
                     } else {
                         LazyVStack(spacing: 8) {
-                            ForEach(streams) { rs in StreamRow(r: rs, externalSubLangs: vm.externalSubLangs) { vm.play(rs) } }
+                            ForEach(streams) { rs in StreamRow(r: rs, externalSubLangs: vm.externalSubLangs, onDownload: { vm.download(rs) }) { vm.play(rs) } }
                         }
                     }
                 }
@@ -268,7 +268,7 @@ private struct DetailsContent: View {
     }
 
     private func hint(_ t: String) -> some View {
-        Text(t).font(.system(size: 14)).foregroundStyle(Palette.textSecondary).padding(.vertical, 6)
+        Text(t).font(.z(size: 14)).foregroundStyle(Palette.textSecondary).padding(.vertical, 6)
     }
 
     private func summary(_ r: StreamLoadResult?, shown: Int) -> String {
@@ -308,7 +308,7 @@ private struct DetailsContent: View {
             let ext = vm.externalSubLangs
             if !ext.isEmpty {
                 Text("External subtitles available: " + ext.sorted().prefix(8).map(Languages.displayName).joined(separator: ", ") + (ext.count > 8 ? " +\(ext.count - 8) more" : ""))
-                    .font(.system(size: 12)).foregroundStyle(Palette.textMuted).padding(.horizontal, 48)
+                    .font(.z(size: 12)).foregroundStyle(Palette.textMuted).padding(.horizontal, 48)
             }
         }
     }
@@ -330,7 +330,7 @@ private struct EpisodeCard: View {
                     RoundedRectangle(cornerRadius: 6).fill(P.surface)
                     RemoteImage(url: video.thumbnail, maxPixel: 520)
                     LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
-                    Text("E\(video.episodeNumber)" + (selected ? "  ▶ selected" : "")).font(.system(size: 12, weight: .bold)).padding(8)
+                    Text("E\(video.episodeNumber)" + (selected ? "  ▶ selected" : "")).font(.z(size: 12, weight: .bold)).padding(8)
                         .padding(.bottom, progress != nil ? 4 : 0)
                     if let progress, progress > 0.01 {
                         GeometryReader { g in
@@ -341,14 +341,14 @@ private struct EpisodeCard: View {
                         }
                         .frame(height: 3)
                     }
-                    if hover { Image(systemName: "play.circle.fill").font(.system(size: 36)).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                    if hover { Image(systemName: "play.circle.fill").font(.z(size: 36)).frame(maxWidth: .infinity, maxHeight: .infinity) }
                 }
                 .frame(width: 240, height: 135)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(hover ? Color.white : selected ? P.accent : .clear, lineWidth: hover ? 2.5 : 2))
                 .scaleEffect(hover ? 1.04 : 1)
-                Text(video.displayTitle).font(.system(size: 13, weight: .semibold)).lineLimit(1).frame(width: 240, alignment: .leading)
-                if let r = video.released { Text(String(r.prefix(10))).font(.system(size: 11.5)).foregroundStyle(Palette.textMuted) }
+                Text(video.displayTitle).font(.z(size: 13, weight: .semibold)).lineLimit(1).frame(width: 240, alignment: .leading)
+                if let r = video.released { Text(String(r.prefix(10))).font(.z(size: 11.5)).foregroundStyle(Palette.textMuted) }
             }
             .contentShape(Rectangle())
         }
@@ -403,6 +403,7 @@ private func streamItems(_ s: ParsedStream) -> [ActionItem] {
 struct StreamRow: View {
     let r: RankedStream
     let externalSubLangs: Set<String>
+    var onDownload: (() -> Void)?
     let action: () -> Void
     @State private var hover = false
 
@@ -411,15 +412,15 @@ struct StreamRow: View {
         Button(action: action) {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(s.resolutionLabel).font(.system(size: 20, weight: .black))
-                    if let h = hdrLabel(s) { Text(h).font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.imdb) }
+                    Text(s.resolutionLabel).font(.z(size: 20, weight: .black))
+                    if let h = hdrLabel(s) { Text(h).font(.z(size: 11, weight: .bold)).foregroundStyle(Palette.imdb) }
                 }
                 .frame(width: 92, alignment: .leading)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         if r.recommended { Tag(text: "★ BEST FOR THIS MAC", color: Palette.match, filled: true) }
                         else if !r.deviceFriendly { Tag(text: "May not play well", color: Palette.cached) }
-                        Text(s.title).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                        Text(s.title).font(.z(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     }
                     let specs = [
                         s.source == .unknown ? nil : s.source.label,
@@ -427,16 +428,16 @@ struct StreamRow: View {
                         s.audio.isEmpty ? nil : s.audio.sorted { $0.rank > $1.rank }.map(\.label).joined(separator: " ") + (s.channels.map { " \($0)" } ?? ""),
                         s.releaseGroup,
                     ].compactMap { $0 }.joined(separator: "  ·  ")
-                    if !specs.isEmpty { Text(specs).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
+                    if !specs.isEmpty { Text(specs).font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
                     let subs = langList(s.subtitleLanguages, multi: s.multiSubs).map { "💬 \($0)" } ?? (externalSubLangs.isEmpty ? nil : "💬 External only")
                     Text(["🔊 " + (langList(s.audioLanguages, multi: s.multiAudio) ?? "Original audio"), subs].compactMap { $0 }.joined(separator: "     "))
-                        .font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(1)
+                        .font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 12)
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(s.sizeLabel ?? "—").font(.system(size: 15, weight: .bold))
-                    Text("⚡ \(s.debridService ?? "Direct")").font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.cached)
-                    Text(s.addonName + (s.seeders.map { "  ·  👤 \($0)" } ?? "")).font(.system(size: 11.5)).foregroundStyle(Palette.textMuted).lineLimit(1)
+                    Text(s.sizeLabel ?? "—").font(.z(size: 15, weight: .bold))
+                    Text("⚡ \(s.debridService ?? "Direct")").font(.z(size: 12, weight: .bold)).foregroundStyle(Palette.cached)
+                    Text(s.addonName + (s.seeders.map { "  ·  👤 \($0)" } ?? "")).font(.z(size: 11.5)).foregroundStyle(Palette.textMuted).lineLimit(1)
                 }
             }
             .padding(.horizontal, 18).padding(.vertical, 12)
@@ -446,9 +447,10 @@ struct StreamRow: View {
         }
         .buttonStyle(.plain)
         .onHover { h in withAnimation(.easeOut(duration: 0.1)) { hover = h } }
-        .zFocus(activate: action, secondary: { AppModel.shared.showMenu(s.title) { streamItems(s) } }, onFocusChange: { h in withAnimation(.easeOut(duration: 0.1)) { hover = h } }, ring: false)
+        .zFocus(activate: action, secondary: { AppModel.shared.showMenu(s.title) { streamItems(s) + (onDownload.map { [ActionItem(label: "Download for Offline", icon: "arrow.down.circle", action: $0)] } ?? []) } }, onFocusChange: { h in withAnimation(.easeOut(duration: 0.1)) { hover = h } }, ring: false)
         .contextMenu {
             Button("Play") { action() }
+            if let onDownload { Button("Download for Offline" + (s.sizeLabel.map { " (\($0))" } ?? ""), action: onDownload) }
             Button("Open in External Player") {
                 if let u = s.raw.url, !ExternalPlayer.open(url: u, title: s.title, preferred: AppModel.shared.settings.externalPlayer) {
                     AppModel.shared.toast("Install IINA or VLC to use an external player")
@@ -484,8 +486,8 @@ struct CastRow: View {
                         Button { expanded = true } label: {
                             VStack(spacing: 8) {
                                 Circle().fill(P.surfaceHigh).frame(width: 96, height: 96)
-                                    .overlay(Text("+\(people.count - shown.count)").font(.system(size: 24, weight: .bold)).foregroundStyle(Palette.textMuted))
-                                Text("View more").font(.system(size: 12.5, weight: .semibold))
+                                    .overlay(Text("+\(people.count - shown.count)").font(.z(size: 24, weight: .bold)).foregroundStyle(Palette.textMuted))
+                                Text("View more").font(.z(size: 12.5, weight: .semibold))
                             }
                         }
                         .buttonStyle(.plain)
@@ -511,14 +513,14 @@ private struct CastTile: View {
                 ZStack {
                     Circle().fill(P.surfaceHigh)
                     Text(person.name.split(separator: " ").compactMap { $0.first.map(String.init) }.prefix(2).joined())
-                        .font(.system(size: 26, weight: .bold)).foregroundStyle(Palette.textMuted)
+                        .font(.z(size: 26, weight: .bold)).foregroundStyle(Palette.textMuted)
                     RemoteImage(url: photo ?? person.photo, maxPixel: 300, alignment: .top).clipShape(Circle())
                 }
                 .frame(width: 96, height: 96)
                 .overlay(Circle().strokeBorder(Color.white.opacity(hover ? 0.9 : 0), lineWidth: 2.5))
                 .scaleEffect(hover ? 1.06 : 1)
-                Text(person.name).font(.system(size: 12.5, weight: .semibold)).lineLimit(2).multilineTextAlignment(.center)
-                if let r = person.role { Text(r).font(.system(size: 11)).foregroundStyle(Palette.textMuted).lineLimit(1) }
+                Text(person.name).font(.z(size: 12.5, weight: .semibold)).lineLimit(2).multilineTextAlignment(.center)
+                if let r = person.role { Text(r).font(.z(size: 11)).foregroundStyle(Palette.textMuted).lineLimit(1) }
             }
             .frame(width: 108)
             .contentShape(Rectangle())
