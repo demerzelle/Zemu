@@ -21,6 +21,8 @@ struct YouTubeView: NSViewRepresentable {
     /** Crop to fill (hero) instead of letterboxing (full screen). */
     var cover = true
     var start = 0
+    /** Held paused (Zemu isn't focused); releasing resumes only if it was playing. */
+    var paused = false
     var onPlaying: () -> Void = {}
     var onEnded: () -> Void = {}
     var onError: (Int) -> Void = { _ in }
@@ -30,7 +32,8 @@ struct YouTubeView: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         var parent: YouTubeView
-        init(_ p: YouTubeView) { parent = p }
+        var held: Bool
+        init(_ p: YouTubeView) { parent = p; held = p.paused }
         func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
             guard let body = message.body as? [String: Any], let kind = body["e"] as? String else { return }
             switch kind {
@@ -56,7 +59,13 @@ struct YouTubeView: NSViewRepresentable {
         return web
     }
 
-    func updateNSView(_ web: WKWebView, context: Context) { context.coordinator.parent = self }
+    func updateNSView(_ web: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        if context.coordinator.held != paused {
+            context.coordinator.held = paused
+            web.evaluateJavaScript("setHold(\(paused))")
+        }
+    }
 
     static func dismantleNSView(_ web: WKWebView, coordinator: Coordinator) {
         web.configuration.userContentController.removeScriptMessageHandler(forName: "zemu")
@@ -72,14 +81,15 @@ struct YouTubeView: NSViewRepresentable {
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}#p{\(fit)}</style></head>
         <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
-        var player;function post(e,v){try{webkit.messageHandlers.zemu.postMessage({e:e,v:v})}catch(x){}}
+        var player,hold=\(paused),resume=true;function post(e,v){try{webkit.messageHandlers.zemu.postMessage({e:e,v:v})}catch(x){}}
         function onYouTubeIframeAPIReady(){player=new YT.Player('p',{videoId:'\(id)',
-         playerVars:{autoplay:1,start:\(start),mute:\(muted ? 1 : 0),controls:\(controls ? 1 : 0),rel:0,modestbranding:1,playsinline:1,iv_load_policy:3,fs:0,disablekb:\(controls ? 0 : 1),origin:'\(Self.origin)'},
-         events:{onReady:function(e){e.target.playVideo()},
+         playerVars:{autoplay:\(paused ? 0 : 1),start:\(start),mute:\(muted ? 1 : 0),controls:\(controls ? 1 : 0),rel:0,modestbranding:1,playsinline:1,iv_load_policy:3,fs:0,disablekb:\(controls ? 0 : 1),origin:'\(Self.origin)'},
+         events:{onReady:function(e){if(!hold)e.target.playVideo()},
           onStateChange:function(e){if(e.data===1)post('playing',0);if(e.data===0)post('ended',0)},
           onError:function(e){post('error',e.data)}}});}
         setInterval(function(){try{if(player&&player.getCurrentTime)post('time',player.getCurrentTime())}catch(e){}},1000);
         function toggle(){if(!player)return;if(player.getPlayerState()===1)player.pauseVideo();else player.playVideo()}
+        function setHold(h){hold=h;if(!player||!player.getPlayerState)return;if(h){var s=player.getPlayerState();resume=s===1||s===3;player.pauseVideo()}else if(resume)player.playVideo()}
         function seek(d){if(player)player.seekTo(Math.max(0,player.getCurrentTime()+d),true)}
         </script></body></html>
         """
@@ -96,11 +106,12 @@ final class PassiveWebView: WKWebView {
 struct HeroTrailer: View {
     let videoId: String
     var sound = false
+    var paused = false
     var onFinished: () -> Void = {}
     @State private var playing = false
 
     var body: some View {
-        YouTubeView(videoId: videoId, muted: !sound, controls: false, cover: true,
+        YouTubeView(videoId: videoId, muted: !sound, controls: false, cover: true, paused: paused,
                     onPlaying: {
                         playing = true
                         HeroTrailerState.shared.playingId = videoId
@@ -128,7 +139,7 @@ struct TrailerOverlay: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
-            YouTubeView(videoId: request.youtubeId, muted: false, controls: true, cover: false, start: request.start,
+            YouTubeView(videoId: request.youtubeId, muted: false, controls: true, cover: false, start: request.start, paused: !app.appActive,
                         onEnded: { app.trailer = nil },
                         onError: { _ in
                             // Embedding disabled by the uploader (101/150) or blocked: hand off to the browser.

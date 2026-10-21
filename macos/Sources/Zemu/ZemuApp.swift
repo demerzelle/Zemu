@@ -12,14 +12,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
                 let app = AppModel.shared
-                if app.settings.autoPip, let p = app.player, p.isPlaying, !app.pip, PlayerWindow.host?.isMiniaturized == false {
+                app.appActive = false
+                guard let p = app.player, p.isPlaying, !app.pip else { return }
+                // A Picture in Picture window you opened yourself keeps playing.
+                if app.settings.pauseWhenUnfocused {
+                    p.setPaused(true)
+                    app.pausedForFocus = true
+                } else if app.settings.autoPip, PlayerWindow.host?.isMiniaturized == false {
                     app.enterPiP(auto: true)
                 }
             }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
-                if AppModel.shared.autoEnteredPiP { AppModel.shared.exitPiP() }
+                let app = AppModel.shared
+                app.appActive = true
+                if app.autoEnteredPiP { app.exitPiP() }
+                if app.pausedForFocus {
+                    app.pausedForFocus = false
+                    app.player?.setPaused(false)
+                }
             }
         }
     }

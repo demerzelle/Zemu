@@ -68,6 +68,10 @@ final class AppModel {
     var pip = false
     /** Entered PiP because the user switched apps; leave it again when they come back. */
     @ObservationIgnored var autoEnteredPiP = false
+    /** Zemu is the frontmost app. Trailers only play while it is. */
+    var appActive = true
+    /** Paused the video because Zemu lost focus ("Pause when Zemu isn't focused"); resume on return. */
+    @ObservationIgnored var pausedForFocus = false
     /** In-app menu (dropdowns and options for keyboard and gamepad). */
     var actionMenu: ActionMenuRequest?
     /** On-screen keyboard for gamepad text entry. */

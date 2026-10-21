@@ -29,7 +29,7 @@ struct Backdrop: View {
                 .animation(.easeInOut(duration: 0.5), value: meta?.id)
 
                 if showTrailer, !covered, let t = meta?.trailerId {
-                    HeroTrailer(videoId: t, sound: trailerSound) { showTrailer = false }
+                    HeroTrailer(videoId: t, sound: trailerSound, paused: !AppModel.shared.appActive) { showTrailer = false }
                         .frame(width: geo.size.width * 0.78, height: geo.size.height)
                         .clipped()
                         .id(t)
@@ -49,6 +49,8 @@ struct Backdrop: View {
             showTrailer = false
             guard let after = trailerAfter, !covered, meta?.trailerId != nil else { return }
             try? await Task.sleep(nanoseconds: UInt64(after * 1e9))
+            // Only start while Zemu is the frontmost app.
+            while !Task.isCancelled, !AppModel.shared.appActive { try? await Task.sleep(nanoseconds: 500_000_000) }
             if !Task.isCancelled { showTrailer = true }
         }
     }

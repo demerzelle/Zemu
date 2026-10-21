@@ -50,6 +50,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var playerFullScreen = false
     /** Switch to Picture in Picture when you leave Zemu while a video plays. */
     public var autoPip = true
+    /** Pause the video while Zemu isn't the frontmost app (another app or window has focus); resume on return. */
+    public var pauseWhenUnfocused = false
     // Subtitle appearance
     public var subtitleScale: Double = 1
     public var subtitleColor: UInt32 = 0xFFFFFFFF
@@ -106,6 +108,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         keepStyledSubtitles = v(.keepStyledSubtitles, d.keepStyledSubtitles)
         playerFullScreen = v(.playerFullScreen, d.playerFullScreen)
         autoPip = v(.autoPip, d.autoPip)
+        pauseWhenUnfocused = v(.pauseWhenUnfocused, d.pauseWhenUnfocused)
         subtitleScale = v(.subtitleScale, d.subtitleScale)
         subtitleColor = v(.subtitleColor, d.subtitleColor)
         subtitleBackground = v(.subtitleBackground, d.subtitleBackground)

@@ -415,6 +415,7 @@ private struct PlaybackSettings: View {
             ToggleRow(title: "Instant play", description: "Selecting a movie, a show or an episode starts it right away with the best cached stream (the one you used last time when it's still cached). Shows resume where you left off.", isOn: s.instantPlay) { v in update { $0.instantPlay = v } }
             ToggleRow(title: "Full screen when playing", description: "Enter full screen automatically when a video starts.", isOn: s.playerFullScreen) { v in update { $0.playerFullScreen = v } }
             ToggleRow(title: "Picture in Picture when switching apps", description: "Leaving Zemu while a video plays moves it into a small floating window above your other apps; coming back restores it. You can also press T or the PiP button in the player.", isOn: s.autoPip) { v in update { $0.autoPip = v } }
+            ToggleRow(title: "Pause when Zemu isn't focused", description: "Clicking another app or window pauses the video, and coming back resumes it. Replaces Picture in Picture when switching apps; a Picture in Picture window you open yourself keeps playing.", isOn: s.pauseWhenUnfocused) { v in update { $0.pauseWhenUnfocused = v } }
         }
         SettingsGroup(title: "When something ends") {
             ToggleRow(title: "Autoplay next episode", description: "Near the end of an episode, count down and start the next one.", isOn: s.autoplayNext) { v in update { $0.autoplayNext = v } }
