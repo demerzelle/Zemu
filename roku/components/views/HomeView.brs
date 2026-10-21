@@ -4,6 +4,9 @@ sub init()
     m.hero = m.top.findNode("hero")
     m.rows = m.top.findNode("rows")
     m.status = m.top.findNode("status")
+    ' "Loading…" messages show as the spinning mark instead of text.
+    m.loader = m.top.findNode("loader")
+    m.status.observeField("text", "onStatusText")
     m.notice = m.top.findNode("notice")
     m.noticeText = m.top.findNode("noticeText")
     m.noticeButton = m.top.findNode("noticeButton")
@@ -175,7 +178,7 @@ sub onRecResponse(e as Object)
     if m.top.active then rebuild()
 end sub
 
-' Local rows: Continue Watching, My List, Recently Watched.
+' Local rows: Continue Watching, My List, Watch Later, Recently Watched.
 function localRows() as Object
     rows = []
     watched = m.global.watched
@@ -200,6 +203,14 @@ function localRows() as Object
             n.watched = watched.DoesExist(e.i)
         end for
         rows.Push({ key: "mylist", title: "My List", priority: 7, content: ml })
+    end if
+    if m.global.watchLater.Count() > 0
+        wl = CreateObject("roSGNode", "ContentNode")
+        for each e in m.global.watchLater
+            n = makeMetaNode(wl, expandMeta(e))
+            n.watched = watched.DoesExist(e.i)
+        end for
+        rows.Push({ key: "watchlater", title: "Watch Later", priority: 7, content: wl })
     end if
     movies = CreateObject("roSGNode", "ContentNode")
     series = CreateObject("roSGNode", "ContentNode")
@@ -332,3 +343,9 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
     end if
     return false
 end function
+
+sub onStatusText()
+    loading = Left(m.status.text, 7) = "Loading"
+    m.loader.visible = loading
+    m.status.visible = not loading
+end sub

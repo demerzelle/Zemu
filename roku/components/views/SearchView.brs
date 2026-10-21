@@ -19,7 +19,31 @@ sub init()
     m.results.rowLabelOffset = [[24, 10]]
     m.results.observeField("rowItemSelected", "onSelected")
     m.top.observeField("focusedChild", "onFocusChange")
+    m.top.observeField("active", "onActive")
     m.lastQuery = ""
+    showSaved()
+end sub
+
+sub onActive()
+    if m.top.active and Len(m.lastQuery) < 2 then showSaved()
+end sub
+
+' Nothing typed: titles opened lately and Watch Later, one press away.
+sub showSaved()
+    root = CreateObject("roSGNode", "ContentNode")
+    for each sec in [{ title: "Recently viewed", list: viewedList() }, { title: "Watch Later", list: m.global.watchLater }]
+        if sec.list.Count() > 0
+            row = root.createChild("ContentNode")
+            row.title = sec.title
+            for each e in sec.list
+                makeMetaNode(row, expandMeta(e)).watched = m.global.watched.DoesExist(e.i)
+            end for
+        end if
+    end for
+    has = root.getChildCount() > 0
+    if has then setRows(m.results, root) else m.results.content = invalid
+    m.results.visible = has
+    m.hint.visible = not has
 end sub
 
 sub onFocusChange()
@@ -36,10 +60,8 @@ sub search()
     if q = m.lastQuery then return
     m.lastQuery = q
     if Len(q) < 2
-        m.results.content = invalid
-        m.results.visible = false
-        m.hint.visible = true
         m.status.text = ""
+        showSaved()
         return
     end if
     reqs = []

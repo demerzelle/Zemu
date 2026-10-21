@@ -116,7 +116,7 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
 
     private val extraRows = combine(dailyRows, combine(c.newEpisodes.items, c.newEpisodes.upcoming, ::Pair), providers, studioLogos, c.userStore.settings) { d, n, p, l, st -> Extras(d, n, p, l, st) }
 
-    private val baseRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { specs, ex, history, myList, watched ->
+    private val ownRows = combine(specRows, extraRows, c.userStore.history, c.userStore.myList, c.userStore.watched) { specs, ex, history, myList, watched ->
         val freshAll = ex.episodes.first
         // Optionally keep watched titles out of suggestion and category rows.
         val hide: (HomeRow) -> HomeRow = { r -> if (ex.settings.hideWatchedInRows) r.copy(items = r.items.filterNot { it.id in watched }) else r }
@@ -184,6 +184,18 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
             }
             addAll(daily)
             addAll(catalogs)
+        }.sortedBy { it.priority }
+    }
+
+    /** Plus, on Home, Watch Later and what your Trakt friends recommend (only once there is something). */
+    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater) { rows, recs, later ->
+        if (!isHome) return@combine rows
+        val names = { from: List<String> -> if (from.size > 2) "${from[0]} +${from.size - 1}" else from.joinToString(" & ") }
+        buildList {
+            addAll(rows)
+            if (recs.isNotEmpty()) add(HomeRow("friends", "From Friends", recs.map { it.meta }, priority = 3, badges = recs.associate { it.meta.id to names(it.from) }))
+            // Hideable like any row (hold OK on a card → Move or favorite this row, or Settings → Manage rows).
+            if (later.isNotEmpty()) add(HomeRow("watchlater", "Watch Later", later, priority = 7))
         }.sortedBy { it.priority }
     }
 

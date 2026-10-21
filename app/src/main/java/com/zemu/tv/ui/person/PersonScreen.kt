@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.person
 
+import com.zemu.tv.ui.components.ZemuLoader
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -139,7 +141,7 @@ fun PersonScreen(key: String, onOpen: (Meta) -> Unit) {
     val p = page
     if (p == null) {
         Box(Modifier.fillMaxSize()) {
-            CenteredMessage(if (error != null) "Couldn't load this person" else "Loading…", error)
+            if (error != null) CenteredMessage("Couldn't load this person", error) else ZemuLoader()
         }
         return
     }

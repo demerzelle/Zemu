@@ -38,6 +38,53 @@ function toggleMyList(meta as Object) as Boolean
     return not removed
 end function
 
+' ---- Watch Later (its own list, shown under My List) ----
+
+function inWatchLater(id as String) as Boolean
+    for each e in m.global.watchLater
+        if e.i = id then return true
+    end for
+    return false
+end function
+
+function toggleWatchLater(meta as Object) as Boolean
+    out = []
+    removed = false
+    for each e in m.global.watchLater
+        if e.i = meta.id then removed = true else out.Push(e)
+    end for
+    if not removed
+        out.Unshift(compactMeta(meta))
+        out = arrTake(out, 40)
+    end if
+    m.global.watchLater = out
+    regWrite(pidSection(), "later", out)
+    bumpUser()
+    if removed then toast("Removed from Watch Later") else toast("Saved to Watch Later")
+    return not removed
+end function
+
+' Titles whose page was opened, newest first; Search shows them while the box is empty.
+' Kept short: Roku's registry is 16 KB for everything. With "shareRecents" on, one list for every profile.
+function viewedSection() as String
+    if bool(m.global.settings.shareRecents) then return APP_SECTION()
+    return pidSection()
+end function
+
+function viewedList() as Object
+    v = regRead(viewedSection(), "viewed")
+    if not isArr(v) then v = []
+    return v
+end function
+
+sub addViewed(meta as Object)
+    out = [compactMeta(meta)]
+    for each e in viewedList()
+        if e.i <> meta.id then out.Push(e)
+    end for
+    regWrite(viewedSection(), "viewed", arrTake(out, 18))
+end sub
+
 function isWatched(id as String) as Boolean
     return m.global.watched.DoesExist(id)
 end function
@@ -128,6 +175,8 @@ sub recordProgress(meta as Object, videoId as String, label as String, positionS
         m.global.watched = w
         if flush then saveWatched(w)
     end if
+    ' A finished movie leaves Watch Later.
+    if done and inWatchLater(meta.id) and flush then toggleWatchLater(meta)
     if flush
         if eps <> invalid then regWrite(pidSection(), "eps", eps)
         regWrite(pidSection(), "hist", out)

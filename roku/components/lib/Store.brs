@@ -110,6 +110,7 @@ function defaultSettings() as Object
         autoplayCountdownSec: 10
         stillWatchingPrompt: true
         stillWatchingEpisodes: 3
+        shareRecents: false
     }
 end function
 

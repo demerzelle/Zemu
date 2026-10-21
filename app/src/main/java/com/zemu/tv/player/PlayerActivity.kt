@@ -146,6 +146,7 @@ class PlayerActivity : ComponentActivity() {
     private var countdownCancelled = false
     private var countdownJob: Job? = null
     private var autoAdvances = 0
+    private var stillWatchingTimeout: kotlinx.coroutines.Job? = null
     private var scrubJob: Job? = null
     private var scrubStreak = 0
     private var lastScrubAt = 0L
@@ -771,6 +772,15 @@ class PlayerActivity : ComponentActivity() {
         if (automatic && settings.stillWatchingPrompt && autoAdvances + 1 > settings.stillWatchingEpisodes) {
             player?.pause()
             stillWatchingPrompt = true
+            // Nobody answered: leave the player and let the library slideshow take over.
+            stillWatchingTimeout?.cancel()
+            stillWatchingTimeout = lifecycleScope.launch {
+                delay(STILL_WATCHING_TIMEOUT_MS)
+                if (!stillWatchingPrompt) return@launch
+                stillWatchingPrompt = false
+                com.zemu.tv.PendingOpen.screensaverNow = true
+                finish()
+            }
             return
         }
         if (automatic) autoAdvances++ else autoAdvances = 0
@@ -779,7 +789,9 @@ class PlayerActivity : ComponentActivity() {
 
     fun answerStillWatching(keepWatching: Boolean, dontAskAgain: Boolean = false) {
         stillWatchingPrompt = false
-        autoAdvances = 0
+        stillWatchingTimeout?.cancel()
+        // The episode "Continue watching" starts is the first of the next run, so the prompt comes back after the set number.
+        autoAdvances = if (keepWatching) 1 else 0
         if (dontAskAgain) lifecycleScope.launch { c.userStore.updateSettings { it.copy(stillWatchingPrompt = false) } }
         val next = upNext
         if (!keepWatching || next == null) {
@@ -1030,6 +1042,8 @@ class PlayerActivity : ComponentActivity() {
         private val SCRUB_STEPS = intArrayOf(15, 15, 30, 30, 45, 60)
         /** Show the "Next episode" card this long before the end (roughly where credits start). */
         private const val NEXT_UP_LEAD_MS = 40_000L
+        /** "Are you still watching?" left unanswered this long goes to the slideshow. */
+        private const val STILL_WATCHING_TIMEOUT_MS = 5 * 60_000L
     }
 }
 

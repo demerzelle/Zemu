@@ -16,6 +16,9 @@ class ZemuApp : Application(), coil.ImageLoaderFactory {
     lateinit var profiles: ProfileStore
         private set
 
+    /** App updates (shared by every profile). */
+    val updater by lazy { com.zemu.tv.data.Updater(this) }
+
     /** The profile picker is shown once per app launch when there's more than one profile. */
     var profileChosen = false
 

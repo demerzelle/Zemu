@@ -89,6 +89,9 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
     val inMyList: StateFlow<Boolean> = c.userStore.myList.map { l -> l.any { it.id == id } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val inWatchLater: StateFlow<Boolean> = c.userStore.watchLater.map { l -> l.any { it.id == id } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val seasons: List<Int>
         get() = meta.value?.videos.orEmpty().mapNotNull { it.season }.distinct().sortedWith(compareBy { if (it == 0) Int.MAX_VALUE else it })
 
@@ -105,6 +108,7 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
         meta.value = m
         metaLoading.value = false
         if (m == null) return@launch
+        launch { c.userStore.addRecentlyViewed(m) }
 
         if (type == "series" && m.videos.isNotEmpty()) {
             selectEpisode(resumeEpisode(m), autoPlay = autoPlayPending)
@@ -190,5 +194,10 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
     fun toggleMyList() {
         val m = meta.value ?: return
         viewModelScope.launch { c.userStore.toggleMyList(m) }
+    }
+
+    fun toggleWatchLater() {
+        val m = meta.value ?: return
+        viewModelScope.launch { c.userStore.toggleWatchLater(m) }
     }
 }

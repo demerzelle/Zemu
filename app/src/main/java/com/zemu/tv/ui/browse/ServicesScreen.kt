@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.browse
 
+import com.zemu.tv.ui.components.ZemuLoader
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,7 +57,7 @@ fun ServicesScreen(type: String, onBrowse: (BrowseTarget) -> Unit) {
             color = Palette.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 48.dp, vertical = 6.dp),
         )
         when {
-            list == null -> CenteredMessage("Loading…")
+            list == null -> ZemuLoader()
             list.isEmpty() -> CenteredMessage("Couldn't load streaming services", "Check the TMDB key in Settings → Addons.")
             else -> {
                 val mine = settings.myServices

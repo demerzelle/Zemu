@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The spinning Zemu mark (branding/loader) in the bottom-right corner; plays while visible. -->
+<component name="ZemuLoader" extends="Group">
+  <script type="text/brightscript" uri="ZemuLoader.brs" />
+  <children>
+    <Poster id="frame" width="122" height="122" translation="[1129,569]" uri="pkg:/images/loader/00.png" />
+    <Timer id="tick" duration="0.033" repeat="true" />
+  </children>
+</component>

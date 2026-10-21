@@ -4,6 +4,9 @@ sub init()
     m.hero = m.top.findNode("hero")
     m.filters = m.top.findNode("filters")
     m.status = m.top.findNode("status")
+    ' "Loading…" messages show as the spinning mark instead of text.
+    m.loader = m.top.findNode("loader")
+    m.status.observeField("text", "onStatusText")
     m.grid = m.top.findNode("grid")
     m.heroTimer = m.top.findNode("heroTimer")
     m.hero.backdropHeight = 446
@@ -421,3 +424,9 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
     end if
     return false
 end function
+
+sub onStatusText()
+    loading = Left(m.status.text, 7) = "Loading"
+    m.loader.visible = loading
+    m.status.visible = not loading
+end sub

@@ -23,6 +23,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
+/** A title friends recommended on Trakt, and who (display names). */
+data class FriendRec(val meta: Meta, val from: List<String>)
+
 /** What Trakt shows to link a TV: go to [url] and enter [userCode]. */
 data class TraktLink(val deviceCode: String, val userCode: String, val url: String, val intervalSec: Int, val expiresAt: Long)
 
@@ -37,6 +40,15 @@ class Trakt(private val http: OkHttpClient, private val json: Json, private val 
 
     val configured: Boolean get() = settings.traktClientId.isNotBlank() && settings.traktClientSecret.isNotBlank()
     val connected: Boolean get() = configured && settings.traktAccessToken.isNotBlank()
+
+    /** True once Trakt says you have at least one friend; the friend features stay hidden otherwise. */
+    val hasFriends = kotlinx.coroutines.flow.MutableStateFlow(false)
+    /** Titles on your friends' lists, newest first. */
+    val friendRecs = kotlinx.coroutines.flow.MutableStateFlow<List<FriendRec>>(emptyList())
+    /** Ids (imdb) of what you've recommended. */
+    val myRecs = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+
+    private val recsSlug = "zemu-recommendations"
 
     init {
         // Push My List changes to the Trakt watchlist as they happen.
@@ -56,6 +68,7 @@ class Trakt(private val http: OkHttpClient, private val json: Json, private val 
         scope.launch {
             store.settings.first { it.traktAccessToken.isNotBlank() }
             if (connected) runCatching { sync() }
+            if (connected) runCatching { refreshFriends() }
         }
     }
 
@@ -86,13 +99,16 @@ class Trakt(private val http: OkHttpClient, private val json: Json, private val 
         }
         val (code, text) = raw("POST", "/oauth/device/token", body.toString(), auth = false)
         return when (code) {
-            200 -> { saveTokens(json.parseToJsonElement(text).jsonObject); scope.launch { runCatching { sync() } }; true }
+            200 -> { saveTokens(json.parseToJsonElement(text).jsonObject); scope.launch { runCatching { sync() }; runCatching { refreshFriends() } }; true }
             400, 429 -> false
             else -> throw IllegalStateException(if (code == 418) "Linking was declined on Trakt." else "The code expired. Try again.")
         }
     }
 
-    suspend fun disconnect() = store.updateSettings { it.copy(traktAccessToken = "", traktRefreshToken = "", traktExpiresAt = 0) }
+    suspend fun disconnect() {
+        store.updateSettings { it.copy(traktAccessToken = "", traktRefreshToken = "", traktExpiresAt = 0) }
+        hasFriends.value = false; friendRecs.value = emptyList(); myRecs.value = emptySet()
+    }
 
     private suspend fun saveTokens(o: JsonObject) = store.updateSettings {
         it.copy(
@@ -129,6 +145,61 @@ class Trakt(private val http: OkHttpClient, private val json: Json, private val 
         }
         val newWatched = store.addWatched(watched)
         return "Added ${wanted.size} from your watchlist and $newWatched watched movies."
+    }
+
+    // ---- Friends ----
+    // Friends are mutual follows on Trakt. Each person's recommendations are a friends-only Trakt
+    // list named "Zemu Recommendations"; Home shows what your friends put on theirs.
+
+    suspend fun refreshFriends() {
+        if (!connected) return
+        refreshIfNeeded()
+        val friends = get("/users/me/friends").jsonArray.mapNotNull { it.jsonObject["user"]?.jsonObject }
+        hasFriends.value = friends.isNotEmpty()
+        myRecs.value = listItems("me").map { it.id }.toSet()
+        val seen = LinkedHashMap<String, FriendRec>()
+        for (u in friends.take(50)) {
+            val slug = u["ids"]?.jsonObject?.get("slug")?.jsonPrimitive?.contentOrNull ?: continue
+            val name = u.str("name").ifBlank { u.str("username") }.substringBefore(' ')
+            for (m in runCatching { listItems(slug) }.getOrDefault(emptyList())) {
+                val cur = seen[m.id]
+                seen[m.id] = cur?.copy(from = cur.from + name) ?: FriendRec(m, listOf(name))
+            }
+        }
+        friendRecs.value = seen.values.filter { it.meta.id !in myRecs.value }.toList()
+    }
+
+    /** Adds [meta] to (or takes it off) your recommendations list, creating the list the first time. */
+    suspend fun recommend(meta: Meta, on: Boolean) {
+        refreshIfNeeded()
+        val ids = setOf(meta.imdbId to meta.type)
+        if (on) {
+            if (raw("GET", "/users/me/lists/$recsSlug", null).first == 404) post(
+                "/users/me/lists",
+                buildJsonObject {
+                    put("name", "Zemu Recommendations"); put("privacy", "friends")
+                    put("description", "Titles I recommend. Friends who use Zemu see them on Home.")
+                },
+            )
+            post("/users/me/lists/$recsSlug/items", idsBody(ids))
+            myRecs.value = myRecs.value + meta.imdbId
+        } else {
+            post("/users/me/lists/$recsSlug/items/remove", idsBody(ids))
+            myRecs.value = myRecs.value - meta.imdbId
+        }
+    }
+
+    /** A user's recommendations list, newest first; empty when they haven't made one. */
+    private suspend fun listItems(user: String): List<Meta> {
+        val (code, text) = raw("GET", "/users/$user/lists/$recsSlug/items?sort_by=added&sort_how=desc", null)
+        if (code == 404) return emptyList()
+        return json.parseToJsonElement(check(code to text)).jsonArray.mapNotNull { e ->
+            val o = e.jsonObject
+            val type = if (o.str("type") == "show") "series" else "movie"
+            val item = o[if (type == "movie") "movie" else "show"]?.jsonObject ?: return@mapNotNull null
+            val imdb = item["ids"]?.jsonObject?.get("imdb")?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            Meta(id = imdb, type = type, name = item.str("title"), releaseInfo = item["year"]?.jsonPrimitive?.contentOrNull)
+        }
     }
 
     // ---- Scrobbling ----

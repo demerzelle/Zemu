@@ -28,6 +28,7 @@ sub init()
     m.streamList = m.top.findNode("streamList")
     m.similar = m.top.findNode("similar")
     m.loading = m.top.findNode("loading")
+    m.loader = m.top.findNode("loader")
     m.scrollAnim = m.top.findNode("scrollAnim")
     m.scrollInterp = m.top.findNode("scrollInterp")
     m.page.visible = false
@@ -88,6 +89,7 @@ sub onMetaParam()
 end sub
 
 sub onMetaFailed()
+    m.loader.visible = false
     m.loading.text = "Couldn't load this title. The metadata addon didn't respond."
 end sub
 
@@ -100,7 +102,9 @@ sub onFullMeta()
     m.isSeries = full.type = "series" and full.videos.Count() > 0
     m.hero.meta = full
     m.loading.visible = false
+    m.loader.visible = false
     m.page.visible = true
+    addViewed(full)
     m.profile = tasteProfile()
     renderHeader()
     buildButtons()
@@ -177,14 +181,16 @@ sub buildButtons()
     m.playBtn = makeButton("Finding cached streams…", "pkg:/images/ic_play.png", "button", true)
     m.chooseBtn = makeButton("Choose stream", "", "button", false)
     m.listBtn = makeButton("My List", "pkg:/images/ic_add.png", "button", false)
+    m.laterBtn = makeButton("Watch later", "", "button", false)
     m.likeBtn = makeButton("", "pkg:/images/ic_thumbup.png", "icon", false)
     m.dislikeBtn = makeButton("", "pkg:/images/ic_thumbdown.png", "icon", false)
-    for each b in [m.playBtn, m.chooseBtn, m.listBtn, m.likeBtn, m.dislikeBtn]
+    for each b in [m.playBtn, m.chooseBtn, m.listBtn, m.laterBtn, m.likeBtn, m.dislikeBtn]
         m.buttons.callFunc("addItem", b)
     end for
     m.playBtn.observeField("pressed", "onPlayPressed")
     m.chooseBtn.observeField("pressed", "onChoosePressed")
     m.listBtn.observeField("pressed", "onListPressed")
+    m.laterBtn.observeField("pressed", "onLaterPressed")
     m.likeBtn.observeField("pressed", "onLikePressed")
     m.dislikeBtn.observeField("pressed", "onDislikePressed")
     refreshButtons()
@@ -208,6 +214,7 @@ sub refreshButtons()
         m.listBtn.text = "My List"
         m.listBtn.icon = "pkg:/images/ic_add.png"
     end if
+    if inWatchLater(m.full.id) then m.laterBtn.text = "Saved for later" else m.laterBtn.text = "Watch later"
     r = ratingOf(m.full.id)
     m.likeBtn.checked = r > 0
     m.dislikeBtn.checked = r < 0
@@ -808,3 +815,7 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
     end if
     return false
 end function
+
+sub onLaterPressed()
+    if m.full <> invalid then toggleWatchLater(m.full)
+end sub

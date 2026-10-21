@@ -13,9 +13,9 @@
     <Label text="My List" translation="[64,34]" color="0xFFFFFFFF">
       <Font role="font" uri="font:BoldSystemFontFile" size="40" />
     </Label>
-    <Label id="empty" translation="[64,110]" width="1000" wrap="true" color="0xB8B8C2FF" text="Nothing here yet. Press * on any title, or use the My List button on a title page, to save it here.">
+    <Label id="empty" translation="[64,110]" width="1000" wrap="true" color="0xB8B8C2FF" text="Nothing here yet. Press * on any title and pick My List or Watch later to save it here.">
       <Font role="font" uri="font:SystemFontFile" size="20" />
     </Label>
-    <MarkupGrid id="grid" translation="[64,110]" itemComponentName="PosterItem" numColumns="6" numRows="3" itemSize="[155,232]" itemSpacing="[24,30]" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" />
+    <MarkupGrid id="grid" translation="[64,110]" itemComponentName="PosterItem" numColumns="6" numRows="3" itemSize="[155,232]" itemSpacing="[24,30]" drawFocusFeedback="false" vertFocusAnimationStyle="floatingFocus" sectionDividerHeight="48" sectionDividerTextColor="0xFFFFFFFF" sectionDividerSpacing="12" />
   </children>
 </component>

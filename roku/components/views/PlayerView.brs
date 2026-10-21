@@ -967,16 +967,38 @@ sub playNext()
 end sub
 
 sub askStillWatching()
+    if m.stillDlg <> invalid then return
     m.video.control = "pause"
     dlg = CreateObject("roSGNode", "ChoiceDialog")
     dlg.title = "Are you still watching?"
     dlg.options = [{ id: "yes", label: "Continue watching" }, { id: "never", label: "Continue, and don't ask again" }, { id: "stop", label: "Stop" }]
     dlg.observeField("chosen", "onStillChosen")
+    dlg.observeField("closed", "onStillClosed")
+    m.stillDlg = dlg
     m.top.getScene().callFunc("pushDialog", dlg)
+    ' Nobody answered in 5 minutes: leave the player (the Roku screensaver takes it from there).
+    m.stillTimer = CreateObject("roSGNode", "Timer")
+    m.stillTimer.duration = 300
+    m.stillTimer.observeField("fire", "onStillTimeout")
+    m.stillTimer.control = "start"
+end sub
+
+sub onStillClosed()
+    m.stillDlg = invalid
+    if m.stillTimer <> invalid then m.stillTimer.control = "stop"
+end sub
+
+sub onStillTimeout()
+    if m.stillDlg = invalid then return
+    m.top.getScene().callFunc("closeDialog", { node: m.stillDlg })
+    onStillClosed()
+    m.autoplayed = 0
+    m.top.navigateTo = { to: "back" }
 end sub
 
 sub onStillChosen(e as Object)
     id = e.getData()
+    onStillClosed()
     m.autoplayed = 0
     if id = "stop"
         m.top.navigateTo = { to: "back" }
@@ -988,6 +1010,8 @@ sub onStillChosen(e as Object)
         m.top.getScene().callFunc("applySettings", { settings: s })
         m.settings = s
     end if
+    ' The episode this starts is the first of the next run, so the question comes back after the set number.
+    m.autoplayed = 1
     if m.video.state = "finished" then playNext() else m.video.control = "resume"
 end sub
 

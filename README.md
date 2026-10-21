@@ -19,6 +19,8 @@ Android TV · Google TV · Roku</p>
 - **Get picks that change every day.** "Picked for You Today", "Because you watched…", hidden gems, new this month, and a "% Match" on every title based on what you watch, like and save.
 - **See what's coming.** A **Coming Up** row lists new episodes of the shows you follow, with their air dates.
 - **Can't decide?** **Surprise me** in the side menu plays something picked for you.
+- **Save for later.** "Watch later" keeps a separate queue under My List; Search shows it and the titles you opened lately before you type.
+- **Friends' picks** (with Trakt): "Recommend to friends" on any title, and a **From Friends** row on Home shows what your Trakt friends recommend.
 - **Pick up where you left off.** Continue Watching on Home (and on the Android TV home screen), next-episode autoplay, and Skip intro / Skip recap buttons.
 - **Profiles for everyone.** Each person gets their own history, My List, recommendations and look. Pick a picture or send a photo from your phone.
 - **Kid profiles.** Only family and kids' titles show, limited to the ratings you allow. Leaving a kid profile or opening Settings needs a 4-digit parent code.
@@ -49,6 +51,8 @@ Download the file for your TV from the [latest release](https://github.com/demer
 **Roku:** Roku only allows apps outside its store in **developer mode**.
 1. On the remote, press Home 3×, Up 2×, Right, Left, Right, Left, Right, and follow the steps to turn on developer mode and set a password.
 2. On a computer on the same Wi-Fi, open the address the TV shows, sign in as `rokudev` with that password, upload `Zemu-Roku-<version>.zip` and press **Install**.
+
+**Updates:** Android TV checks for a new release when it starts and offers **Update now** (allow Zemu to install apps the first time). Roku tells you a new version is out; install its zip the same way as above. To publish one: `./release.sh 1.0.2 "What changed"`.
 
 **Mac:** a Mac app is in `macos/`. The last packaged Mac build is in [release 1.0.0](https://github.com/demerzelle/Zemu/releases/tag/v1.0.0); newer versions have to be built from source.
 

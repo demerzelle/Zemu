@@ -77,7 +77,8 @@
       </Group>
       <RowList id="similar" numRows="2" />
     </Group>
-    <Label id="loading" text="Loading…" translation="[0,340]" width="1280" horizAlign="center" color="0xB8B8C2FF">
+    <ZemuLoader id="loader" />
+    <Label id="loading" text="" translation="[0,340]" width="1280" horizAlign="center" color="0xB8B8C2FF">
       <Font role="font" uri="font:SystemFontFile" size="22" />
     </Label>
     <Animation id="scrollAnim" duration="0.25" easeFunction="outCubic">

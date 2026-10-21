@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Asks GitHub Releases for the newest Zemu. Roku can't install a sideloaded update itself, so the app only says so. -->
+<component name="UpdateTask" extends="Task">
+  <interface>
+    <!-- { version, current } when a newer release has a Roku zip -->
+    <field id="update" type="assocarray" />
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/lib/Utils.brs" />
+  <script type="text/brightscript" uri="UpdateTask.brs" />
+</component>

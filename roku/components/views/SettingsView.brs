@@ -52,6 +52,7 @@ sub build()
     add(items, "addProfile", "action", "Add profile")
     add(items, "renameProfile", "action", "Rename this profile")
     if m.global.profileId <> "default" then add(items, "deleteProfile", "action", "Delete this profile", "Removes its addons, history, My List and settings")
+    add(items, "shareRecents", "toggle", "Share recently viewed with every profile", "Search shows one list of titles opened lately for everyone on this TV", "", bool(s.shareRecents))
     add(items, "askProfile", "toggle", "Ask who's watching at launch", "Only when there's more than one profile", "", regReadStr(APP_SECTION(), "skipPicker") <> "true")
 
     add(items, "", "header", "Theme")

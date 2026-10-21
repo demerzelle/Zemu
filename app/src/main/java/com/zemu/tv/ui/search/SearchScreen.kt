@@ -158,6 +158,16 @@ fun SearchScreen(onOpen: (Meta) -> Unit) {
             }
         }
         if (status != null) Text(status, color = Palette.TextSecondary, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 48.dp, vertical = 14.dp))
+        // Nothing typed: the titles you opened lately and Watch Later, one press away.
+        val viewed = com.zemu.tv.ui.kids.kidsSafe(c.userStore.recentlyViewed.collectAsStateWithLifecycle().value) { it }
+        val later = com.zemu.tv.ui.kids.kidsSafe(c.userStore.watchLater.collectAsStateWithLifecycle().value) { it }
+        if (ui.query.isBlank()) {
+            com.zemu.tv.ui.components.SectionedPosterGrid(
+                listOf("Recently viewed" to viewed, "Watch Later" to later), onOpen, Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 8.dp, bottom = 48.dp),
+            )
+            return@Column
+        }
         LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp)) {
             items(ui.rows, key = { it.first }) { (title, items) ->
                 val shown = com.zemu.tv.ui.kids.kidsSafe(items) { it }

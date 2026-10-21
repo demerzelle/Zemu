@@ -192,6 +192,8 @@ data class AppSettings(
     val stillWatchingPrompt: Boolean = true,
     /** Ask after this many episodes autoplay in a row without touching the remote. */
     val stillWatchingEpisodes: Int = 3,
+    /** Recent searches and recently viewed titles come from (and go to) one list shared by every profile on this TV. */
+    val shareRecents: Boolean = false,
     // Subtitle appearance
     val subtitleScale: Float = 1f,
     val subtitleColor: Long = 0xFFFFFFFF,

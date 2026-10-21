@@ -15,9 +15,7 @@
   <children>
     <Rectangle width="1280" height="720" color="0x000000FF" />
     <Video id="video" width="1280" height="720" enableUI="false" />
-    <Label id="buffering" text="Loading…" width="1280" height="720" horizAlign="center" vertAlign="center" color="0xFFFFFFCC">
-      <Font role="font" uri="font:SystemFontFile" size="22" />
-    </Label>
+    <ZemuLoader id="buffering" />
     <Group id="scrub" visible="false">
       <Poster uri="pkg:/images/grad_down.png" width="1280" height="160" translation="[0,560]" blendColor="0x000000D9" />
       <SeekBar id="scrubBar" translation="[64,640]" />

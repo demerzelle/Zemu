@@ -30,14 +30,23 @@ object DataStores {
     }
 }
 
+/** "Remind me" on an upcoming episode: [meta] goes to Watch Later once [at] (epoch ms) passes. */
+@kotlinx.serialization.Serializable
+data class Reminder(val meta: Meta, val at: Long)
+
 /** Per-profile data. The original "zemu" file belongs to the first (default) profile. */
-class UserStore(context: Context, private val json: Json, scope: CoroutineScope, profileId: String = ProfileStore.DEFAULT_ID) {
+class UserStore(context: Context, private val json: Json, private val scope: CoroutineScope, profileId: String = ProfileStore.DEFAULT_ID) {
     private val ds = DataStores.get(context, if (profileId == ProfileStore.DEFAULT_ID) "zemu" else "zemu_p_$profileId")
+    /** TV-wide lists, used instead of the profile's own when [AppSettings.shareRecents] is on. */
+    private val shared = DataStores.get(context, "zemu_shared")
 
     private object Keys {
         val addons = stringPreferencesKey("addons")
         val settings = stringPreferencesKey("settings")
         val myList = stringPreferencesKey("my_list")
+        val watchLater = stringPreferencesKey("watch_later")
+        val recentlyViewed = stringPreferencesKey("recently_viewed")
+        val reminders = stringPreferencesKey("reminders")
         val history = stringPreferencesKey("history")
         val watched = stringPreferencesKey("watched")
         val ratings = stringPreferencesKey("ratings")
@@ -81,6 +90,29 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
     val myList: StateFlow<List<Meta>> = ds.data
         .map { it.decode(Keys.myList, metaListSer).orEmpty() }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Titles saved to watch later (separate from My List); a movie leaves it once it's watched. */
+    val watchLater: StateFlow<List<Meta>> = ds.data
+        .map { it.decode(Keys.watchLater, metaListSer).orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun toggleWatchLater(meta: Meta) {
+        ds.edit { p ->
+            val cur = p.decode(Keys.watchLater, metaListSer).orEmpty()
+            val next = if (cur.any { it.id == meta.id }) cur.filterNot { it.id == meta.id } else listOf(meta.slim()) + cur
+            p[Keys.watchLater] = json.encodeToString(metaListSer, next)
+        }
+    }
+
+    /** Titles whose details were opened, newest first (Search shows them while the box is empty). */
+    val recentlyViewed: StateFlow<List<Meta>> = recents { it.decode(Keys.recentlyViewed, metaListSer).orEmpty() }
+
+    suspend fun addRecentlyViewed(meta: Meta) {
+        recentsStore().edit { p ->
+            val cur = p.decode(Keys.recentlyViewed, metaListSer).orEmpty()
+            p[Keys.recentlyViewed] = json.encodeToString(metaListSer, (listOf(meta.slim()) + cur.filterNot { it.id == meta.id }).take(36))
+        }
+    }
 
     val history: StateFlow<List<WatchEntry>> = ds.data
         .map { it.decode(Keys.history, historySer).orEmpty() }
@@ -174,6 +206,9 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
                 if (done) watched.add(0, entry.meta.id)
                 p[Keys.watched] = json.encodeToString(idSetSer, watched)
             }
+            if (done) p.decode(Keys.watchLater, metaListSer)?.takeIf { l -> l.any { it.id == entry.meta.id } }?.let { l ->
+                p[Keys.watchLater] = json.encodeToString(metaListSer, l.filterNot { it.id == entry.meta.id })
+            }
         }
     }
 
@@ -218,20 +253,68 @@ class UserStore(context: Context, private val json: Json, scope: CoroutineScope,
     }
 
     /** Searches that led to opening a title, newest first. */
-    val recentSearches: StateFlow<List<String>> = ds.data
-        .map { it.decode(Keys.recentSearches, idSetSer).orEmpty() }
-        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+    val recentSearches: StateFlow<List<String>> = recents { it.decode(Keys.recentSearches, idSetSer).orEmpty() }
 
     suspend fun addRecentSearch(q: String) {
         val t = q.trim().takeIf { it.length >= 2 } ?: return
-        ds.edit { p ->
+        recentsStore().edit { p ->
             val cur = p.decode(Keys.recentSearches, idSetSer).orEmpty()
             p[Keys.recentSearches] = json.encodeToString(idSetSer, (listOf(t) + cur.filterNot { it.equals(t, ignoreCase = true) }).take(10))
         }
     }
 
     suspend fun clearRecentSearches() {
-        ds.edit { it.remove(Keys.recentSearches) }
+        recentsStore().edit { it.remove(Keys.recentSearches) }
+    }
+
+    private fun recentsStore() = if (settings.value.shareRecents) shared else ds
+
+    private fun <T> recents(read: (Preferences) -> List<T>): StateFlow<List<T>> =
+        kotlinx.coroutines.flow.combine(settings, ds.data, shared.data) { s, own, all -> read(if (s.shareRecents) all else own) }
+            .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Turning sharing on adds this profile's recents to the shared lists, so nothing seems lost. */
+    suspend fun setShareRecents(on: Boolean) {
+        if (on) {
+            val own = ds.data.first()
+            shared.edit { p ->
+                val searches = (p.decode(Keys.recentSearches, idSetSer).orEmpty() + own.decode(Keys.recentSearches, idSetSer).orEmpty())
+                    .distinctBy { it.lowercase() }.take(10)
+                val viewed = (own.decode(Keys.recentlyViewed, metaListSer).orEmpty() + p.decode(Keys.recentlyViewed, metaListSer).orEmpty())
+                    .distinctBy { it.id }.take(36)
+                p[Keys.recentSearches] = json.encodeToString(idSetSer, searches)
+                p[Keys.recentlyViewed] = json.encodeToString(metaListSer, viewed)
+            }
+        }
+        updateSettings { it.copy(shareRecents = on) }
+    }
+
+    private val reminderSer = ListSerializer(Reminder.serializer())
+
+    val reminders: StateFlow<List<Reminder>> = ds.data
+        .map { it.decode(Keys.reminders, reminderSer).orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun toggleReminder(meta: Meta, at: Long) {
+        ds.edit { p ->
+            val cur = p.decode(Keys.reminders, reminderSer).orEmpty()
+            val next = if (cur.any { it.meta.id == meta.id }) cur.filterNot { it.meta.id == meta.id } else cur + Reminder(meta.slim(), at)
+            p[Keys.reminders] = json.encodeToString(reminderSer, next)
+        }
+    }
+
+    /** Moves reminders whose episode has aired into Watch Later; returns their titles. */
+    suspend fun fireDueReminders(now: Long = System.currentTimeMillis()): List<Meta> {
+        var due = emptyList<Reminder>()
+        ds.edit { p ->
+            val cur = p.decode(Keys.reminders, reminderSer).orEmpty()
+            due = cur.filter { it.at <= now }
+            if (due.isEmpty()) return@edit
+            p[Keys.reminders] = json.encodeToString(reminderSer, cur - due.toSet())
+            val later = p.decode(Keys.watchLater, metaListSer).orEmpty()
+            p[Keys.watchLater] = json.encodeToString(metaListSer, due.map { it.meta }.filter { m -> later.none { it.id == m.id } } + later)
+        }
+        return due.map { it.meta }
     }
 
     suspend fun clearHistory() {

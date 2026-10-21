@@ -76,6 +76,13 @@ class AppContainer(context: Context, val profileId: String = com.zemu.tv.data.Pr
 
     init {
         appScope.launch { keepDebridFresh() }
+        // "Remind me" on Coming Up: once the episode is out, the show goes to Watch Later.
+        appScope.launch {
+            while (true) {
+                runCatching { userStore.fireDueReminders() }
+                kotlinx.coroutines.delay(30 * 60_000L)
+            }
+        }
     }
 
 

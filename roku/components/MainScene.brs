@@ -22,6 +22,7 @@ sub init()
         addons: []
         addonsReady: false
         myList: []
+        watchLater: []
         history: []
         episodes: {}
         watched: {}
@@ -48,6 +49,10 @@ sub init()
 
     m.recTask = CreateObject("roSGNode", "RecommendTask")
     m.recTask.control = "run"
+
+    m.updateTask = CreateObject("roSGNode", "UpdateTask")
+    m.updateTask.observeField("update", "onUpdateFound")
+    m.updateTask.control = "run"
 
     profiles = loadProfiles()
     m.global.profiles = profiles
@@ -98,6 +103,9 @@ sub startProfile(pid as String)
     v = regRead(sec, "list")
     if not isArr(v) then v = []
     m.global.myList = v
+    v = regRead(sec, "later")
+    if not isArr(v) then v = []
+    m.global.watchLater = v
     v = regRead(sec, "hist")
     if not isArr(v) then v = []
     m.global.history = v
@@ -423,6 +431,7 @@ function cardMenu(meta as Object) as Object
     opts = [{ id: "details", label: "Details" }]
     if meta.type = "series" then opts.Push({ id: "episodes", label: "Episodes" })
     if inMyList(meta.id) then opts.Push({ id: "mylist", label: "Remove from My List" }) else opts.Push({ id: "mylist", label: "Add to My List" })
+    if inWatchLater(meta.id) then opts.Push({ id: "later", label: "Remove from Watch Later" }) else opts.Push({ id: "later", label: "Watch later" })
     if isWatched(meta.id) then opts.Push({ id: "unwatched", label: "Mark as unwatched" }) else opts.Push({ id: "watched", label: "Mark as watched" })
     if historyEntry(meta.id) <> invalid then opts.Push({ id: "history", label: "Remove from history" })
     dlg = CreateObject("roSGNode", "ChoiceDialog")
@@ -442,6 +451,8 @@ sub onCardMenuChosen(e as Object)
         navigate({ to: "details", meta: meta, section: "episodes" })
     else if id = "mylist"
         toggleMyList(meta)
+    else if id = "later"
+        toggleWatchLater(meta)
     else if id = "watched"
         setWatched(meta, true)
     else if id = "unwatched"
@@ -501,3 +512,23 @@ sub onExitChosen(e as Object)
     if e.getData() = "exit" then m.top.exitApp = true
 end sub
 
+
+' ---- updates (GitHub Releases) ----
+
+sub onUpdateFound(e as Object)
+    u = e.getData()
+    if not isAA(u) then return
+    snooze = toInt(regReadStr(APP_SECTION(), "updSnooze_" + u.version))
+    if nowSec() < snooze then return
+    m.updateVersion = u.version
+    dlg = CreateObject("roSGNode", "ChoiceDialog")
+    dlg.title = "Zemu " + u.version + " is available"
+    dlg.message = "You have " + u.current + ". On a computer, download Zemu-Roku-" + u.version + ".zip from github.com/demerzelle/Zemu/releases and install it from this TV's developer page."
+    dlg.options = [{ id: "ok", label: "OK" }, { id: "later", label: "Remind me in 3 days" }]
+    dlg.observeField("chosen", "onUpdateChosen")
+    pushDialog(dlg)
+end sub
+
+sub onUpdateChosen(e as Object)
+    if e.getData() = "later" then regWriteRaw(APP_SECTION(), "updSnooze_" + m.updateVersion, (nowSec() + 3 * 24 * 3600).ToStr())
+end sub

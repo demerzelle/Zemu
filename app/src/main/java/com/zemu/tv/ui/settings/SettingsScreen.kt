@@ -306,6 +306,8 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Play something similar" to SettingsCategory.PLAYBACK,
     "Countdown" to SettingsCategory.PLAYBACK,
     "Are you still watching?" to SettingsCategory.PLAYBACK,
+    "Check for updates" to SettingsCategory.DEVICE,
+    "Share search history across profiles" to SettingsCategory.DISPLAY,
     "External player (VLC, Just Player)" to SettingsCategory.PLAYBACK,
     "Clear watch history" to SettingsCategory.PLAYBACK,
     "Treat direct links as cached" to SettingsCategory.STREAMS,
@@ -682,6 +684,12 @@ private fun LazyListScope.displayCategory(vm: SettingsViewModel, settings: AppSe
             vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
         }
     }
+    group("recents", "Search history", "Recent searches and recently viewed titles show on the Search screen before you type.") {
+        val scope = rememberCoroutineScope()
+        ToggleRow("Share with every profile on this TV", "One list for everyone, instead of one per profile.", settings.shareRecents) {
+            scope.launch { vm.container.userStore.setShareRecents(!settings.shareRecents) }
+        }
+    }
 }
 
 private fun LazyListScope.soundsCategory(vm: SettingsViewModel, settings: AppSettings) {
@@ -739,6 +747,20 @@ private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSet
     val detected = vm.container.detectedCapabilities
     val caps = vm.capabilities
     fun res(r: Int) = if (r >= 2160) "4K" else "${r}p"
+    group("updates", "Updates", "New versions come from the Zemu releases on GitHub.") {
+        val updater = vm.container.appContext.app.updater
+        var status by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+        ValueRow("Check for updates", status ?: "You have ${updater.currentVersion}") {
+            status = "Checking…"
+            scope.launch {
+                status = runCatching { updater.check() }.fold(
+                    { u -> if (u == null) "Up to date (${updater.currentVersion})" else { updater.showNow.value = true; "Zemu ${u.version} is available" } },
+                    { "Couldn't reach GitHub" },
+                )
+            }
+        }
+    }
     group("reset", "Recommended settings") {
         val changed = settings.deviceOverrides.isNotEmpty() || settings.maxResolutionOverride != 0 || settings.avoidDolbyVision || settings.preferSoftwareDecoders
         ValueRow("Reset to recommended settings for my TV", if (changed) "Uses what this TV reports" else "Already using them") {

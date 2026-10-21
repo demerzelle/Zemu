@@ -60,19 +60,29 @@ enum class CardAction(val label: String) {
     TRAILER("View trailer"),
     MY_LIST_ADD("Add to My List"),
     MY_LIST_REMOVE("Remove from My List"),
+    WATCH_LATER_ADD("Watch later"),
+    WATCH_LATER_REMOVE("Remove from Watch Later"),
+    REMIND("Remind me when it airs"),
+    UNREMIND("Cancel reminder"),
+    RECOMMEND("Recommend to friends"),
+    UNRECOMMEND("Stop recommending"),
     MARK_WATCHED("Mark as watched"),
     MARK_UNWATCHED("Mark as unwatched"),
     REMOVE_HISTORY("Remove from history"),
     ROW_OPTIONS("Move or favorite this row"),
 }
 
-fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Boolean, rowOptions: Boolean = false): List<CardAction> = buildList {
+/** [reminder]: null unless the title has an upcoming episode (Coming Up). [recommended]: null when recommending isn't available (no Trakt friends, or not an IMDb title). */
+fun cardActions(meta: Meta, watched: Boolean, inMyList: Boolean, inHistory: Boolean, rowOptions: Boolean = false, inWatchLater: Boolean = false, recommended: Boolean? = null, reminder: Boolean? = null): List<CardAction> = buildList {
     add(CardAction.PLAY)
     add(CardAction.DETAILS)
     if (meta.type == "series") add(CardAction.EPISODES)
     add(CardAction.MORE_LIKE_THIS)
     if (meta.trailerId != null) add(CardAction.TRAILER)
     add(if (inMyList) CardAction.MY_LIST_REMOVE else CardAction.MY_LIST_ADD)
+    add(if (inWatchLater) CardAction.WATCH_LATER_REMOVE else CardAction.WATCH_LATER_ADD)
+    reminder?.let { add(if (it) CardAction.UNREMIND else CardAction.REMIND) }
+    recommended?.let { add(if (it) CardAction.UNRECOMMEND else CardAction.RECOMMEND) }
     add(if (watched) CardAction.MARK_UNWATCHED else CardAction.MARK_WATCHED)
     if (inHistory) add(CardAction.REMOVE_HISTORY)
     if (rowOptions) add(CardAction.ROW_OPTIONS)

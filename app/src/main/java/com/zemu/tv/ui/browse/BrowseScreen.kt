@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.browse
 
+import com.zemu.tv.ui.components.ZemuLoader
+
 import kotlinx.coroutines.launch
 import com.zemu.tv.ui.components.SheetAction
 import com.zemu.tv.ui.components.ActionSheet
@@ -168,7 +170,7 @@ fun BrowseScreen(type: String, onOpen: (Meta) -> Unit, service: String? = null, 
                 ui.error != null && ui.items.isEmpty() -> CenteredMessage("Couldn't load titles", ui.error)
                 ui.items.isEmpty() && !ui.loading && ui.endReached ->
                     CenteredMessage("Nothing matches", "No titles match these filters. Try widening them.")
-                ui.items.isEmpty() -> CenteredMessage("Loading…")
+                ui.items.isEmpty() -> ZemuLoader()
                 else -> PosterGrid(
                     ui.items,
                     onOpen,

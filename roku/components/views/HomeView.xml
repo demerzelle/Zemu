@@ -18,6 +18,7 @@
       </Label>
       <TvButton id="noticeButton" text="Add addon" translation="[850,0]" />
     </Group>
+    <ZemuLoader id="loader" visible="false" />
     <Label id="status" translation="[64,300]" width="1000" color="0xB8B8C2FF">
       <Font role="font" uri="font:SystemFontFile" size="20" />
     </Label>

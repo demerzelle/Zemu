@@ -1,5 +1,9 @@
 package com.zemu.tv.ui.details
 
+import com.zemu.tv.ui.components.ZemuLoader
+
+import com.zemu.tv.data.imdbId
+
 import com.zemu.tv.ui.theme.retroScrollbar
 import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.components.SheetAction
@@ -125,6 +129,9 @@ fun DetailsScreen(
     var streamMenu by remember { mutableStateOf<RankedStream?>(null) }
     val castFocus = remember { FocusRequester() }
     val inMyList by vm.inMyList.collectAsStateWithLifecycle()
+    val inWatchLater by vm.inWatchLater.collectAsStateWithLifecycle()
+    val hasFriends by c.trakt.hasFriends.collectAsStateWithLifecycle()
+    val myRecs by c.trakt.myRecs.collectAsStateWithLifecycle()
     val ratings by c.userStore.ratings.collectAsStateWithLifecycle()
     val rating = ratings[id] ?: 0
     val season by vm.selectedSeason.collectAsStateWithLifecycle()
@@ -143,7 +150,7 @@ fun DetailsScreen(
     val m = meta
     if (m == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (metaLoading) Text("Loading…", color = Palette.TextSecondary)
+            if (metaLoading) ZemuLoader()
             else CenteredMessage("Couldn't load this title", "The metadata addon didn't respond.", action = {
                 TvButton("Retry", onClick = { vm.retryMeta() }, primary = true)
             })
@@ -445,6 +452,16 @@ fun DetailsScreen(
                 add(SheetAction(if (rating > 0) "Remove like" else "Like", if (rating > 0) "👍 Liked" else null) { vm.rate(if (rating > 0) 0 else 1) })
                 add(SheetAction(if (rating < 0) "Remove dislike" else "Not for me", if (rating < 0) "👎" else null) { vm.rate(if (rating < 0) 0 else -1) })
                 if (castPeople.isNotEmpty() || m.cast.isNotEmpty()) add(SheetAction(if (showCast) "Hide cast" else "View cast") { showCastRow() })
+                add(SheetAction(if (inWatchLater) "Remove from Watch Later" else "Watch later", if (inWatchLater) "Saved" else null) { vm.toggleWatchLater() })
+                if (hasFriends && m.imdbId.startsWith("tt")) {
+                    val recommended = m.imdbId in myRecs
+                    add(SheetAction(if (recommended) "Stop recommending" else "Recommend to friends", if (recommended) "Recommended" else null) {
+                        scope.launch {
+                            val ok = runCatching { c.trakt.recommend(m, !recommended) }.isSuccess
+                            android.widget.Toast.makeText(context, if (!ok) "Couldn't reach Trakt" else if (recommended) "No longer recommended" else "Recommended to your Trakt friends", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    })
+                }
                 add(SheetAction(if (watched) "Mark as unwatched" else "Mark as watched") { scope.launch { c.userStore.setWatched(m, !watched) } })
                 if (similar.isNotEmpty()) add(SheetAction("More like this") { showSimilar = true })
                 add(SheetAction("Refresh streams") { vm.reloadStreams() })

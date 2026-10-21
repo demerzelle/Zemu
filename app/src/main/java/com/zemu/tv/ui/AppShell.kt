@@ -1,5 +1,7 @@
 package com.zemu.tv.ui
 
+import com.zemu.tv.data.imdbId
+
 import com.zemu.tv.data.officialTrailers
 import com.zemu.tv.ui.theme.appBackground
 import com.zemu.tv.ui.theme.sceneTint
@@ -151,6 +153,11 @@ fun AppShell() {
     }
     val watched by c.userStore.watched.collectAsStateWithLifecycle()
     val myList by c.userStore.myList.collectAsStateWithLifecycle()
+    val watchLater by c.userStore.watchLater.collectAsStateWithLifecycle()
+    val upcoming by c.newEpisodes.upcoming.collectAsStateWithLifecycle()
+    val reminders by c.userStore.reminders.collectAsStateWithLifecycle()
+    val hasFriends by c.trakt.hasFriends.collectAsStateWithLifecycle()
+    val myRecs by c.trakt.myRecs.collectAsStateWithLifecycle()
     val history by c.userStore.history.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<Meta?>(null) }
     var menuRowOptions by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -290,6 +297,9 @@ fun AppShell() {
                 inMyList = myList.any { it.id == m.id },
                 inHistory = history.any { it.meta.id == m.id },
                 rowOptions = menuRowOptions != null,
+                inWatchLater = watchLater.any { it.id == m.id },
+                recommended = (m.imdbId in myRecs).takeIf { hasFriends && m.imdbId.startsWith("tt") },
+                reminder = reminders.any { it.meta.id == m.id }.takeIf { it || upcoming.any { u -> u.meta.id == m.id } },
             ).filter { it != CardAction.TRAILER || c.userStore.settings.value.trailers },
             onAction = { a -> resolving(context, scope, m) { m ->
                 when (a) {
@@ -299,6 +309,17 @@ fun AppShell() {
                     CardAction.MORE_LIKE_THIS -> nav.navigate(detailsRoute(m, "similar"))
                     CardAction.TRAILER -> m.officialTrailers.takeIf { it.isNotEmpty() }?.let { TrailerActivity.start(context, it) }
                     CardAction.MY_LIST_ADD, CardAction.MY_LIST_REMOVE -> scope.launch { c.userStore.toggleMyList(m) }
+                    CardAction.WATCH_LATER_ADD, CardAction.WATCH_LATER_REMOVE -> scope.launch { c.userStore.toggleWatchLater(m) }
+                    CardAction.REMIND, CardAction.UNREMIND -> scope.launch {
+                        val at = upcoming.firstOrNull { it.meta.id == m.id }?.at ?: reminders.firstOrNull { it.meta.id == m.id }?.at ?: return@launch
+                        c.userStore.toggleReminder(m, at)
+                        android.widget.Toast.makeText(context, if (a == CardAction.REMIND) "It'll be in Watch Later when it airs" else "Reminder cancelled", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    CardAction.RECOMMEND, CardAction.UNRECOMMEND -> scope.launch {
+                        val on = a == CardAction.RECOMMEND
+                        val ok = runCatching { c.trakt.recommend(m, on) }.isSuccess
+                        android.widget.Toast.makeText(context, if (!ok) "Couldn't reach Trakt" else if (on) "Recommended to your Trakt friends" else "No longer recommended", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                     CardAction.MARK_WATCHED -> scope.launch { c.userStore.setWatched(m, true) }
                     CardAction.MARK_UNWATCHED -> scope.launch { c.userStore.setWatched(m, false) }
                     CardAction.REMOVE_HISTORY -> scope.launch { c.userStore.removeFromHistory(m.id) }

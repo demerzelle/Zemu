@@ -1,5 +1,7 @@
 package com.zemu.tv.ui.home
 
+import com.zemu.tv.ui.components.ZemuLoader
+
 import com.zemu.tv.ui.theme.retroScrollbar
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -135,6 +137,7 @@ fun HomeScreen(
     // Kids Mode: the hero only shows an allowed title (one picked before Kids Mode started is dropped).
     val heroShown = hero?.takeIf { !kids.on || c.kids.knownAllowed(it) == true }
     Box(Modifier.fillMaxSize().heroTrailerKeys()) {
+        if (state.rows.isEmpty() && state.loading) ZemuLoader()
         Backdrop(
             heroShown,
             Modifier.fillMaxWidth().fillMaxHeight(0.62f),
@@ -144,8 +147,6 @@ fun HomeScreen(
         Column(Modifier.fillMaxSize()) {
             HeroInfo(heroShown, heroShown?.let { vm.match(it) }, Modifier.fillMaxWidth().fillMaxHeight(0.40f).heroTrailerTap())
             when {
-                state.rows.isEmpty() && state.loading ->
-                    StatusLine("Loading catalogs…")
                 state.rows.isEmpty() && state.error != null ->
                     CenteredMessage("Nothing to show", state.error, action = { TvButton("Retry", onClick = vm::retry, primary = true) })
             }
@@ -300,13 +301,6 @@ private fun RowEditorButton(icon: androidx.compose.ui.graphics.vector.ImageVecto
         focusedScale = 1.1f,
     ) {
         androidx.tv.material3.Icon(icon, contentDescription = label, modifier = Modifier.align(Alignment.Center).size(30.dp))
-    }
-}
-
-@Composable
-private fun StatusLine(text: String) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 16.dp), contentAlignment = Alignment.CenterStart) {
-        Text(text, color = Palette.TextSecondary, fontSize = 15.sp)
     }
 }
 

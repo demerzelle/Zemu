@@ -189,9 +189,7 @@ fun PlayerScreen(a: PlayerActivity) {
     ) {
         VideoSurface(a, aspect)
 
-        if (a.buffering && !menu) {
-            Text("Loading…", color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.align(Alignment.Center))
-        }
+        if (a.buffering && !menu) com.zemu.tv.ui.components.ZemuLoader()
 
         // Scrub preview when the menu is hidden.
         val now = SystemClock.uptimeMillis()

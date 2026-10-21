@@ -36,6 +36,9 @@ object PendingOpen {
     /** Start playing [target] right away (the screensaver's "Watch now"). */
     var play = false
 
+    /** Set when "Are you still watching?" went unanswered: start the slideshow right away. */
+    var screensaverNow = false
+
     /** Set when a movie finishes: the app returns to Home. */
     var goHome by mutableStateOf(false)
 
@@ -211,6 +214,7 @@ class MainActivity : ComponentActivity() {
                                 AppShell()
                             }
                         }
+                        if (!picking && !kids.on) com.zemu.tv.ui.UpdatePrompt()
                         DynamicThemeLayer(dynamic, settings.variantOf(dynamic), onAccent = { rgbAccent = it }, modifier = Modifier.sceneTint())
                         // The Cat Rave is a 30-second party, then your theme comes back.
                         LaunchedEffect(dynamic) {
@@ -225,16 +229,21 @@ class MainActivity : ComponentActivity() {
                         // Library screensaver: an overlay, so the app underneath stays as it was.
                         var saverSlides by remember { mutableStateOf<List<com.zemu.tv.data.ScreensaverSlide>>(emptyList()) }
                         LaunchedEffect(settings.screensaver, resumed) {
-                            if (!settings.screensaver || !resumed) return@LaunchedEffect
+                            if (!resumed) return@LaunchedEffect
+                            var now = PendingOpen.screensaverNow.also { PendingOpen.screensaverNow = false }
+                            if (!settings.screensaver) return@LaunchedEffect
                             // A fresh pick of suggestions each run; art for them is looked up ahead of time.
-                            // Wait until startup's own loading (rows, images) is done before fetching art.
-                            kotlinx.coroutines.delay(45_000)
+                            // Wait until startup's own loading (rows, images) is done before fetching art,
+                            // unless the player just gave up on "Are you still watching?".
+                            if (!now) kotlinx.coroutines.delay(45_000)
                             var titles = c.screensaverTitles()
-                            launch { runCatching { c.screensaverImages.refresh(titles) } }
+                            if (now) runCatching { c.screensaverImages.refresh(titles) }
+                            else launch { runCatching { c.screensaverImages.refresh(titles) } }
                             while (true) {
                                 kotlinx.coroutines.delay(1_000)
                                 val idle = android.os.SystemClock.uptimeMillis() - lastInput
-                                if (!screensaverOn && idle >= settings.screensaverIdleSec * 1000L) {
+                                if (!screensaverOn && (now || idle >= settings.screensaverIdleSec * 1000L)) {
+                                    now = false
                                     // Skip when nothing has art yet.
                                     val slides = c.screensaverImages.slides(titles)
                                     if (slides.isNotEmpty()) { saverSlides = slides; screensaverOn = true }
