@@ -11,6 +11,29 @@ public struct NewEpisodesItem: Hashable, Sendable {
     public var badge: String { "\(count) NEW" }
 }
 
+/** The next episode of a show you follow that hasn't come out yet. */
+public struct UpcomingItem: Hashable, Sendable {
+    public var meta: Meta
+    public var season: Int
+    public var episode: Int
+    public var at: Int64
+
+    /** "Fri Oct 17 · S2 E5", or "Today" / "Tomorrow". */
+    public var badge: String {
+        let day = Date(timeIntervalSince1970: Double(at) / 1000)
+        let cal = Calendar.current
+        let when: String
+        if cal.isDateInToday(day) { when = "Today" }
+        else if cal.isDateInTomorrow(day) { when = "Tomorrow" }
+        else {
+            let f = DateFormatter()
+            f.setLocalizedDateFormatFromTemplate("EEE MMM d")
+            when = f.string(from: day)
+        }
+        return "\(when) · S\(season) E\(episode)"
+    }
+}
+
 /**
  * Finds shows in your history with episodes released after your last watch: past the episode you
  * were on, and already out. Rechecked when your history changes and every few hours.
@@ -18,6 +41,8 @@ public struct NewEpisodesItem: Hashable, Sendable {
 @MainActor @Observable
 public final class NewEpisodes {
     public private(set) var items: [NewEpisodesItem] = []
+    /** Coming up in the next 60 days, soonest first: shows in your history and My List. */
+    public private(set) var upcoming: [UpcomingItem] = []
 
     @ObservationIgnored private let addons: AddonRepository
     @ObservationIgnored private let store: UserStore
@@ -34,6 +59,7 @@ public final class NewEpisodes {
     /** Re-checks when the set of shows (or where you are in them) changed, then every 6 hours. */
     public func historyChanged() {
         let key = store.history.filter { $0.meta.type == "series" }.map { "\($0.meta.id)|\($0.videoId)" }
+            + store.myList.filter { $0.type == "series" }.map(\.id)
         if key == lastKey && loop != nil { return }
         lastKey = key
         loop?.cancel()
@@ -46,6 +72,9 @@ public final class NewEpisodes {
                 if Task.isCancelled { return }
                 self.items = fresh
                 self.onFresh?(fresh)
+                let soon = await self.findUpcoming()
+                if Task.isCancelled { return }
+                self.upcoming = soon
                 try? await Task.sleep(nanoseconds: 6 * 3600 * 1_000_000_000)
             }
         }
@@ -68,6 +97,21 @@ public final class NewEpisodes {
             return NewEpisodesItem(meta: meta.slim(), count: fresh.count, latestRelease: newest.1, latest: newest.0)
         }
         return results.compactMap { $0 }.sorted { $0.latestRelease > $1.latestRelease }
+    }
+
+    private func findUpcoming() async -> [UpcomingItem] {
+        let now = nowMs(), until = now + 60 * 24 * 3_600_000
+        let shows = Array((store.history.map(\.meta) + store.myList).filter { $0.type == "series" }.distinct(by: \.id).prefix(50))
+        let results = await concurrentMap(shows) { show -> UpcomingItem? in
+            guard let meta = await self.addons.meta(type: "series", id: show.id) else { return nil }
+            let next = meta.videos.filter { ($0.season ?? 1) > 0 }.compactMap { v -> (Video, Int64)? in
+                guard let t = Self.releasedAt(v), t > now, t <= until else { return nil }
+                return (v, t)
+            }.min { $0.1 < $1.1 }
+            guard let next else { return nil }
+            return UpcomingItem(meta: meta.slim(), season: next.0.season ?? 1, episode: next.0.episodeNumber, at: next.1)
+        }
+        return results.compactMap { $0 }.sorted { $0.at < $1.at }
     }
 
     nonisolated static func releasedAt(_ v: Video) -> Int64? {

@@ -179,7 +179,7 @@ public final class Recommender {
      * Home rows that change day by day: personal picks, "because you watched", a genre
      * spotlight, hidden gems, a "best of" year, new releases and new episodes of your shows.
      */
-    public func dailyRows(_ profile: TasteProfile, history: [WatchEntry], myList: [Meta]) async -> [SuggestionRow] {
+    public func dailyRows(_ profile: TasteProfile, history: [WatchEntry], myList: [Meta], liked: [Meta] = []) async -> [SuggestionRow] {
         let seed = Recommender.daySeed()
         var rnd = SeededRandom(seed: seed)
         guard let cinemeta = addons.cinemeta else { return [] }
@@ -200,7 +200,7 @@ public final class Recommender {
         // Picked for you today
         jobs.append {
             let picks = await self.topPicks(profile, seed: seed)
-            return picks.isEmpty ? nil : scoredRow("picks", "Picked for You Today", 2, picks)
+            return picks.isEmpty ? nil : scoredRow("picks", "We think you might like…", 2, picks)
         }
 
         // Because you watched … (two recent titles, rotating daily)
@@ -211,6 +211,16 @@ public final class Recommender {
             jobs.append {
                 let like = await self.moreLikeThis(src, exclude: seen, limit: 40)
                 return like.isEmpty ? nil : scoredRow("because-\(src.id)", "Because you watched \(src.title)", i == 0 ? 5 : 9, like)
+            }
+        }
+
+        // Because you liked … (titles you gave a thumbs up), rotating daily
+        var likeRng = SeededRandom(seed: seed + 2)
+        let likedChoices = liked.filter { l in !becauseOf.contains { $0.id == l.id } }
+        if let src = likedChoices.shuffled(using: &likeRng).first {
+            jobs.append {
+                let like = await self.moreLikeThis(src, exclude: seen, limit: 40)
+                return like.isEmpty ? nil : scoredRow("liked-\(src.id)", "Because you liked \(src.title)", 8, like)
             }
         }
 

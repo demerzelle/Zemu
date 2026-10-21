@@ -111,8 +111,26 @@ public final class AddonRepository {
         addons.filter { $0.manifest.supports(resource, type: type, id: id) }
     }
 
+    /** Every season seen so far, by [AnimeSeasons.groupKey], for the seasons row on a title's page. */
+    @ObservationIgnored private var animeSeasons: [String: [Meta]] = [:]
+
+    /** Kitsu catalogs show one card per anime, with its other seasons kept for its page. */
     public func catalog(_ addon: Addon, type: String, id: String, extra: [String: String] = [:]) async throws -> [Meta] {
-        try await AddonClient.catalog(addon.baseUrl, type: type, id: id, extra: extra)
+        let items = try await AddonClient.catalog(addon.baseUrl, type: type, id: id, extra: extra)
+        guard addon.manifest.id == Self.kitsuId else { return items }
+        for m in items where m.isAnime {
+            let key = AnimeSeasons.groupKey(m)
+            var list = animeSeasons[key] ?? []
+            if !list.contains(where: { $0.id == m.id }) { list.append(m) }
+            animeSeasons[key] = list
+        }
+        return AnimeSeasons.collapse(items)
+    }
+
+    /** All seasons of the show a title belongs to, in order. Empty when the show has only one. */
+    public func seasons(of meta: Meta) -> [Meta] {
+        guard meta.isAnime, let list = animeSeasons[AnimeSeasons.groupKey(meta)], list.count > 1 else { return [] }
+        return AnimeSeasons.sorted(list)
     }
 
     public func catalogDetailed(_ addon: Addon, type: String, id: String, extra: [String: String]) async throws -> [Meta] {

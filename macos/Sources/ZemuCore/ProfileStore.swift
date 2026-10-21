@@ -8,13 +8,34 @@ public struct Profile: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var name: String
     public var avatar: String
-    public init(id: String, name: String, avatar: String = "preset:0") { self.id = id; self.name = name; self.avatar = avatar }
+    /** A kid profile: Kids Mode is on while it's in use. */
+    public var kids: Bool
+    public init(id: String, name: String, avatar: String = "preset:0", kids: Bool = false) { self.id = id; self.name = name; self.avatar = avatar; self.kids = kids }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        avatar = (try? c.decode(String.self, forKey: .avatar)) ?? "preset:0"
+        kids = (try? c.decodeIfPresent(Bool.self, forKey: .kids)) ?? false
+    }
 }
 
 private struct ProfilesFile: Codable {
     var profiles: [Profile] = []
     var active: String?
     var skipPicker = false
+    var kids = KidsSettings()
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        profiles = (try? c.decode([Profile].self, forKey: .profiles)) ?? []
+        active = try? c.decodeIfPresent(String.self, forKey: .active)
+        skipPicker = (try? c.decodeIfPresent(Bool.self, forKey: .skipPicker)) ?? false
+        kids = (try? c.decodeIfPresent(KidsSettings.self, forKey: .kids)) ?? KidsSettings()
+    }
 }
 
 /** The list of profiles and which one is active. Each profile's own data lives in its [UserStore]. */
@@ -61,11 +82,18 @@ public final class ProfileStore {
     }
     public func setActive(_ id: String) { state.active = id }
 
+    /** Parental controls cover every profile, so they live here. */
+    public var kids: KidsSettings { state.kids }
+    public func updateKids(_ change: (inout KidsSettings) -> Void) { change(&state.kids) }
+    /** A kid profile is in use. */
+    public var kidsOn: Bool { profile(activeId)?.kids == true }
+    public func checkParentCode(_ code: String) -> Bool { !state.kids.pinHash.isEmpty && KidsSettings.hash(code) == state.kids.pinHash }
+
     public func profile(_ id: String) -> Profile? { profiles.first { $0.id == id } }
 
     @discardableResult
-    public func add(name: String, avatar: String) -> Profile {
-        let p = Profile(id: String(UUID().uuidString.lowercased().prefix(8)), name: name.trimmed.isEmpty ? "Profile \(profiles.count + 1)" : name, avatar: avatar)
+    public func add(name: String, avatar: String, kids: Bool = false) -> Profile {
+        let p = Profile(id: String(UUID().uuidString.lowercased().prefix(8)), name: name.trimmed.isEmpty ? "Profile \(profiles.count + 1)" : name, avatar: avatar, kids: kids)
         state.profiles.append(p)
         return p
     }

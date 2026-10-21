@@ -18,6 +18,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /** Muted trailer replaces the hero backdrop after a title stays hovered. */
     public var heroTrailers = true
     public var heroTrailerSound = false
+    /** Seconds the pointer must rest on a title before its trailer starts (with autoplay on). */
+    public var heroTrailerDelay: Double = 4
     /** Deprioritize Dolby Vision-only releases (mpv shows DV profile 5 with odd colors). */
     public var avoidDolbyVision = false
     /** Decode video in software instead of VideoToolbox. Turned on automatically if hardware decoding fails. */
@@ -49,7 +51,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /** Enter full screen when playback starts. */
     public var playerFullScreen = false
     /** Switch to Picture in Picture when you leave Zemu while a video plays. */
-    public var autoPip = true
+    public var autoPip = false
     /** Pause the video while Zemu isn't the frontmost app (another app or window has focus); resume on return. */
     public var pauseWhenUnfocused = false
     // Subtitle appearance
@@ -72,6 +74,61 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var myListSort = "ADDED_NEWEST"
     /** "CLASSIC" or "GLASS" (experimental Liquid Glass look). */
     public var uiStyle = "CLASSIC"
+    /** "DARK", "LIGHT" or "SYSTEM" (follow macOS). */
+    public var appearance = "DARK"
+    /** Remapped keys and controls, by BindableAction name. Actions not listed keep their defaults. */
+    public var keyBindings: [String: [InputToken]] = [:]
+    /** Addon catalogs turned off, as "manifestId/type/catalogId". Everything else is shown. */
+    public var disabledCatalogs: [String] = []
+
+    /** OMDb key (free at omdbapi.com): Rotten Tomatoes and Metacritic scores, US ratings. */
+    public var omdbApiKey = ""
+    /** Your Trakt API app (trakt.tv/oauth/applications) and the tokens from linking this Mac. */
+    public var traktClientId = ""
+    public var traktClientSecret = ""
+    public var traktAccessToken = ""
+    public var traktRefreshToken = ""
+    public var traktExpiresAt = Int64(0)
+    /** fanart.tv personal API key, for screensaver backdrops and missing title logos. */
+    public var fanartApiKey = ""
+    /** Off: no trailers anywhere (no autoplay, no Trailer buttons or menu items). */
+    public var trailers = true
+    /** Off: no backdrop pictures behind the title at the top of Home, Browse and Details. */
+    public var heroArt = true
+    /** Off: titles are written out in plain text instead of their logo artwork. */
+    public var logoArt = true
+    /** Size of everything on screen, in percent (posters, text, icons). */
+    public var uiZoom = 100
+    /** Font for all text: a key of FontChoice, "" = the theme's own. */
+    public var font = ""
+    /** Text size in percent, on top of uiZoom. */
+    public var fontSize = 100
+    /** Sub-theme per animated theme (e.g. WEATHER to "RAIN", HOLIDAYS to "AUTO"). */
+    public var themeVariants = [String: String]()
+    /** Full-screen slideshow of library backdrops after the app sits idle. */
+    public var screensaver = false
+    public var screensaverIdleSec = 60
+    public var screensaverImageSec = 10
+    /** Crossfade between screensaver titles, in tenths of a second. */
+    public var screensaverFadeTenths = 15
+    /** Show the title's logo (or name) and the "Watch now" hint on the screensaver. */
+    public var screensaverShowTitle = true
+    /** Clicks and blips when moving, selecting and going back (themed). Off by default on Mac. */
+    public var soundEffects = false
+    /** Streaming services you subscribe to (TMDB provider id to name); empty = show the popular ones. */
+    public var myServices = [String: String]()
+    /** Leave titles you've watched out of suggestion and category rows. */
+    public var hideWatchedInRows = true
+    /** Prefer SDH (deaf / hard of hearing) subtitle tracks. */
+    public var preferSdh = false
+    /** Per-theme color overrides: "<theme>/<dark|light>/<role>" to ARGB. */
+    public var colorOverrides = [String: UInt32]()
+    /** Palettes you saved and named (Settings → Theme → Customize colors). */
+    public var savedPalettes = [SavedPalette]()
+    /** Found the secret (click the logo ten times). */
+    public var catRaveUnlocked = false
+    /** The animated theme to return to when the 30-second Cat Rave ends. */
+    public var themeBeforeRave = "NONE"
 
     public init() {}
 
@@ -90,6 +147,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         skipIntroButton = v(.skipIntroButton, d.skipIntroButton)
         heroTrailers = v(.heroTrailers, d.heroTrailers)
         heroTrailerSound = v(.heroTrailerSound, d.heroTrailerSound)
+        heroTrailerDelay = v(.heroTrailerDelay, d.heroTrailerDelay)
         avoidDolbyVision = v(.avoidDolbyVision, d.avoidDolbyVision)
         preferSoftwareDecoders = v(.preferSoftwareDecoders, d.preferSoftwareDecoders)
         theme = v(.theme, d.theme)
@@ -119,5 +177,43 @@ public struct AppSettings: Codable, Equatable, Sendable {
         myListGroup = v(.myListGroup, d.myListGroup)
         myListSort = v(.myListSort, d.myListSort)
         uiStyle = v(.uiStyle, d.uiStyle)
+        appearance = v(.appearance, d.appearance)
+        keyBindings = v(.keyBindings, d.keyBindings)
+        disabledCatalogs = v(.disabledCatalogs, d.disabledCatalogs)
+        omdbApiKey = v(.omdbApiKey, d.omdbApiKey)
+        traktClientId = v(.traktClientId, d.traktClientId)
+        traktClientSecret = v(.traktClientSecret, d.traktClientSecret)
+        traktAccessToken = v(.traktAccessToken, d.traktAccessToken)
+        traktRefreshToken = v(.traktRefreshToken, d.traktRefreshToken)
+        traktExpiresAt = v(.traktExpiresAt, d.traktExpiresAt)
+        fanartApiKey = v(.fanartApiKey, d.fanartApiKey)
+        trailers = v(.trailers, d.trailers)
+        heroArt = v(.heroArt, d.heroArt)
+        logoArt = v(.logoArt, d.logoArt)
+        uiZoom = v(.uiZoom, d.uiZoom)
+        font = v(.font, d.font)
+        fontSize = v(.fontSize, d.fontSize)
+        themeVariants = v(.themeVariants, d.themeVariants)
+        screensaver = v(.screensaver, d.screensaver)
+        screensaverIdleSec = v(.screensaverIdleSec, d.screensaverIdleSec)
+        screensaverImageSec = v(.screensaverImageSec, d.screensaverImageSec)
+        screensaverFadeTenths = v(.screensaverFadeTenths, d.screensaverFadeTenths)
+        screensaverShowTitle = v(.screensaverShowTitle, d.screensaverShowTitle)
+        soundEffects = v(.soundEffects, d.soundEffects)
+        myServices = v(.myServices, d.myServices)
+        hideWatchedInRows = v(.hideWatchedInRows, d.hideWatchedInRows)
+        preferSdh = v(.preferSdh, d.preferSdh)
+        colorOverrides = v(.colorOverrides, d.colorOverrides)
+        savedPalettes = v(.savedPalettes, d.savedPalettes)
+        catRaveUnlocked = v(.catRaveUnlocked, d.catRaveUnlocked)
+        themeBeforeRave = v(.themeBeforeRave, d.themeBeforeRave)
     }
+}
+
+/** A palette you named: the color overrides it applies, for one theme or every theme ([theme] nil). */
+public struct SavedPalette: Codable, Equatable, Hashable, Sendable {
+    public var name: String
+    public var theme: String?
+    public var colors: [String: UInt32]
+    public init(name: String, theme: String?, colors: [String: UInt32]) { self.name = name; self.theme = theme; self.colors = colors }
 }

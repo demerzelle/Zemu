@@ -9,6 +9,8 @@ public extension Meta {
     }
     var isImdb: Bool { id.hasPrefix("tt") }
     var isAnime: Bool { id.hasPrefix("kitsu:") }
+    /** Anime from the Kitsu catalog, or a Cinemeta title tagged with the Anime genre. Animation alone isn't anime. */
+    var isAnimeTagged: Bool { isAnime || genres.contains { $0.caseInsensitiveCompare("Anime") == .orderedSame } }
     var rating: Double? { imdbRating.flatMap { Double($0) }.flatMap { $0 > 0 ? $0 : nil } }
     var year: Int? { releaseInfo?.firstMatch(of: /\d{4}/).flatMap { Int($0.output) } }
 
@@ -20,6 +22,18 @@ public extension Meta {
     }
 
     var posterUrl: String? { poster ?? (isImdb ? "https://images.metahub.space/poster/medium/\(imdbId)/img" : nil) }
+    /**
+     * IMDb-keyed poster for anime, which usually has the English title printed on it. Kitsu's own
+     * posters have no text, so those are the fallback.
+     */
+    var titledPosterUrl: String? {
+        guard isAnime, imdbId.hasPrefix("tt") else { return nil }
+        return "https://images.metahub.space/poster/medium/\(imdbId)/img"
+    }
+    /** Poster to show first: the titled anime poster when there is one. */
+    var preferredPosterUrl: String? { titledPosterUrl ?? posterUrl }
+    /** Shown when [preferredPosterUrl] is a titled poster that fails to load. */
+    var fallbackPosterUrl: String? { titledPosterUrl != nil ? posterUrl : nil }
     var backdropUrl: String? { background ?? (isImdb ? "https://images.metahub.space/background/medium/\(imdbId)/img" : posterUrl) }
     var logoUrl: String? { logo ?? (isImdb ? "https://images.metahub.space/logo/medium/\(imdbId)/img" : nil) }
 
@@ -31,6 +45,25 @@ public extension Meta {
         m.trailerStreams = Array(trailerStreams.prefix(1))
         m.cast = Array(cast.prefix(6))
         return m
+    }
+
+    /**
+     * The title's official trailers, in the addon's order: named "trailer" (not teasers, clips or
+     * featurettes) or typed as one. Falls back to whatever single trailer the addon gives.
+     */
+    var officialTrailers: [TrailerRef] {
+        let named = trailerStreams.compactMap { t -> TrailerRef? in
+            guard let id = t.ytId?.nilIfBlank else { return nil }
+            let title = (t.title ?? "").lowercased()
+            return title.isEmpty || (title.contains("trailer") && !title.contains("teaser")) ? TrailerRef(id: id, title: t.title ?? "") : nil
+        }
+        let typed = trailers.compactMap { t -> TrailerRef? in
+            guard let id = t.source?.nilIfBlank, t.type == nil || t.type?.caseInsensitiveCompare("Trailer") == .orderedSame else { return nil }
+            return TrailerRef(id: id, title: "")
+        }
+        var all = (named + typed).distinct(by: \.id)
+        if all.isEmpty, let t = trailerId { all = [TrailerRef(id: t, title: "")] }
+        return all.enumerated().map { i, t in TrailerRef(id: t.id, title: t.title.isEmpty ? (all.count > 1 ? "Trailer \(i + 1)" : "Trailer") : t.title) }
     }
 
     /** YouTube id of the first trailer, if any. */
@@ -95,4 +128,10 @@ public func stableHash(_ s: String) -> Int64 {
     var h: UInt64 = 1469598103934665603
     for b in s.utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
     return Int64(bitPattern: h)
+}
+
+/** A YouTube trailer with a display name. */
+public struct TrailerRef: Hashable, Sendable {
+    public let id: String
+    public let title: String
 }

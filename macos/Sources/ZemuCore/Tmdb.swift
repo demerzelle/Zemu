@@ -63,6 +63,13 @@ public struct TmdbCredit: Decodable, Hashable, Sendable {
     public var isSeries: Bool { mediaType == "tv" }
 }
 
+/** A TMDB collection: a franchise such as "Harry Potter Collection", with its movies in release order. */
+public struct TmdbCollection: Sendable {
+    public let id: Int64
+    public let name: String
+    public let parts: [TmdbCredit]
+}
+
 public struct TmdbPersonDetails: Sendable {
     public var id: Int64
     public var name: String
@@ -178,6 +185,160 @@ public final class Tmdb {
             department: v["known_for_department"]?.string, profilePath: v["profile_path"]?.string,
             castCredits: credits(v["combined_credits"]?["cast"]), crewCredits: credits(v["combined_credits"]?["crew"])
         )
+    }
+
+    /** The collection a movie belongs to, or nil when it isn't in one. */
+    public func collection(for meta: Meta) async throws -> TmdbCollection? {
+        guard enabled, meta.type == "movie", let id = try await tmdbIdFor(meta) else { return nil }
+        guard let info = JSONValue.parse(try await get("/movie/\(id)")),
+              let cid = info["belongs_to_collection"]?["id"]?.int64,
+              let raw = JSONValue.parse(try await get("/collection/\(cid)")) else { return nil }
+        let parts = (raw["parts"]?.array ?? []).compactMap { p -> TmdbCredit? in
+            guard let d = try? JSONEncoder().encode(p) else { return nil }
+            return try? JSONDecoder().decode(TmdbCredit.self, from: d)
+        }
+        return TmdbCollection(id: cid, name: raw["name"]?.string ?? "", parts: parts.stableSorted { ($0.releaseDate ?? "9999") < ($1.releaseDate ?? "9999") })
+    }
+
+    /**
+     * Screensaver and logo art: 16:9 backdrops (text-free ones first) and the English (or
+     * language-free) title logo, if TMDB has one.
+     */
+    public func art(_ meta: Meta) async throws -> (backdrops: [String], logo: String?) {
+        guard enabled, let id = try await tmdbIdFor(meta) else { return ([], nil) }
+        guard let raw = JSONValue.parse(try await get(meta.type == "series" ? "/tv/\(id)/images" : "/movie/\(id)/images", "include_image_language=en,null")) else { return ([], nil) }
+        let logos = (raw["logos"]?.array ?? []).stableSorted { a, b in a["iso_639_1"]?.string == "en" && b["iso_639_1"]?.string != "en" }
+        let logo = logos.lazy.compactMap { $0["file_path"]?.string }.first
+            .map { "https://image.tmdb.org/t/p/w500\($0.replacingOccurrences(of: ".svg", with: ".png"))" }
+        let backdrops = (raw["backdrops"]?.array ?? []).compactMap { o -> (String, Bool, Double)? in
+            guard let p = o["file_path"]?.string else { return nil }
+            return (p, o["iso_639_1"]?.string == nil, o["vote_average"]?.double ?? 0)
+        }
+        .sorted { $0.1 != $1.1 ? $0.1 : $0.2 > $1.2 }
+        .prefix(6).map { "https://image.tmdb.org/t/p/w1280\($0.0)" }
+        return (Array(backdrops), logo)
+    }
+
+    /** The US rating ("PG-13", "TV-Y7"), "" when TMDB has none, nil without a key. Throws on network errors. */
+    public func usCertification(_ meta: Meta) async throws -> String? {
+        guard enabled else { return nil }
+        let tv: Bool, id: Int64
+        if meta.id.hasPrefix("tmdb:") {
+            let p = meta.id.split(separator: ":")
+            guard p.count >= 3, let i = Int64(p[2]) else { return "" }
+            tv = p[1] == "tv"; id = i
+        } else {
+            guard let i = try await tmdbIdFor(meta) else { return "" }
+            tv = meta.type == "series"; id = i
+        }
+        guard let root = JSONValue.parse(try await get(tv ? "/tv/\(id)/content_ratings" : "/movie/\(id)/release_dates")),
+              let us = (root["results"]?.array ?? []).first(where: { $0["iso_3166_1"]?.string == "US" }) else { return "" }
+        if tv { return us["rating"]?.string ?? "" }
+        return (us["release_dates"]?.array ?? []).lazy.compactMap { $0["certification"]?.string }.first ?? ""
+    }
+
+    /** TheTVDB id of a series (fanart.tv indexes shows by it). */
+    public func tvdbId(_ meta: Meta) async throws -> String? {
+        guard enabled, meta.type == "series", let id = try await tmdbIdFor(meta) else { return nil }
+        return JSONValue.parse(try await get("/tv/\(id)/external_ids"))?["tvdb_id"]?.text
+    }
+
+    private var discoverCache: [String: (at: Date, list: [Meta])] = [:]
+
+    /**
+     * TMDB `/discover` as app titles. Ids are "tmdb:<movie|tv>:<id>" and are turned into IMDb ids
+     * only when opened (imdbFor), so rows load with one request each. Cached for 30 minutes.
+     */
+    public func discover(type: String, params: [String: String], page: Int = 1) async throws -> [Meta] {
+        guard enabled else { return [] }
+        let media = type == "series" ? "tv" : "movie"
+        let all = params.merging(["page": String(page), "include_adult": "false"]) { a, _ in a }
+        let query = all.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.urlEncoded)" }.joined(separator: "&")
+        let key = "\(media)?\(query)"
+        if let c = discoverCache[key], Date().timeIntervalSince(c.at) < 1800 { return c.list }
+        let names = type == "series" ? Self.tvGenres : Self.movieGenres
+        let list = (JSONValue.parse(try await get("/discover/\(media)", query))?["results"]?.array ?? []).compactMap { o -> Meta? in
+            guard let id = o["id"]?.int64, let poster = o["poster_path"]?.string else { return nil }
+            let date = o["release_date"]?.string ?? o["first_air_date"]?.string
+            let vote = o["vote_average"]?.double ?? 0, votes = o["vote_count"]?.int ?? 0
+            return Meta(
+                id: "tmdb:\(media):\(id)", type: type, tmdbId: String(id), name: o["title"]?.string ?? o["name"]?.string,
+                poster: "https://image.tmdb.org/t/p/w342\(poster)",
+                background: o["backdrop_path"]?.string.map { "https://image.tmdb.org/t/p/w1280\($0)" },
+                description: o["overview"]?.string,
+                releaseInfo: date.flatMap { $0.count >= 4 ? String($0.prefix(4)) : nil },
+                imdbRating: votes >= 20 && vote > 0 ? String(format: "%.1f", vote) : nil,
+                genres: (o["genre_ids"]?.array ?? []).compactMap { $0.int.flatMap { names[$0] } },
+                released: date
+            )
+        }
+        discoverCache[key] = (Date(), list)
+        return list
+    }
+
+    private var providers: [Provider]?
+    private static let channelWords = [" Channel", " with Ads", "Amazon Video", "Apple TV Store", "Google Play", "YouTube", "Fandango", "Vudu", "Microsoft Store", "Spectrum On Demand", "DIRECTV"]
+
+    /** Every streaming service TMDB knows in [region], most popular first (add-on channels and ad tiers left out). */
+    public func allProviders(region: String) async -> [Provider] {
+        if let providers { return providers }
+        guard enabled else { return [] }
+        var byId: [Int: (name: String, logo: String?, priority: Int)] = [:]
+        for m in ["movie", "tv"] {
+            guard let d = try? await get("/watch/providers/\(m)", "watch_region=\(region)") else { continue }
+            for p in JSONValue.parse(d)?["results"]?.array ?? [] {
+                guard let id = p["provider_id"]?.int, let name = p["provider_name"]?.string,
+                      !Self.channelWords.contains(where: { name.localizedCaseInsensitiveContains($0) }) else { continue }
+                let pr = p["display_priority"]?.int ?? 999
+                if byId[id] == nil || pr < byId[id]!.priority { byId[id] = (name, p["logo_path"]?.string, pr) }
+            }
+        }
+        let found = byId.sorted { $0.value.priority < $1.value.priority }
+            .map { Provider(ids: String($0.key), label: $0.value.name, logo: $0.value.logo.map { "https://image.tmdb.org/t/p/w300\($0)" }) }
+        if !found.isEmpty { providers = found }
+        return found
+    }
+
+    private var studioLogos: [String: String] = [:]
+
+    /** A studio's or network's own logo (a wordmark on a transparent background). */
+    public func studioLogo(_ studio: Studio) async -> String? {
+        if let l = studioLogos[studio.key] { return l }
+        guard enabled, let d = try? await get(studio.type == "series" ? "/network/\(studio.id)" : "/company/\(studio.id)"),
+              let path = JSONValue.parse(d)?["logo_path"]?.string else { return nil }
+        let url = "https://image.tmdb.org/t/p/w500\(path.replacingOccurrences(of: ".svg", with: ".png"))"
+        studioLogos[studio.key] = url
+        return url
+    }
+
+    /** The IMDb id of a "tmdb:<movie|tv>:<id>" title. */
+    public func imdbFor(_ tmdbKey: String) async throws -> String? {
+        let p = tmdbKey.split(separator: ":")
+        guard p.count >= 3, let id = Int64(p[2]) else { return nil }
+        let k = "\(p[1])/\(id)"
+        if let c = imdbCache[k] { return c }
+        guard let imdb = JSONValue.parse(try await get("/\(p[1])/\(id)/external_ids"))?["imdb_id"]?.string, imdb.hasPrefix("tt") else { return nil }
+        imdbCache[k] = imdb
+        return imdb
+    }
+
+    /** TMDB genre ids, named the way Cinemeta names them. */
+    nonisolated public static let movieGenres: [Int: String] = [
+        28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime", 99: "Documentary", 18: "Drama", 10751: "Family",
+        14: "Fantasy", 36: "History", 27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 878: "Sci-Fi", 53: "Thriller",
+        10752: "War", 37: "Western",
+    ]
+    nonisolated public static let tvGenres: [Int: String] = [
+        10759: "Action", 16: "Animation", 35: "Comedy", 80: "Crime", 99: "Documentary", 18: "Drama", 10751: "Family", 10762: "Kids",
+        9648: "Mystery", 10764: "Reality", 10765: "Sci-Fi", 10768: "War", 37: "Western",
+    ]
+
+    /** TMDB genre id for a genre name on a "movie" or "series" page, if TMDB has it. */
+    nonisolated public static func genreId(_ type: String, _ name: String) -> Int? {
+        if let id = (type == "series" ? tvGenres : movieGenres).first(where: { $0.value.caseInsensitiveCompare(name) == .orderedSame })?.key { return id }
+        if type == "series" && ["Fantasy", "Science Fiction"].contains(name) { return 10765 }
+        if type == "series" && name == "Adventure" { return 10759 }
+        return nil
     }
 
     /** IMDb id for a TMDB title, so it can open in the app's Details page. */

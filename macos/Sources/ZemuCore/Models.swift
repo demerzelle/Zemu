@@ -244,7 +244,14 @@ public struct InstalledAddon: Codable, Hashable, Sendable {
 public struct LastStream: Codable, Hashable, Sendable {
     public var key: String
     public var bingeGroup: String?
-    public init(key: String, bingeGroup: String?) { self.key = key; self.bingeGroup = bingeGroup }
+    /** The exact link that played (a debrid-resolved file), so resuming replays that same file. */
+    public var url: String?
+    public var headers: [String: String]?
+    public var videoId: String?
+    public var label: String?
+    public init(key: String, bingeGroup: String?, url: String? = nil, headers: [String: String]? = nil, videoId: String? = nil, label: String? = nil) {
+        self.key = key; self.bingeGroup = bingeGroup; self.url = url; self.headers = headers; self.videoId = videoId; self.label = label
+    }
 }
 
 public struct WatchEntry: Codable, Hashable, Sendable {
