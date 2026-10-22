@@ -87,6 +87,8 @@ final class AppModel {
         let s = session.settings
         let colors = DynamicTheme.of(s.dynamicTheme).apply(to: s.themeColors)
         if P.colors != colors { P.colors = colors }
+        let style = s.theme == ThemePreset.custom ? .solid : (ThemePreset(rawValue: s.theme) ?? .CLASSIC).style
+        if P.style != style { P.style = style }
     }
 
     // MARK: Profiles

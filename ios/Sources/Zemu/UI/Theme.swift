@@ -41,10 +41,11 @@ struct ThemeColors: Equatable {
 }
 
 enum ThemePreset: String, CaseIterable {
-    case CLASSIC, CRIMSON, OLED, OCEAN, ARCTIC, EMERALD, PURPLE, ROSE, SUNSET, GOLD, SLATE
+    case LIQUID_GLASS, LIQUID_CHROME, CLASSIC, CRIMSON, OLED, OCEAN, ARCTIC, EMERALD, PURPLE, ROSE, SUNSET, GOLD, SLATE
 
     var label: String {
         switch self {
+        case .LIQUID_GLASS: "Liquid Glass"; case .LIQUID_CHROME: "Liquid Chrome"
         case .CLASSIC: "Zemu Neon"; case .CRIMSON: "Crimson"; case .OLED: "OLED Black"; case .OCEAN: "Ocean Blue"
         case .ARCTIC: "Arctic"; case .EMERALD: "Emerald"; case .PURPLE: "Royal Purple"; case .ROSE: "Rose"
         case .SUNSET: "Sunset"; case .GOLD: "Gold"; case .SLATE: "Slate"
@@ -53,6 +54,8 @@ enum ThemePreset: String, CaseIterable {
 
     var values: (UInt32, UInt32) {
         switch self {
+        // Glass: iOS system blue over a deep blue-violet backdrop. Chrome: polished silver over graphite.
+        case .LIQUID_GLASS: (0xFF0A84FF, 0xFF0B1028); case .LIQUID_CHROME: (0xFFE6E9EE, 0xFF141518)
         case .CLASSIC: (0xFF39FF14, 0xFF07090A); case .CRIMSON: (0xFFE50914, 0xFF0A0A0E); case .OLED: (0xFFE50914, 0xFF000000)
         case .OCEAN: (0xFF2F80ED, 0xFF070B14); case .ARCTIC: (0xFF22D3EE, 0xFF0A1218); case .EMERALD: (0xFF10B981, 0xFF06100C)
         case .PURPLE: (0xFF8B5CF6, 0xFF0C0814); case .ROSE: (0xFFEC4899, 0xFF12070D); case .SUNSET: (0xFFF97316, 0xFF120A06)
@@ -61,6 +64,10 @@ enum ThemePreset: String, CaseIterable {
     }
 
     var colors: ThemeColors { ThemeColors(accent: Color(argb: values.0), background: Color(argb: values.1)) }
+
+    var style: SurfaceStyle {
+        switch self { case .LIQUID_GLASS: .glass; case .LIQUID_CHROME: .chrome; default: .solid }
+    }
     static let custom = "CUSTOM"
 }
 
@@ -80,6 +87,7 @@ final class Palette {
     static let shared = Palette()
 
     var colors = ThemePreset.CLASSIC.colors
+    var style = SurfaceStyle.solid
     /** RGB animated theme: overrides the accent while it cycles. */
     var accentOverride: Color?
 
@@ -88,7 +96,7 @@ final class Palette {
     var surfaceHigh: Color { colors.surfaceHigh }
     var accent: Color { accentOverride ?? colors.accent }
     /** Text/icon color on top of the accent: black on bright accents (like neon green), white otherwise. */
-    var onAccent: Color { accent.luminance > 0.45 ? Color(argb: 0xFF07130A) : .white }
+    var onAccent: Color { style != .glass && accent.luminance > 0.45 ? Color(argb: 0xFF07130A) : .white }
 
     static let textSecondary = Color(argb: 0xFFB8B8C2)
     static let textMuted = Color(argb: 0xFF80808C)

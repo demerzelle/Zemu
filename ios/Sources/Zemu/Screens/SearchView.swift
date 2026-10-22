@@ -91,14 +91,14 @@ struct SearchView: View {
                 }
             }
             .padding(.horizontal, 18).padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 12).fill(P.surface))
+            .zSurface(RoundedRectangle(cornerRadius: 12), fill: P.surface, interactive: false)
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(focused ? P.accent.opacity(0.8) : Color.white.opacity(0.08), lineWidth: 1.5))
-            .padding(.horizontal, 48).padding(.top, 40).padding(.bottom, 12)
+            .padding(.horizontal, pagePad).padding(.top, 40).padding(.bottom, 12)
 
             if vm.loading {
-                Text("Searching…").foregroundStyle(Palette.textSecondary).padding(.horizontal, 48)
+                Text("Searching…").foregroundStyle(Palette.textSecondary).padding(.horizontal, pagePad)
             } else if vm.searched && vm.rows.isEmpty {
-                Text("No results.").foregroundStyle(Palette.textSecondary).padding(.horizontal, 48)
+                Text("No results.").foregroundStyle(Palette.textSecondary).padding(.horizontal, pagePad)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -113,7 +113,7 @@ struct SearchView: View {
                 .padding(.vertical, 12)
             }
         }
-        .background(P.background)
+        .background(PageBackground())
         .onAppear { focused = true }
         .onChange(of: app.focusSearch) { _, _ in focused = true }
     }
@@ -133,7 +133,7 @@ struct SearchView: View {
                     Spacer()
                     Chip(title: "Clear History", icon: "trash") { vm.clearHistory() }
                 }
-                .padding(.horizontal, 48)
+                .padding(.horizontal, pagePad)
                 .padding(.top, 6)
                 ForEach(vm.history, id: \.query) { entry in
                     MediaRow(title: "“\(entry.query)”", items: entry.results, trailing: AnyView(

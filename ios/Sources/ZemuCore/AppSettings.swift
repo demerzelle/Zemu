@@ -127,6 +127,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var catRaveUnlocked = false
     /** The animated theme to return to when the 30-second Cat Rave ends. */
     public var themeBeforeRave = "NONE"
+    /** Liquid Glass and Liquid Chrome themes: how strongly surfaces bend light, 0…1. */
+    public var glassRefraction = 0.85
+    public var chromeRefraction = 0.85
 
     public init() {}
 
@@ -149,6 +152,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         avoidDolbyVision = v(.avoidDolbyVision, d.avoidDolbyVision)
         preferSoftwareDecoders = v(.preferSoftwareDecoders, d.preferSoftwareDecoders)
         theme = v(.theme, d.theme)
+        glassRefraction = v(.glassRefraction, d.glassRefraction)
+        chromeRefraction = v(.chromeRefraction, d.chromeRefraction)
         customAccent = v(.customAccent, d.customAccent)
         customBackground = v(.customBackground, d.customBackground)
         dynamicTheme = v(.dynamicTheme, d.dynamicTheme)

@@ -93,7 +93,7 @@ struct SettingsView: View {
             }
         }
         }
-        .background(P.background)
+        .background(PageBackground())
     }
 }
 
@@ -131,7 +131,7 @@ struct ToggleRow: View {
             Toggle("", isOn: Binding(get: { isOn }, set: set)).toggleStyle(.switch).labelsHidden().tint(P.accent)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
+        .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
         .zFocus(activate: { set(!isOn) }, cornerRadius: 10)
     }
 }
@@ -160,11 +160,11 @@ struct ActionRow: View {
             HStack {
                 Text(title).font(.system(size: 14, weight: .semibold))
                 Spacer()
-                Text(value).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).lineLimit(1)
+                Text(value).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).marquee()
                 Image(systemName: icon).font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.textMuted)
             }
             .padding(.horizontal, 16).padding(.vertical, 13)
-            .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
+            .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -208,10 +208,8 @@ private struct AddonsSettings: View {
             Text(providers.isEmpty ? "No metadata provider installed: catalogs and title details won't load. Install Cinemeta or another metadata addon."
                  : "Used first for title details and the Movies and Series pages. Others fill in when it has nothing.")
                 .font(.system(size: 12.5)).foregroundStyle(providers.isEmpty ? Palette.cached : Palette.textSecondary)
-            FlowChips {
-                Chip(title: "Automatic", selected: s.metaProvider.isEmpty || !providers.contains { $0.manifest.id == s.metaProvider }) { update { $0.metaProvider = "" } }
-                ForEach(providers) { a in Chip(title: a.manifest.name, selected: s.metaProvider == a.manifest.id) { update { $0.metaProvider = a.manifest.id } } }
-            }
+            Choices(title: "Provider", options: [("", "Automatic")] + providers.map { ($0.manifest.id, $0.manifest.name) },
+                    current: providers.contains { $0.manifest.id == s.metaProvider } ? s.metaProvider : "") { id in update { $0.metaProvider = id } }
         }
         SettingsGroup(title: "Cast & studio info (TMDB)", note: "A free TMDB API key adds cast photos, studios and each actor's other titles: themoviedb.org → Settings → API. Without one, cast comes from TVmaze, Wikidata and IMDb.") {
             HStack(spacing: 10) {
@@ -236,13 +234,6 @@ private struct AddonsSettings: View {
 }
 
 /** Wrapping row of chips. */
-struct FlowChips<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { content() }.padding(.vertical, 4) }
-    }
-}
-
 /** Link a debrid account by approving a code on the service's site, or by pasting its API key. */
 private struct DebridSection: View {
     var app = AppModel.shared
@@ -255,10 +246,8 @@ private struct DebridSection: View {
             Text(a != nil ? "Linked to \(a!.service.label). Torrentio is set up with this account, so cached streams show up on every title. Pick another service to switch."
                  : "Link your debrid account and Zemu sets up a stream addon with it. Pick your service, then approve with a code or paste your API key.")
                 .font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary)
-            FlowChips {
-                ForEach(DebridService.allCases, id: \.self) { s in Chip(title: s.label, selected: a?.service == s) { linking = s } }
-                if let a { ZButton(title: "Unlink \(a.service.label)", small: true) { app.session.unlinkDebrid(); status = "\(a.service.label) unlinked." } }
-            }
+            Choices(title: "Service", options: DebridService.allCases.map { ($0, $0.label) }, current: a?.service) { linking = $0 }
+            if let a { ZButton(title: "Unlink \(a.service.label)", small: true) { app.session.unlinkDebrid(); status = "\(a.service.label) unlinked." } }
             if let status { Text(status).font(.system(size: 12.5)).foregroundStyle(Palette.cached) }
         }
         .sheet(item: $linking) { s in
@@ -497,13 +486,8 @@ struct SubtitleStyleEditor: View {
         }
     }
 
-    private func row<T: Equatable>(_ label: String, _ options: [(T, String)], _ current: T, _ pick: @escaping (T) -> Void) -> some View {
-        HStack(spacing: 8) {
-            Text(label).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).frame(width: 90, alignment: .leading)
-            ForEach(options.indices, id: \.self) { i in
-                Chip(title: options[i].1, selected: options[i].0 == current) { pick(options[i].0); onChange() }
-            }
-        }
+    private func row<T: Hashable>(_ label: String, _ options: [(T, String)], _ current: T, _ pick: @escaping (T) -> Void) -> some View {
+        Choices(title: label, options: options, current: current, label: label) { pick($0); onChange() }
     }
 }
 
@@ -511,7 +495,7 @@ private struct SubtitleSettings: View {
     var app = AppModel.shared
     var body: some View {
         let s = app.settings
-        SettingsGroup(title: "Subtitle appearance", note: "Also available in the player (press C).") {
+        SettingsGroup(title: "Subtitle appearance", note: "Also available in the player.") {
             SubtitlePreview(settings: s)
             SubtitleStyleEditor()
             ToggleRow(title: "Keep styled subtitles as authored", description: "ASS/SSA subtitles (common for anime) keep their own fonts, colors and signs; only the size follows your setting. Off applies your style to them too.", isOn: s.keepStyledSubtitles) { v in update { $0.keepStyledSubtitles = v } }
@@ -566,6 +550,14 @@ private struct AppearanceSettings: View {
                 }
                 .padding(.vertical, 6)
             }
+            if s.theme == ThemePreset.LIQUID_GLASS.rawValue {
+                RefractionSlider(title: "Glass refraction", value: s.glassRefraction,
+                                 note: "Low: frosted glass. High: clear glass with a strongly bending, colour-fringed edge.") { v in update { $0.glassRefraction = v } }
+            }
+            if s.theme == ThemePreset.LIQUID_CHROME.rawValue {
+                RefractionSlider(title: "Chrome refraction", value: s.chromeRefraction,
+                                 note: "Low: calm, polished metal. High: deep flowing folds and rainbow-split highlights.") { v in update { $0.chromeRefraction = v } }
+            }
             if s.theme == ThemePreset.custom {
                 HStack(spacing: 28) {
                     ColorPicker("Accent", selection: Binding(get: { Color(argb: s.customAccent) }, set: { c in update { $0.customAccent = c.argb | 0xFF000000 } }), supportsOpacity: false)
@@ -577,13 +569,11 @@ private struct AppearanceSettings: View {
                     }), supportsOpacity: false)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
+                .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
             }
         }
         SettingsGroup(title: "Animated themes", note: "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. RGB, Snowfall and Rain keep your color theme.") {
-            FlowChips {
-                ForEach(DynamicTheme.allCases, id: \.self) { d in Chip(title: d.label, selected: s.dynamicTheme == d.rawValue) { update { $0.dynamicTheme = d.rawValue } } }
-            }
+            Choices(title: "Animated theme", options: DynamicTheme.allCases.map { ($0.rawValue, $0.label) }, current: s.dynamicTheme) { v in update { $0.dynamicTheme = v } }
         }
         SettingsGroup(title: "Notifications") {
             ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in
@@ -591,6 +581,35 @@ private struct AppearanceSettings: View {
                 if v { Integrations.shared.requestNotificationPermission() }
             }
         }
+    }
+}
+
+/** 0…1 strength for the liquid themes, with a live preview button. */
+private struct RefractionSlider: View {
+    let title: String
+    let value: Double
+    let note: String
+    let set: (Double) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Text(value < 0.34 ? "Light" : value < 0.67 ? "Medium" : "Heavy").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
+            }
+            Slider(value: Binding(get: { value }, set: set), in: 0...1).tint(P.accent)
+            Text(note).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                ZButton(title: "Play", icon: "play.fill", primary: true) {}
+                ZButton(title: "More Info", icon: "info.circle") {}
+                IconButton(icon: "plus", help: "Preview") {}
+            }
+            .allowsHitTesting(false)
+            .padding(.top, 4)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.04)))
     }
 }
 
@@ -610,7 +629,7 @@ private struct ThemeSwatch: View {
                     Circle().fill(colors.surface).frame(width: 20, height: 20)
                 }
                 RoundedRectangle(cornerRadius: 3).fill(colors.accent).frame(height: 6)
-                Text((selected ? "✓ " : "") + label).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text((selected ? "✓ " : "") + label).font(.system(size: 12, weight: .semibold)).marquee()
             }
             .padding(12)
             .frame(width: 128)
@@ -645,7 +664,7 @@ private struct DeviceSettings: View {
             Text(value).font(.system(size: 13, weight: .bold)).foregroundStyle(ok ? Palette.match : Palette.textMuted)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
+        .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
     }
 }
 

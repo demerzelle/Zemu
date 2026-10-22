@@ -9,7 +9,7 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            P.background.ignoresSafeArea()
+            PageBackground().ignoresSafeArea()
             if app.picking {
                 ProfilePicker()
             } else if sizeClass == .compact {
@@ -100,6 +100,33 @@ private struct TabBar: View {
 
     var body: some View {
         let current = app.stack.isEmpty ? app.section : nil
+        if P.style == .solid { bar(current) } else { floatingBar(current) }
+    }
+
+    /** Glass and chrome: a floating capsule over the content, like the iOS 26 tab bar. */
+    private func floatingBar(_ current: Section?) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Section.allCases) { s in
+                Button { app.go(s) } label: {
+                    Image(systemName: s.icon).font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(current == s ? (P.style == .chrome ? P.onAccent : P.accent) : .white)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background {
+                            if current == s { Capsule().fill(P.style == .chrome ? AnyShapeStyle(LinearGradient(colors: [.white, Color(argb: 0xFFB9BEC6)], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Color.white.opacity(0.16))).padding(.horizontal, 2).padding(.vertical, 4) }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(s.label)
+                .accessibilityAddTraits(current == s ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 6).padding(.vertical, 4)
+        .zSurface(Capsule(), fill: P.surface, interactive: false)
+        .padding(.horizontal, 12).padding(.bottom, 2).padding(.top, 6)
+    }
+
+    private func bar(_ current: Section?) -> some View {
         HStack(spacing: 0) {
             ForEach(Section.allCases) { s in
                 Button { app.go(s) } label: {
@@ -145,7 +172,7 @@ private struct Sidebar: View {
         .padding(.horizontal, 12)
         .frame(width: expanded ? 220 : 76, alignment: .leading)
         .frame(maxHeight: .infinity)
-        .background(P.background.opacity(0.97))
+        .background(P.style == .solid ? AnyShapeStyle(P.background.opacity(0.97)) : AnyShapeStyle(.ultraThinMaterial))
         .overlay(alignment: .trailing) { Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1) }
         .onHover { h in withAnimation(.easeOut(duration: 0.18)) { hovering = h } }
         .animation(.easeOut(duration: 0.18), value: expanded)
@@ -222,9 +249,22 @@ private struct Logo: View {
     static let mark = Bundle.main.image(forResource: "logo_mark")
     static let wordmark = Bundle.main.image(forResource: "logo_wordmark")
 
+    @State private var glowing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        if let img = expanded ? Self.wordmark : Self.mark {
-            Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: expanded ? 150 : 34, alignment: .leading)
+        if expanded, let img = Self.wordmark {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: 150, alignment: .leading)
+        } else if !expanded, let img = Self.mark {
+            // White mark tinted with the theme's accent, with a slow pulsing glow in the same color.
+            Image(nsImage: img).renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
+                .foregroundStyle(P.accent)
+                .shadow(color: P.accent.opacity(glowing ? 0.95 : 0.35), radius: glowing ? 9 : 4)
+                .frame(maxWidth: 34, alignment: .leading)
+                .onAppear {
+                    guard !reduceMotion else { return }
+                    withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { glowing = true }
+                }
         } else {
             Text(expanded ? "ZEMU" : "Z").font(.system(size: 26, weight: .black)).foregroundStyle(P.accent).tracking(2)
         }

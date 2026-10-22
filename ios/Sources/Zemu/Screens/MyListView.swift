@@ -71,7 +71,7 @@ struct MyListView: View {
                 Text("My List").font(.system(size: 30, weight: .black))
                 Text("\(all.count) title\(all.count == 1 ? "" : "s")").font(.system(size: 14)).foregroundStyle(Palette.textMuted)
             }
-            .padding(.horizontal, 48).padding(.top, 40)
+            .padding(.horizontal, pagePad).padding(.top, 40)
 
             if !all.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -98,7 +98,7 @@ struct MyListView: View {
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(Color.white.opacity(0.08)))
                     }
-                    .padding(.horizontal, 48).padding(.vertical, 14)
+                    .padding(.horizontal, pagePad).padding(.vertical, 14)
                 }
             }
 
@@ -123,7 +123,7 @@ struct MyListView: View {
                                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 18, alignment: .top)], alignment: .leading, spacing: 22) {
                                     ForEach(sec.items) { m in PosterCard(meta: m) }
                                 }
-                                .padding(.horizontal, 48)
+                                .padding(.horizontal, pagePad)
                                 .padding(.bottom, 18)
                             } header: {
                                 if group != .NONE {
@@ -132,7 +132,7 @@ struct MyListView: View {
                                         count(sec.items.count)
                                         Spacer()
                                     }
-                                    .padding(.horizontal, 48).padding(.vertical, 10)
+                                    .padding(.horizontal, pagePad).padding(.vertical, 10)
                                     .background(P.background.opacity(0.94))
                                 }
                             }
@@ -142,7 +142,7 @@ struct MyListView: View {
                 }
             }
         }
-        .background(P.background)
+        .background(PageBackground())
     }
 
     private func count(_ n: Int) -> some View {

@@ -17,15 +17,14 @@ struct ZButton: View {
         Button(action: action) {
             HStack(spacing: 7) {
                 if let icon { Image(systemName: icon).font(.system(size: small ? 11 : 13, weight: .bold)) }
-                Text(title).font(.system(size: small ? 12 : 14, weight: .semibold)).lineLimit(1)
+                Text(title).font(.system(size: small ? 12 : 14, weight: .semibold)).marquee()
             }
             .padding(.horizontal, small ? 12 : 18)
             .padding(.vertical, small ? 6 : 9)
             .foregroundStyle(primary ? P.onAccent : .white)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(primary ? P.accent.opacity(hover ? 0.85 : 1) : Color.white.opacity(hover ? 0.24 : 0.14))
-            )
+            // Glass and chrome use Apple's capsule buttons.
+            .zSurface(RoundedRectangle(cornerRadius: P.style == .solid ? 8 : 100, style: .continuous),
+                      fill: primary ? P.accent.opacity(hover ? 0.85 : 1) : Color.white.opacity(hover ? 0.24 : 0.14), prominent: primary)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -53,7 +52,7 @@ struct IconButton: View {
                 .font(.system(size: size * 0.42, weight: .semibold))
                 .frame(width: size, height: size)
                 .foregroundStyle(active ? P.onAccent : .white)
-                .background(Circle().fill(active ? P.accent.opacity(0.9) : Color.white.opacity(hover ? 0.26 : 0.14)))
+                .zSurface(Circle(), fill: active ? P.accent.opacity(0.9) : Color.white.opacity(hover ? 0.26 : 0.14), prominent: active)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -77,13 +76,13 @@ struct Chip: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 if let icon { Image(systemName: icon).font(.system(size: 10, weight: .bold)) }
-                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
+                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).marquee()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .foregroundStyle(selected ? P.onAccent : .white)
-            .background(Capsule().fill(selected ? P.accent : Color.white.opacity(hover ? 0.2 : 0.1)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(selected ? 0 : 0.12)))
+            .zSurface(Capsule(), fill: selected ? P.accent : Color.white.opacity(hover ? 0.2 : 0.1), prominent: selected)
+            .overlay(Capsule().strokeBorder(Color.white.opacity(selected || P.style != .solid ? 0 : 0.12)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -135,14 +134,14 @@ struct MenuChip: View {
     var body: some View {
         ZMenu(title: heading ?? title, items: items) { lit in
             HStack(spacing: 4) {
-                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
+                Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).marquee()
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .foregroundStyle(selected ? P.onAccent : .white)
-            .background(Capsule().fill(selected ? P.accent : Color.white.opacity(lit ? 0.2 : 0.1)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(selected ? 0 : 0.12)))
+            .zSurface(Capsule(), fill: selected ? P.accent : Color.white.opacity(lit ? 0.2 : 0.1), prominent: selected)
+            .overlay(Capsule().strokeBorder(Color.white.opacity(selected || P.style != .solid ? 0 : 0.12)))
         }
     }
 }
@@ -349,4 +348,97 @@ struct FlowLayout: Layout {
             lineH = max(lineH, s.height)
         }
     }
+}
+
+/**
+ * A single choice: a row of chips when they all fit the width, otherwise one dropdown (phones in
+ * portrait), so options are never cut off or hidden off-screen.
+ */
+struct Choices<T: Hashable>: View {
+    let title: String
+    let options: [(T, String)]
+    let current: T?
+    /** Shown before the chips (e.g. "Edge"); the dropdown uses [title] instead. */
+    var label: String?
+    let pick: (T) -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                if let label { Text(label).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).frame(width: 90, alignment: .leading) }
+                ForEach(options, id: \.0) { o in Chip(title: o.1, selected: o.0 == current) { pick(o.0) } }
+            }
+            .fixedSize()
+            Menu {
+                ForEach(options, id: \.0) { o in
+                    Button { pick(o.0) } label: {
+                        if o.0 == current { Label(o.1, systemImage: "checkmark") } else { Text(o.1) }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(label ?? title).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(options.first { $0.0 == current }?.1 ?? "Choose").font(.system(size: 14, weight: .semibold)).marquee()
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.textMuted)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 11)
+                .zSurface(RoundedRectangle(cornerRadius: P.style == .solid ? 10 : 100, style: .continuous), fill: P.surface)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+/** Page side margins: tighter on iPhone so text and rows aren't squeezed. */
+@MainActor var pagePad: CGFloat { UIDevice.current.userInterfaceIdiom == .phone ? 16 : 48 }
+
+extension View {
+    /**
+     * One line of text that scrolls sideways when it doesn't fit: waits, glides to the end, waits,
+     * jumps back. Text that fits stays still (and its timeline is paused).
+     */
+    func marquee() -> some View { modifier(Marquee()) }
+}
+
+private struct Marquee: ViewModifier {
+    @State private var textWidth: CGFloat = 0
+    @State private var boxWidth: CGFloat = 0
+    private let speed: CGFloat = 32 // points per second
+    private let pause = 1.6
+
+    func body(content: Content) -> some View {
+        let overflow = max(0, textWidth - boxWidth)
+        // The truncated copy sizes the box: as wide as offered (or the text), one line high.
+        content.lineLimit(1).opacity(0)
+            .overlay(alignment: .leading) {
+                GeometryReader { box in
+                    TimelineView(.animation(minimumInterval: 1 / 30, paused: overflow < 1)) { tl in
+                        content.lineLimit(1).fixedSize()
+                            .background(GeometryReader { g in Color.clear.preference(key: WidthKey.self, value: g.size.width) })
+                            .offset(x: -offset(tl.date.timeIntervalSinceReferenceDate, overflow))
+                    }
+                    .frame(width: box.size.width, alignment: .leading)
+                    .onAppear { boxWidth = box.size.width }
+                    .onChange(of: box.size.width) { _, w in boxWidth = w }
+                }
+                .clipped()
+            }
+            .onPreferenceChange(WidthKey.self) { textWidth = $0 }
+            .accessibilityRepresentation { content.lineLimit(1) }
+    }
+
+    private func offset(_ t: TimeInterval, _ overflow: CGFloat) -> CGFloat {
+        guard overflow >= 1 else { return 0 }
+        let travel = Double(overflow / speed)
+        let phase = t.truncatingRemainder(dividingBy: pause + travel + pause)
+        return CGFloat(min(1, max(0, (phase - pause) / travel))) * overflow
+    }
+}
+
+private struct WidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

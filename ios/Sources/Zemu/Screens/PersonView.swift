@@ -90,7 +90,7 @@ struct PersonView: View {
             else if let e = vm?.error { CenteredMessage("Couldn't load this person", e) }
             else { CenteredMessage("Loading…") }
         }
-        .background(P.background)
+        .background(PageBackground())
         .onAppear { if vm == nil { vm = PersonModel(app.session, key: key) } }
     }
 
@@ -111,7 +111,7 @@ struct PersonView: View {
                         Text("\(p.movies.count) movies · \(p.series.count) series").font(.system(size: 12.5)).foregroundStyle(Palette.textMuted)
                     }
                 }
-                .padding(.horizontal, 48)
+                .padding(.horizontal, pagePad)
                 .padding(.top, 56)
                 if !p.movies.isEmpty {
                     MediaRow(title: "Movies", items: p.movies) { m in creditCard(vm, m) }

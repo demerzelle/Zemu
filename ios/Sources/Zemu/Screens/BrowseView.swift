@@ -208,6 +208,7 @@ struct BrowseView: View {
         let f = vm.filters
         let settings = app.settings
         let title = type == "series" ? "Series" : type == "anime" ? "Anime" : "Movies"
+        let phone = UIDevice.current.userInterfaceIdiom == .phone
         let genreAllowed = vm.catalogs.first { $0.id == f.catalog }?.genres != false
         let newEpisodes = app.session.newEpisodes.items.filter { type == "series" ? !$0.meta.isAnime : type == "anime" ? $0.meta.isAnime : false }
 
@@ -220,7 +221,7 @@ struct BrowseView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if heroH > 0 {
                     HeroInfo(meta: hero, matchPercent: hero.map(app.session.matchPercent), compact: heroH < 250 || geo.size.width < 700)
-                        .frame(height: heroH, alignment: .bottom)
+                        .frame(minHeight: heroH, alignment: .bottom) // grows instead of pushing the logo off the top (short landscape screens)
                 } else {
                     Spacer().frame(height: 36)
                 }
@@ -228,7 +229,18 @@ struct BrowseView: View {
                     HStack(spacing: 8) {
                         Text(title).font(.system(size: 22, weight: .black)).padding(.trailing, 6)
                         if vm.isAnime {
-                            ForEach(AnimeSection.allCases, id: \.self) { s in Chip(title: s.label, selected: f.section == s) { vm.setSection(s) } }
+                            if phone {
+                                MenuChip(title: f.section.label, heading: "Section") {
+                                    choiceItems(AnimeSection.allCases.map { ($0, $0.label) }, current: f.section) { vm.setSection($0) }
+                                }
+                            } else {
+                                ForEach(AnimeSection.allCases, id: \.self) { s in Chip(title: s.label, selected: f.section == s) { vm.setSection(s) } }
+                            }
+                            MenuChip(title: vm.catalogs.first { $0.id == f.catalog }?.label ?? "Catalog", heading: "Catalog") {
+                                choiceItems(vm.catalogs.map { ($0.id, $0.label) }, current: f.catalog) { id in vm.setFilters { $0.catalog = id } }
+                            }
+                        } else if phone {
+                            // Phones: one dropdown instead of a row of catalog chips running off-screen.
                             MenuChip(title: vm.catalogs.first { $0.id == f.catalog }?.label ?? "Catalog", heading: "Catalog") {
                                 choiceItems(vm.catalogs.map { ($0.id, $0.label) }, current: f.catalog) { id in vm.setFilters { $0.catalog = id } }
                             }
@@ -251,7 +263,7 @@ struct BrowseView: View {
                         }
                         Text(vm.loading ? "loading…" : "\(items.count) titles").font(.system(size: 12)).foregroundStyle(Palette.textMuted).padding(.leading, 6)
                     }
-                    .padding(.horizontal, 48).padding(.vertical, 12)
+                    .padding(.horizontal, pagePad).padding(.vertical, 12)
                 }
                 if let e = vm.error, items.isEmpty {
                     CenteredMessage("Couldn't load titles", e)
@@ -260,13 +272,13 @@ struct BrowseView: View {
                 } else if items.isEmpty {
                     CenteredMessage("Loading…")
                 } else {
-                    PosterGrid(items: items, onNearEnd: { vm.loadMore() }, onHover: { hovered = $0 }) {
+                    PosterGrid(items: items, onNearEnd: { vm.loadMore() }, onHover: { hovered = $0 }, onLead: { hovered = $0 }) {
                         if !newEpisodes.isEmpty {
                             MediaRow(title: "New Episodes", items: newEpisodes.map(\.meta)) { m in
                                 PosterCard(meta: m, badge: newEpisodes.first { $0.meta.id == m.id }?.badge, onHover: { hovered = $0 })
                             }
                             .padding(.horizontal, -48)
-                            .padding(.horizontal, 48)
+                            .padding(.horizontal, pagePad)
                         }
                     }
                 }

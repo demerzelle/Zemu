@@ -176,60 +176,92 @@ struct HomeView: View {
     var app = AppModel.shared
     @State private var hero: Meta?
     @State private var hovered: Meta?
+    /** Each row's leftmost title (as scrolled), and the row at the top of the list. */
+    @State private var leads: [String: Meta] = [:]
+    @State private var topRow: String?
 
     var body: some View {
         let model = app.session.home
         let rows = model.rows
-        let settings = app.settings
         GeometryReader { geo in
-        let heroH = min(360, max(150, geo.size.height * 0.42))
+        // Portrait: the hero stays put and only the rows scroll under it.
+        let pinned = geo.size.height > geo.size.width
+        let heroH = pinned ? min(360, max(150, geo.size.height * 0.38)) : min(360, max(150, geo.size.height * 0.42))
         ZStack(alignment: .top) {
             P.background
             // No autoplaying hero trailers on iOS: YouTube's mobile embed keeps its pause overlay over the hero.
             Backdrop(meta: hero, trailerAfter: nil)
                 .frame(height: heroH + 260)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HeroInfo(meta: hero, matchPercent: hero.map(app.session.matchPercent), compact: heroH < 280 || geo.size.width < 700)
-                        .frame(height: heroH, alignment: .bottom)
-                        .padding(.bottom, 8)
-                    if model.noStreamAddons {
-                        HStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.cached)
-                            Text("No stream addon installed yet. Link your debrid account or add a debrid-enabled addon (AIOStreams, Torrentio, Comet, MediaFusion…) to watch.")
-                                .foregroundStyle(Palette.cached).font(.system(size: 13))
-                            ZButton(title: "Set up", small: true) { app.go(.addons) }
-                        }
-                        .padding(.horizontal, 48)
-                    }
-                    if rows.isEmpty && model.loading {
-                        Text("Loading catalogs…").foregroundStyle(Palette.textSecondary).padding(.horizontal, 48)
-                    } else if rows.isEmpty, let e = model.error {
-                        CenteredMessage(title: "Nothing to show", message: e) { ZButton(title: "Retry", primary: true) { model.retry() } }
-                    }
-                    ForEach(rows) { row in
-                        MediaRow(title: row.title, items: row.items, spacing: row.style == .landscape ? 16 : 14) { m in
-                            switch row.style {
-                            case .landscape:
-                                LandscapeCard(meta: m, subtitle: row.subtitles[m.id], progress: row.progress[m.id], onHover: hover, resume: row.resume[m.id])
-                            case .poster:
-                                PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover)
-                            }
-                        }
+            if pinned {
+                VStack(alignment: .leading, spacing: 0) {
+                    heroInfo(heroH, wide: geo.size.width >= 700).padding(.bottom, 8)
+                    ScrollView { rowList(model, rows).padding(.top, 6) }
+                        .scrollPosition(id: $topRow, anchor: .top)
+                        // Posters fade out under the hero instead of being cut off.
+                        .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.035)], startPoint: .top, endPoint: .bottom))
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        heroInfo(heroH, wide: geo.size.width >= 700).padding(.bottom, 8)
+                        rowList(model, rows)
                     }
                 }
-                .padding(.bottom, 48)
+                .scrollPosition(id: $topRow, anchor: .top)
             }
         }
         }
         .onChange(of: rows.first?.items.first?.id) { _, _ in if hero == nil { hero = rows.first?.items.first } }
         .onAppear { if hero == nil { hero = rows.first?.items.first } }
+        // Scrolling down: the hero shows the title at the left of the row now on top.
+        .onChange(of: topRow) { _, id in
+            if let id, let row = rows.first(where: { $0.id == id }) { hovered = leads[id] ?? row.items.first }
+        }
         .task(id: hovered?.id) {
-            // Debounce so sweeping the mouse across a row doesn't thrash the backdrop.
+            // Debounce so a fast swipe across a row doesn't thrash the backdrop.
             guard let h = hovered else { return }
             try? await Task.sleep(nanoseconds: 260_000_000)
             if !Task.isCancelled { hero = h }
         }
+    }
+
+    private func heroInfo(_ heroH: CGFloat, wide: Bool) -> some View {
+        HeroInfo(meta: hero, matchPercent: hero.map(app.session.matchPercent), compact: heroH < 280 || !wide)
+            .frame(minHeight: heroH, alignment: .bottom) // grows instead of pushing the logo off the top (short landscape screens)
+    }
+
+    private func rowList(_ model: HomeModel, _ rows: [HomeRow]) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if model.noStreamAddons {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.cached)
+                    Text("No stream addon installed yet. Link your debrid account or add a debrid-enabled addon (AIOStreams, Torrentio, Comet, MediaFusion…) to watch.")
+                        .foregroundStyle(Palette.cached).font(.system(size: 13))
+                    ZButton(title: "Set up", small: true) { app.go(.addons) }
+                }
+                .padding(.horizontal, pagePad)
+            }
+            if rows.isEmpty && model.loading {
+                Text("Loading catalogs…").foregroundStyle(Palette.textSecondary).padding(.horizontal, pagePad)
+            } else if rows.isEmpty, let e = model.error {
+                CenteredMessage(title: "Nothing to show", message: e) { ZButton(title: "Retry", primary: true) { model.retry() } }
+            }
+            ForEach(rows) { row in
+                MediaRow(title: row.title, items: row.items, spacing: row.style == .landscape ? 16 : 14, onLead: { m in
+                    leads[row.id] = m
+                    hovered = m
+                }) { m in
+                    switch row.style {
+                    case .landscape:
+                        LandscapeCard(meta: m, subtitle: row.subtitles[m.id], progress: row.progress[m.id], onHover: hover, resume: row.resume[m.id])
+                    case .poster:
+                        PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover)
+                    }
+                }
+            }
+        }
+        .scrollTargetLayout()
+        .padding(.bottom, 48)
     }
 
     private func hover(_ m: Meta) { hovered = m }

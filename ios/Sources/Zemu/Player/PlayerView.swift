@@ -108,9 +108,9 @@ struct PlayerView: View {
             HStack(alignment: .top, spacing: 16) {
                 IconButton(icon: "chevron.left", help: "Back", size: 40) { p.close() }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(p.title).font(.system(size: 22, weight: .black)).lineLimit(1)
-                    if let l = p.label { Text(l).font(.system(size: 14)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
-                    Text("\(p.streamLabel)  ·  \(p.engineName)").font(.system(size: 12)).foregroundStyle(Palette.textMuted).lineLimit(1)
+                    Text(p.title).font(.system(size: 22, weight: .black)).marquee()
+                    if let l = p.label { Text(l).font(.system(size: 14)).foregroundStyle(Palette.textSecondary).marquee() }
+                    Text("\(p.streamLabel)  ·  \(p.engineName)").font(.system(size: 12)).foregroundStyle(Palette.textMuted).marquee()
                 }
                 Spacer()
             }
@@ -311,7 +311,7 @@ struct PlayerView: View {
                 .padding(24)
                 .frame(maxWidth: 560, alignment: .leading)
                 .padding(16)
-                .background(RoundedRectangle(cornerRadius: 16).fill(P.surface))
+                .zSurface(RoundedRectangle(cornerRadius: 16), fill: P.surface, interactive: false)
         }
     }
 }

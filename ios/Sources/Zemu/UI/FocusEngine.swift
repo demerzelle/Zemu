@@ -76,7 +76,7 @@ struct ActionMenuOverlay: View {
             }
             .padding(14)
             .frame(maxWidth: 380)
-            .background(RoundedRectangle(cornerRadius: 14).fill(P.surface))
+            .zSurface(RoundedRectangle(cornerRadius: 14), fill: P.surface, interactive: false)
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.1)))
             .shadow(color: .black.opacity(0.5), radius: 30)
             .padding(16)

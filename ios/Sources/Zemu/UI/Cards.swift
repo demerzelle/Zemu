@@ -57,7 +57,7 @@ struct PosterCard: View {
                 .scaleEffect(hover ? 1.06 : 1)
                 .shadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
 
-                Text(meta.title).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+                Text(meta.title).font(.system(size: 12.5, weight: .medium)).marquee()
                     .foregroundStyle(hover ? .white : Palette.textSecondary)
                     .frame(width: width, alignment: .leading)
             }
@@ -100,8 +100,8 @@ struct LandscapeCard: View {
                     RemoteImage(url: meta.backdropUrl, maxPixel: 640)
                     LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(meta.title).font(.system(size: 14, weight: .bold)).lineLimit(1)
-                        if let subtitle { Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.textSecondary).lineLimit(1) }
+                        Text(meta.title).font(.system(size: 14, weight: .bold)).marquee()
+                        if let subtitle { Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.textSecondary).marquee() }
                     }
                     .padding(10)
                     .padding(.bottom, progress != nil ? 6 : 0)
@@ -153,6 +153,8 @@ struct MediaRow<Item: Hashable, Content: View>: View {
     let items: [Item]
     var spacing: CGFloat = 14
     var trailing: AnyView?
+    /** Called with the leftmost item when the row is scrolled (the hero follows it). */
+    var onLead: ((Item) -> Void)?
     @ViewBuilder let content: (Item) -> Content
 
     @State private var hover = false
@@ -165,7 +167,7 @@ struct MediaRow<Item: Hashable, Content: View>: View {
                 if let trailing { trailing }
                 Spacer()
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
             ZStack {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: spacing) {
@@ -173,7 +175,7 @@ struct MediaRow<Item: Hashable, Content: View>: View {
                             content(item).id(i)
                         }
                     }
-                    .padding(.horizontal, 48)
+                    .padding(.horizontal, pagePad)
                     .padding(.vertical, 12)
                     .scrollTargetLayout()
                 }
@@ -189,6 +191,9 @@ struct MediaRow<Item: Hashable, Content: View>: View {
             }
         }
         .onHover { hover = $0 }
+        .onChange(of: scrollTo) { _, i in
+            if let i, items.indices.contains(i) { onLead?(items[i]) }
+        }
     }
 
     private func page(_ dir: Int) {
@@ -213,7 +218,10 @@ struct PosterGrid<Header: View>: View {
     var onNearEnd: (() -> Void)?
     var onHover: ((Meta) -> Void)?
     var badges: [String: String] = [:]
+    /** Called with the top-left title as the grid scrolls (the hero follows it). */
+    var onLead: ((Meta) -> Void)?
     @ViewBuilder var header: () -> Header
+    @State private var lead: String?
 
     var body: some View {
         ScrollView {
@@ -224,16 +232,21 @@ struct PosterGrid<Header: View>: View {
                         .onAppear { if i >= items.count - 14 { onNearEnd?() } }
                 }
             }
-            .padding(.horizontal, 48)
+            .scrollTargetLayout()
+            .padding(.horizontal, pagePad)
             .padding(.vertical, 12)
             .padding(.bottom, 40)
+        }
+        .scrollPosition(id: $lead, anchor: .topLeading)
+        .onChange(of: lead) { _, id in
+            if let m = items.first(where: { $0.id == id }) { onLead?(m) }
         }
     }
 }
 
 extension PosterGrid where Header == EmptyView {
-    init(items: [Meta], minWidth: CGFloat = 150, onNearEnd: (() -> Void)? = nil, onHover: ((Meta) -> Void)? = nil, badges: [String: String] = [:]) {
-        self.items = items; self.minWidth = minWidth; self.onNearEnd = onNearEnd; self.onHover = onHover; self.badges = badges
+    init(items: [Meta], minWidth: CGFloat = 150, onNearEnd: (() -> Void)? = nil, onHover: ((Meta) -> Void)? = nil, badges: [String: String] = [:], onLead: ((Meta) -> Void)? = nil) {
+        self.items = items; self.minWidth = minWidth; self.onNearEnd = onNearEnd; self.onHover = onHover; self.badges = badges; self.onLead = onLead
         self.header = { EmptyView() }
     }
 }

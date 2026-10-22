@@ -142,11 +142,9 @@ struct AddonsView: View {
                         .font(.system(size: 13)).foregroundStyle(Palette.textSecondary).frame(maxWidth: 820, alignment: .leading)
                 }
                 DebridQuickLink()
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) { ForEach(vm.tabs, id: \.0) { k, label in Chip(title: label, selected: vm.tab == k) { vm.selectTab(k) } } }
-                }
+                Choices(title: "Show", options: vm.tabs.map { ($0.0, $0.1) }, current: vm.tab) { vm.selectTab($0) }
+                Choices(title: "Type", options: AddonTypeFilter.allCases.map { ($0, $0.label) }, current: vm.type) { vm.type = $0 }
                 HStack(spacing: 8) {
-                    ForEach(AddonTypeFilter.allCases, id: \.self) { t in Chip(title: t.label, selected: vm.type == t) { vm.type = t } }
                     TextField("Search addons", text: $vm.query).textFieldStyle(.roundedBorder).frame(maxWidth: 320)
                         .focused($field, equals: 1)
                         .zFocusText($vm.query, title: "Search addons", focus: { field = 1 })
@@ -192,10 +190,10 @@ struct AddonsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
             .padding(.vertical, 40)
         }
-        .background(P.background)
+        .background(PageBackground())
         .alert("Remove \(confirm?.0.manifest.name ?? "")?", isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
             Button("Remove Anyway", role: .destructive) { if let c = confirm { vm.uninstall(c.0) } }
             Button("Cancel", role: .cancel) {}
@@ -218,7 +216,7 @@ private struct DebridQuickLink: View {
             ZButton(title: account == nil ? "Link Debrid Account" : "Manage", small: true) { app.go(.settings) }
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
+        .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
     }
 }
 
@@ -276,7 +274,7 @@ private struct AddonCard: View {
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12).fill(P.surface))
+        .zSurface(RoundedRectangle(cornerRadius: 12), fill: P.surface, interactive: false)
         .contextMenu {
             Button("Copy Manifest URL") {
                 NSPasteboard.general.clearContents()

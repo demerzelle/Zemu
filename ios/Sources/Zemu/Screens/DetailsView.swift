@@ -37,7 +37,7 @@ private struct DetailsContent: View {
             CenteredMessage(title: "Couldn't load this title", message: "The metadata addon didn't respond.") {
                 ZButton(title: "Retry", primary: true) { Task { await vm.loadMeta() } }
             }
-            .background(P.background)
+            .background(PageBackground())
         }
     }
 
@@ -139,7 +139,7 @@ private struct DetailsContent: View {
                 Text("Best for this Mac: \(b)").font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary)
             }
         }
-        .padding(.horizontal, 48)
+        .padding(.horizontal, pagePad)
         .padding(.top, 64)
     }
 
@@ -164,11 +164,9 @@ private struct DetailsContent: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 SectionTitle(text: "Episodes").padding(.trailing, 8)
-                ForEach(vm.seasons, id: \.self) { s in
-                    Chip(title: s == 0 ? "Specials" : "Season \(s)", selected: s == season) { vm.selectedSeason = s }
-                }
+                Choices(title: "Season", options: vm.seasons.map { ($0, $0 == 0 ? "Specials" : "Season \($0)") }, current: season) { vm.selectedSeason = $0 }
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
             VStack(alignment: .leading, spacing: 4) {
                 if let shown {
                     Text([shown.season.map { "S\($0) E\(shown.episodeNumber)" }, shown.displayTitle, shown.released.map { String($0.prefix(10)) }].compactMap { $0 }.joined(separator: "  ·  "))
@@ -178,7 +176,7 @@ private struct DetailsContent: View {
                 }
             }
             .frame(maxWidth: 760, minHeight: 74, alignment: .topLeading)
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
             ScrollViewReader { rowProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
@@ -204,7 +202,7 @@ private struct DetailsContent: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 48).padding(.vertical, 10)
+                    .padding(.horizontal, pagePad).padding(.vertical, 10)
                 }
                 .onAppear { if let s = vm.selectedVideo { rowProxy.scrollTo(s.id, anchor: .leading) } }
                 .onChange(of: vm.selectedSeason) { _, _ in if let f = list.first { rowProxy.scrollTo(f.id, anchor: .leading) } }
@@ -224,7 +222,7 @@ private struct DetailsContent: View {
                 Spacer()
                 if !vm.streamsLoading { Chip(title: "Refresh", icon: "arrow.clockwise") { vm.reloadStreams() } }
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
             if let r, !r.cached.isEmpty { filterBar }
             Group {
                 if vm.streamsLoading {
@@ -250,7 +248,7 @@ private struct DetailsContent: View {
                     }
                 }
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, pagePad)
         }
     }
 
@@ -289,7 +287,7 @@ private struct DetailsContent: View {
                     MenuChip(title: "Sort: \(f.sort.label)", heading: "Sort streams") {
                         choiceItems(SortOption.allCases.map { ($0, $0.label) }, current: f.sort) { o in vm.updateFilter { $0.sort = o } }
                     }
-                    Chip(title: "Plays well on this Mac", selected: f.deviceFriendlyOnly) { vm.updateFilter { $0.deviceFriendlyOnly.toggle() } }
+                    Chip(title: "Plays well on this device", selected: f.deviceFriendlyOnly) { vm.updateFilter { $0.deviceFriendlyOnly.toggle() } }
                     ForEach(Self.barFacets, id: \.self) { kind in
                         let options = facets[kind] ?? []
                         let sel = f.selected[kind] ?? []
@@ -303,12 +301,12 @@ private struct DetailsContent: View {
                     Chip(title: "Hide CAM", selected: f.hideCam) { vm.updateFilter { $0.hideCam.toggle() } }
                     if f.activeCount > 0 { Chip(title: "Reset filters", icon: "xmark") { vm.updateFilter { $0 = FilterState(sort: $0.sort) } } }
                 }
-                .padding(.horizontal, 48).padding(.vertical, 4)
+                .padding(.horizontal, pagePad).padding(.vertical, 4)
             }
             let ext = vm.externalSubLangs
             if !ext.isEmpty {
                 Text("External subtitles available: " + ext.sorted().prefix(8).map(Languages.displayName).joined(separator: ", ") + (ext.count > 8 ? " +\(ext.count - 8) more" : ""))
-                    .font(.system(size: 12)).foregroundStyle(Palette.textMuted).padding(.horizontal, 48)
+                    .font(.system(size: 12)).foregroundStyle(Palette.textMuted).padding(.horizontal, pagePad)
             }
         }
     }
@@ -474,7 +472,7 @@ struct CastRow: View {
     var body: some View {
         let shown = expanded || people.count <= 9 ? people : Array(people.prefix(8))
         VStack(alignment: .leading, spacing: 8) {
-            SectionTitle(text: people.count > 1 ? "Cast  ·  \(people.count)" : "Cast").padding(.horizontal, 48)
+            SectionTitle(text: people.count > 1 ? "Cast  ·  \(people.count)" : "Cast").padding(.horizontal, pagePad)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 18) {
                     ForEach(shown, id: \.self) { p in
@@ -492,7 +490,7 @@ struct CastRow: View {
                         .zFocus(activate: { expanded = true }, cornerRadius: 48)
                     }
                 }
-                .padding(.horizontal, 48).padding(.vertical, 8)
+                .padding(.horizontal, pagePad).padding(.vertical, 8)
             }
         }
     }

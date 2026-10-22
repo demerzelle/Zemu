@@ -17,6 +17,9 @@ struct Backdrop: View {
 
     var body: some View {
         GeometryReader { geo in
+            // Phones: the image spans the whole width (no empty dark band on the left).
+            let full = geo.size.width < 700
+            let imageW = geo.size.width * (full ? 1 : 0.78)
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     if let m = meta {
@@ -25,17 +28,20 @@ struct Backdrop: View {
                             .transition(.opacity)
                     }
                 }
-                .frame(width: geo.size.width * 0.78, height: geo.size.height)
+                .frame(width: imageW, height: geo.size.height)
                 .animation(.easeInOut(duration: 0.5), value: meta?.id)
 
                 if showTrailer, !covered, let t = meta?.trailerId {
                     HeroTrailer(videoId: t, sound: trailerSound) { showTrailer = false }
-                        .frame(width: geo.size.width * 0.78, height: geo.size.height)
+                        .frame(width: imageW, height: geo.size.height)
                         .clipped()
                         .id(t)
                 }
 
-                LinearGradient(stops: [
+                LinearGradient(stops: full ? [
+                    .init(color: P.background.opacity(0.55), location: 0),
+                    .init(color: .clear, location: 0.65),
+                ] : [
                     .init(color: P.background, location: 0),
                     .init(color: P.background.opacity(0.92), location: 0.3),
                     .init(color: P.background.opacity(0.35), location: 0.6),
@@ -93,7 +99,7 @@ struct HeroInfo: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: meta?.id)
-        .padding(.leading, compact ? 24 : 48)
+        .padding(.leading, min(pagePad, compact ? 24 : 48))
         .padding(.trailing, 24)
         .frame(maxWidth: .infinity, alignment: .bottomLeading)
     }
