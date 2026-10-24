@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Zemu
+GenericName=Streaming
+Comment=Stremio-addon streaming client
+Exec=@BIN@ %u
+Icon=@ICON@
+Terminal=false
+Categories=AudioVideo;Video;Player;
+MimeType=x-scheme-handler/stremio;
+StartupWMClass=com-zemu-tv-desktop-MainKt

@@ -4,7 +4,7 @@
 #
 #   ./release.sh 1.0.2 "What changed (shown in the update prompt)"
 #
-# Bumps the version (Android + Roku), builds Zemu-AndroidTV-<v>.apk/.zip and Zemu-Roku-<v>.zip,
+# Bumps the version (Android + Roku), builds Zemu-AndroidTV-<v>.apk/.zip, Zemu-Roku-<v>.zip and Zemu-Linux-<v>.tar.gz,
 # commits, tags v<v>, pushes, and creates the release with the gh CLI.
 # Android only accepts the update if it's signed with the same key as the installed app, so the
 # script refuses to publish an APK signed with any other key (see RELEASE_CERT_SHA256).
@@ -42,6 +42,10 @@ cp "$APK" "$OUT/Zemu-AndroidTV-$V.apk"
 
 (cd roku && npx --prefix tools bsc --project bsconfig.json >/dev/null && rm -f out/zemu.zip && cd out/staging && zip -qr -9 ../zemu.zip . -x '.*')
 cp roku/out/zemu.zip "$OUT/Zemu-Roku-$V.zip"
+
+# Linux: Zemu's own updater looks for Zemu-Linux-<v>.tar.gz.
+./gradlew -q -p linux linuxTarball
+cp "linux/build/linux/Zemu-Linux-$V.tar.gz" "$OUT/"
 
 git commit -qam "Release $V"
 git tag "v$V"

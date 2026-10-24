@@ -1,7 +1,7 @@
 <p align="center"><img src="branding/zemu-wordmark.png" alt="Zemu" width="320"></p>
 
 <p align="center"><b>A TV app that looks and feels like a streaming service, for people who use Stremio addons and a debrid service.</b><br>
-Android TV · Google TV · Roku</p>
+Android TV · Google TV · Roku · Linux</p>
 
 <p align="center"><a href="https://github.com/demerzelle/Zemu/releases/latest"><b>Download the latest version</b></a></p>
 
@@ -52,11 +52,17 @@ Download the file for your TV from the [latest release](https://github.com/demer
 1. On the remote, press Home 3×, Up 2×, Right, Left, Right, Left, Right, and follow the steps to turn on developer mode and set a password.
 2. On a computer on the same Wi-Fi, open the address the TV shows, sign in as `rokudev` with that password, upload `Zemu-Roku-<version>.zip` and press **Install**.
 
+**Linux** (any distro with Java 17+; x64 and ARM64): download `Zemu-Linux-<version>.tar.gz`, then
+```bash
+tar -xzf Zemu-Linux-*.tar.gz && sh zemu/install.sh
+```
+It installs Java and mpv if needed (asks for your password), adds Zemu to your apps menu and the `zemu` command. Videos play in mpv. See [linux/README.md](linux/README.md).
+
 **Updates:** Android TV checks for a new release when it starts and offers **Update now** (allow Zemu to install apps the first time). Roku tells you a new version is out; install its zip the same way as above. To publish one: `./release.sh 1.0.2 "What changed"`.
 
 **Mac:** a Mac app is in `macos/`. The last packaged Mac build is in [release 1.0.0](https://github.com/demerzelle/Zemu/releases/tag/v1.0.0); newer versions have to be built from source.
 
-The Android TV app is the most complete. The Roku and Mac apps share most of its features but not all of them (for example, downloads are Android-only).
+The Android TV app is the most complete. The Roku, Mac and Linux apps share most of its features but not all of them (for example, downloads are Android and Linux only).
 
 ## First-time setup
 
@@ -114,5 +120,6 @@ recommend/   Taste profile, similarity scoring, % Match
 player/      Media3 player activity + external-player handoff
 ui/          Compose for TV screens: home, details, browse, search, my list, downloads, settings, themes
 roku/        The Roku app (BrightScript / SceneGraph)
+linux/       The Linux app (Compose Desktop, reusing the Android app's Kotlin)
 macos/       The macOS app (Swift)
 ```
