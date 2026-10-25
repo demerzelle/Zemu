@@ -48,7 +48,8 @@ data class DownloadState(val status: Int, val progress: Float, val bytes: Long, 
 
 /**
  * Downloads for offline playback, done by Zemu itself (Linux has no system download manager).
- * Files go to ~/Videos/Zemu (your XDG videos folder). Data is written to "<name>.part" and renamed
+ * Files go to the folder picked in Settings (by default ~/Videos/Zemu), series under
+ * <Series>/Season N. Data is written to "<name>.part" and renamed
  * when complete; an interrupted download resumes with an HTTP Range request, after network errors
  * (up to [MAX_RETRIES] times) and after Zemu restarts. Shared by every profile on the computer.
  */
@@ -65,7 +66,8 @@ class Downloads(context: Context, private val json: Json) {
     private val jobs = ConcurrentHashMap<Long, Job>()
     private val live = ConcurrentHashMap<Long, DownloadState>()
 
-    val folder: File by lazy {
+    /** The XDG videos folder's Zemu subfolder: where downloads go until you pick another. */
+    private val defaultFolder: File by lazy {
         val videos = runCatching {
             val p = ProcessBuilder("xdg-user-dir", "VIDEOS").redirectErrorStream(true).start()
             p.inputStream.bufferedReader().readText().trim().also { p.waitFor(2, TimeUnit.SECONDS) }
@@ -74,8 +76,32 @@ class Downloads(context: Context, private val json: Json) {
         File(videos, "Zemu")
     }
 
+    private val folderFile = File(context.filesDir, "download-folder.txt")
+
+    /** Where downloads go (Settings → Downloads → Download folder). */
+    val folderState = MutableStateFlow(runCatching { folderFile.readText().trim() }.getOrNull()?.takeIf { it.isNotBlank() }?.let(::File) ?: defaultFolder)
+    val folder: File get() = folderState.value
+
+    fun setFolder(dir: File) {
+        folderState.value = dir
+        runCatching { folderFile.writeText(dir.path) }
+    }
+
+    /** True when [dir] exists (or can be made) and Zemu can write to it. */
+    fun writable(dir: File) = (dir.isDirectory || dir.mkdirs()) && dir.canWrite()
+
     /** False when the downloads folder can't be created or written. */
-    val available: Boolean get() = folder.let { (it.isDirectory || it.mkdirs()) && it.canWrite() }
+    val available: Boolean get() = writable(folder)
+
+    /** Series episodes go to <root>/<Series>/Season N, movies straight into <root>. */
+    fun targetFor(meta: Meta, videoId: String, root: File = folder): File {
+        if (meta.type != "series") return root
+        val season = videoId.split(':').takeIf { it.size >= 3 && !videoId.startsWith("kitsu:") }?.get(1)?.toIntOrNull()
+        val show = File(root, safeName(meta.title).ifBlank { "Series" })
+        return if (season == null) show else File(show, if (season == 0) "Specials" else "Season $season")
+    }
+
+    private fun safeName(s: String) = s.replace(Regex("[^A-Za-z0-9 ._-]"), "").trim().take(80)
 
     init {
         // Pick unfinished downloads back up.
@@ -83,15 +109,17 @@ class Downloads(context: Context, private val json: Json) {
     }
 
     /** Starts downloading [url]; returns an error to show, or null when it started. */
-    fun start(meta: Meta, videoId: String, label: String?, url: String, headers: Map<String, String>, fileName: String?, sizeBytes: Long?): String? {
+    fun start(meta: Meta, videoId: String, label: String?, url: String, headers: Map<String, String>, fileName: String?, sizeBytes: Long?, dir: File = targetFor(meta, videoId)): String? {
         if (!url.startsWith("http")) return "This stream can't be downloaded."
-        if (!available) return "Can't write to ${folder.path}."
+        if (!writable(dir)) return "Can't write to ${dir.path}."
         if (items.value.any { it.meta.id == meta.id && it.videoId == videoId }) return "Already downloaded or downloading."
-        val free = folder.usableSpace
+        val free = dir.usableSpace
         if (sizeBytes != null && sizeBytes > free) return "Not enough space: needs %.1f GB, %.1f GB free.".format(sizeBytes / 1e9, free / 1e9)
         val ext = fileName?.substringAfterLast('.', "")?.takeIf { it.length in 2..4 && it.all(Char::isLetterOrDigit) } ?: "mkv"
-        val name = (listOfNotNull(meta.title, label).joinToString(" - ").replace(Regex("[^A-Za-z0-9 ._-]"), "").take(80).ifBlank { "video" }) + " [${System.currentTimeMillis()}].$ext"
-        val item = DownloadItem(System.currentTimeMillis(), meta.slim(), videoId, label, File(folder, name).path, url, headers)
+        val name = safeName(listOfNotNull(meta.title, label).joinToString(" - ")).ifBlank { "video" } + " [${System.currentTimeMillis()}].$ext"
+        // Unique even when a whole season is queued within the same millisecond.
+        val id = synchronized(this) { maxOf(System.currentTimeMillis(), (items.value.maxOfOrNull { it.id } ?: 0) + 1) }
+        val item = DownloadItem(id, meta.slim(), videoId, label, File(dir, name).path, url, headers)
         save(items.value + item)
         run(item)
         return null

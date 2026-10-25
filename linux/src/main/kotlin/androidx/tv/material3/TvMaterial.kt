@@ -24,6 +24,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -121,6 +124,11 @@ object ClickableSurfaceDefaults {
     ) = ClickableSurfaceColors(containerColor, contentColor, focusedContainerColor, focusedContentColor)
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+private fun Modifier.rightClick(action: () -> Unit) = onPointerEvent(PointerEventType.Press) { e ->
+    if (e.buttons.isSecondaryPressed) { e.changes.forEach { it.consume() }; action() }
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun Surface(
@@ -149,7 +157,9 @@ fun Surface(
             .clip(s)
             .background(if (on) colors.focusedContainerColor else colors.containerColor, s)
             .then(if (b.border.width.value > 0f) Modifier.border(b.border, b.shape) else Modifier)
-            .combinedClickable(interactionSource = source, indication = null, enabled = enabled, onLongClick = onLongClick, onClick = onClick),
+            .combinedClickable(interactionSource = source, indication = null, enabled = enabled, onLongClick = onLongClick, onClick = onClick)
+            // Right-click opens the same options as a long press.
+            .then(if (onLongClick != null && enabled) Modifier.rightClick(onLongClick) else Modifier),
     ) {
         CompositionLocalProvider(LocalContentColor provides if (on) colors.focusedContentColor else colors.contentColor) { content() }
     }

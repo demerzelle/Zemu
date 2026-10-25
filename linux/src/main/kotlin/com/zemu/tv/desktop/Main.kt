@@ -19,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -69,7 +68,7 @@ import java.io.File
 
 /** AppShell's nav controller, so Esc can go back a page. */
 object DesktopNav {
-    var controller: NavHostController? = null
+    var controller by mutableStateOf<NavHostController?>(null)
 }
 
 /** Esc, Backspace, the mouse's back button: the open screen's own Back first, then the previous page. */
@@ -79,17 +78,43 @@ private fun goBack() {
     DesktopNav.controller?.let { if (it.previousBackStackEntry != null) it.popBackStack() }
 }
 
+/**
+ * Use the system's IPv4/IPv6 order, like mpv does. Java prefers IPv4 by default; on a network with
+ * both, the addon then sees one address and mpv another, and IP-locked stream links (AIOStreams on
+ * ElfHosted, some debrid services) refuse to play. Must run before any network use.
+ */
+fun useSystemAddressOrder() {
+    if (System.getProperty("java.net.preferIPv6Addresses") == null) System.setProperty("java.net.preferIPv6Addresses", "system")
+}
+
+/** Held for the app's lifetime: a second copy of Zemu would write the same settings files. */
+private var instanceLock: java.nio.channels.FileLock? = null
+
+private fun firstInstance(): Boolean = runCatching {
+    val ch = java.nio.channels.FileChannel.open(
+        File(ZemuApp.filesDir, "zemu.lock").toPath(),
+        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE,
+    )
+    ch.tryLock()?.also { instanceLock = it } != null
+}.getOrDefault(true)
+
 fun main() {
+    useSystemAddressOrder()
+    if (!firstInstance()) {
+        System.err.println("Zemu is already running.")
+        return
+    }
     setUpImages()
     firstRun()
+    Gamepad.start()
+    PlayerHost.install()
 
     application {
         val windowState = rememberWindowState(placement = WindowPlacement.Maximized, size = DpSize(1280.dp, 800.dp))
         val icon = remember { BitmapPainter(ZemuApp::class.java.classLoader.getResourceAsStream("logo_mark.png")!!.use(::loadImageBitmap)) }
         Window(onCloseRequest = ::exitApplication, state = windowState, title = "Zemu", icon = icon) {
             SideEffect { window.minimumSize = java.awt.Dimension(960, 600) }
-            // Back to the front when the player closes.
-            SideEffect { MpvSession.onClosed = { java.awt.EventQueue.invokeLater { window.toFront(); window.requestFocus() } } }
+            SideEffect { Gamepad.window = window }
             App(onToggleFullscreen = {
                 windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) WindowPlacement.Maximized else WindowPlacement.Fullscreen
             })
@@ -127,23 +152,21 @@ private fun App(onToggleFullscreen: () -> Unit) {
                     }
                     return@onPreviewKeyEvent true
                 }
-                if (e.type == KeyEventType.KeyDown && (e.key == Key.F11 || (e.key == Key.Enter && e.isAltPressed))) { onToggleFullscreen(); return@onPreviewKeyEvent true }
+                val playing = PlayerHost.session != null
+                if (e.type == KeyEventType.KeyDown && (e.key == Key.F11 || (playing && e.key == Key.F) || (e.key == Key.Enter && e.isAltPressed))) { onToggleFullscreen(); return@onPreviewKeyEvent true }
+                // While a video plays, keys control it.
+                if (PlayerHost.key(e)) return@onPreviewKeyEvent true
                 if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) { goBack(); return@onPreviewKeyEvent true }
                 false
             }
             // After the focused control had its chance: arrows move focus like a TV remote's D-pad.
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                val dir = when (e.key) {
-                    Key.DirectionUp -> FocusDirection.Up
-                    Key.DirectionDown -> FocusDirection.Down
-                    Key.DirectionLeft -> FocusDirection.Left
-                    Key.DirectionRight -> FocusDirection.Right
-                    Key.Backspace -> { goBack(); return@onKeyEvent true }
-                    Key.Enter, Key.NumPadEnter -> { SoundFx.play(SoundFx.Event.SELECT); return@onKeyEvent false }
-                    else -> return@onKeyEvent false
+                when (e.key) {
+                    Key.Backspace -> { goBack(); true }
+                    Key.Enter, Key.NumPadEnter -> { SoundFx.play(SoundFx.Event.SELECT); false }
+                    else -> dpadMove(e, focus)
                 }
-                focus.moveFocus(dir).also { if (it) SoundFx.play(SoundFx.Event.MOVE) }
             },
     ) {
         CompositionLocalProvider(LocalConfiguration provides Configuration(maxWidth.value.toInt(), maxHeight.value.toInt())) {
@@ -178,6 +201,7 @@ private fun App(onToggleFullscreen: () -> Unit) {
                             while (true) {
                                 delay(1_000)
                                 val idle = System.currentTimeMillis() - lastInput
+                                if (PlayerHost.session != null) { lastInput = System.currentTimeMillis(); continue }
                                 if (!screensaverOn && (now || idle >= settings.screensaverIdleSec * 1000L)) {
                                     now = false
                                     val slides = c.screensaverImages.slides(titles)
@@ -193,7 +217,12 @@ private fun App(onToggleFullscreen: () -> Unit) {
                                 settings.screensaverShowTitle, onCurrent = { saverCurrent = it },
                             )
                         }
+                        if (!picking) BackButton()
+                        EpisodeMenuDialog()
+                        DownloadDialog()
+                        FolderSettingDialog()
                         ToastHost()
+                        PlayerSurface()
                     }
                 }
             }

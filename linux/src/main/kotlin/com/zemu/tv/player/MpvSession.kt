@@ -67,6 +67,7 @@ class MpvSession private constructor(
     private var resumeMs = startMs
     private var loaded = false
     private var refetched = false
+    private var slateChecked: String? = null
 
     private var episodes: List<Video> = emptyList()
     private var nextUp: Video? = null
@@ -80,7 +81,15 @@ class MpvSession private constructor(
     private var dismissedSegment: Segment? = null
     private var finishedMovie = false
 
-    private fun start() {
+    private var launched = false
+
+    /**
+     * Starts mpv. [wid]: an X11 window inside Zemu to draw the video in; null opens mpv's own
+     * full-screen window (no X11, e.g. macOS during development).
+     */
+    fun launch(wid: Long?) {
+        if (launched) return
+        launched = true
         val settings = c.userStore.settings.value
         socketFile.delete()
         val inputConf = File(dir, "input.conf").apply {
@@ -100,28 +109,37 @@ class MpvSession private constructor(
         val audio = settings.audioLanguages.flatMap(::langCodes)
         val cmd = mutableListOf(
             mpvPath()!!,
-            "--no-terminal",
+            // Warnings and errors go to mpv.log (in the cache folder); no status line.
+            "--msg-level=all=warn", "--term-osd=no", "--input-terminal=no", "--term-status-msg=",
             "--input-ipc-server=${socketFile.path}",
             "--idle=yes",
             "--keep-open=yes",
             "--force-window=immediate",
-            "--fullscreen",
+            if (wid != null) "--wid=$wid" else "--fullscreen",
             "--title=${listOfNotNull(meta.title, label).joinToString(" · ")}",
+            // Mouse-friendly control bar along the bottom, like the rest of Zemu.
+            "--script-opts=osc-layout=bottombar,osc-seekbarstyle=bar,osc-hidetimeout=1500",
             "--input-conf=${inputConf.path}",
             "--user-agent=Zemu/1.0 (Linux)",
             // Light on slow machines: GPU decoding when it works, cheap scalers, a bounded cache.
             "--hwdec=auto-safe",
-            // OpenGL: old Intel GPUs (Ivy Bridge and earlier) only have incomplete Vulkan drivers.
-            "--gpu-api=opengl",
             "--scale=bilinear", "--dscale=bilinear", "--cscale=bilinear",
             "--dither-depth=no", "--correct-downscaling=no", "--linear-downscaling=no", "--sigmoid-upscaling=no",
             "--hdr-compute-peak=no",
-            "--cache=yes", "--demuxer-max-bytes=150MiB", "--demuxer-max-back-bytes=30MiB", "--demuxer-readahead-secs=30",
+            "--cache=yes", "--demuxer-max-bytes=200MiB", "--demuxer-max-back-bytes=30MiB", "--demuxer-readahead-secs=60",
+            // After running dry, wait for 10 s of video before resuming: on a slow connection that's
+            // one pause now and then instead of stopping every second.
+            "--cache-pause-initial=yes", "--cache-pause-wait=10",
             "--network-timeout=30",
+            // Streams are direct links; asking yt-dlp about each failed one only adds seconds.
+            "--ytdl=no",
             "--slang=${langs.joinToString(",")}",
             "--alang=${audio.joinToString(",")}",
             "--sub-auto=fuzzy",
         )
+        // OpenGL: old Intel GPUs (Ivy Bridge and earlier) only have incomplete Vulkan drivers.
+        // (Linux mpv always has OpenGL; macOS builds don't, and mpv refuses to start then.)
+        if (System.getProperty("os.name").startsWith("Linux")) cmd += "--gpu-api=opengl"
         if (settings.autoSubtitles) cmd += "--sid=auto" else cmd += "--sid=no"
         if (!settings.subtitleOriginalStyle) {
             val color = String.format("#%08X", settings.subtitleColor and 0xFFFFFFFFL)
@@ -139,8 +157,13 @@ class MpvSession private constructor(
                 "--sub-shadow-offset=${if (settings.subtitleEdge == 2) 2 else 0}",
             )
         }
-        process = runCatching { ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(File(dir, "mpv.log")).start() }.getOrElse {
+        val builder = ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(File(dir, "mpv.log"))
+        // Embedding needs X11: on a Wayland desktop mpv would open its own window instead, so it
+        // runs through XWayland like Zemu does.
+        if (wid != null) builder.environment().remove("WAYLAND_DISPLAY")
+        process = runCatching { builder.start() }.getOrElse {
             Toast.makeText(null, "Couldn't start mpv: ${it.message}", Toast.LENGTH_LONG).show()
+            onClosed(this)
             return
         }
         active = this
@@ -220,7 +243,17 @@ class MpvSession private constructor(
         when (o.str("event")) {
             "property-change" -> when (o.str("name")) {
                 "time-pos" -> o.num("data")?.let { positionMs = (it * 1000).toLong(); onTick() }
-                "duration" -> o.num("data")?.let { durationMs = (it * 1000).toLong(); loadSegments() }
+                "duration" -> o.num("data")?.let {
+                    durationMs = (it * 1000).toLong()
+                    // A 2-minute "video" from an addon is an error slate (AIOStreams shows one when a
+                    // link was opened from another IP or expired), not the title: try a fresh link.
+                    // shortcut: assumes no episode is under 2.5 min; skip shows tagged as shorts if that changes.
+                    val cand = candidates.getOrNull(index)
+                    if (durationMs in 1..150_000 && cand != null && cand.url.startsWith("http") && slateChecked != cand.url) {
+                        slateChecked = cand.url
+                        onError("that link stopped working")
+                    } else loadSegments()
+                }
                 "pause" -> paused = (o["data"] as? JsonPrimitive)?.booleanOrNull ?: false
             }
             "file-loaded" -> {
@@ -299,7 +332,7 @@ class MpvSession private constructor(
             positionMs >= s.startMs && positionMs < end - 1_000 &&
                 !(s.type == SegmentType.CREDITS && nextUp != null && c.userStore.settings.value.autoplayNext)
         }?.takeIf { it != dismissedSegment }
-        if (seg != null && seg != activeSegment) osd("Press Enter to skip ${seg.type.name.lowercase()}", 6000)
+        if (seg != null && seg != activeSegment) osd("Press Enter (A) to skip ${seg.type.name.lowercase()}", 6000)
         activeSegment = seg
     }
 
@@ -359,7 +392,7 @@ class MpvSession private constructor(
         countdownJob = scope.launch {
             var left = seconds
             while (left > 0) {
-                osd("Next: ${episodeLabel(next)} in $left s · N to play now", 1100)
+                osd("Next: ${episodeLabel(next)} in $left s · N (A) to play now", 1100)
                 delay(1_000)
                 if (!paused) left--
             }
@@ -397,7 +430,7 @@ class MpvSession private constructor(
         if (automatic && settings.stillWatchingPrompt && autoAdvances + 1 > settings.stillWatchingEpisodes) {
             stillWatching = true
             send("set_property", "pause", true)
-            osd("Are you still watching? Press N to play ${episodeLabel(next)}, Q to stop.", 600_000)
+            osd("Are you still watching? Press N (A) to play ${episodeLabel(next)}, Q (B) to stop.", 600_000)
             return
         }
         if (automatic) autoAdvances++ else autoAdvances = 0
@@ -470,8 +503,36 @@ class MpvSession private constructor(
     }
 
     private fun fail(why: String) {
-        osd("This video can't be played ($why).", 5000)
-        scope.launch { delay(5000); send("quit") }
+        // Every link (and a fresh lookup) failed to open: almost always the addon or debrid side.
+        osd("None of the streams would open ($why).\nIf this keeps happening, check your debrid account and your stream addon's setup.", 8000)
+        scope.launch { delay(8000); send("quit") }
+    }
+
+    // ---- Controller ----
+
+    /**
+     * A: pause (or skip the intro / play the next episode when offered), B / View: close,
+     * D-pad or stick left/right: -/+10 s, LB/RB: -/+30 s, X: subtitles, Y: audio track,
+     * up/down: show the progress bar, Menu: next episode.
+     */
+    private fun onPad(b: com.zemu.tv.desktop.Gamepad.Button) = scope.launch {
+        if (!stillWatching) autoAdvances = 0
+        when (b) {
+            com.zemu.tv.desktop.Gamepad.Button.A -> when {
+                stillWatching || countdownJob != null -> playNextNow()
+                activeSegment != null -> skipSegment()
+                else -> send("cycle", "pause")
+            }
+            com.zemu.tv.desktop.Gamepad.Button.B, com.zemu.tv.desktop.Gamepad.Button.VIEW -> send("quit")
+            com.zemu.tv.desktop.Gamepad.Button.X -> send("cycle", "sub")
+            com.zemu.tv.desktop.Gamepad.Button.Y -> send("cycle", "audio")
+            com.zemu.tv.desktop.Gamepad.Button.LEFT -> send("seek", -10, "relative")
+            com.zemu.tv.desktop.Gamepad.Button.RIGHT -> send("seek", 10, "relative")
+            com.zemu.tv.desktop.Gamepad.Button.LB -> send("seek", -30, "relative")
+            com.zemu.tv.desktop.Gamepad.Button.RB -> send("seek", 30, "relative")
+            com.zemu.tv.desktop.Gamepad.Button.UP, com.zemu.tv.desktop.Gamepad.Button.DOWN -> send("show-progress")
+            com.zemu.tv.desktop.Gamepad.Button.MENU -> playNextNow()
+        }
     }
 
     // ---- End ----
@@ -487,7 +548,7 @@ class MpvSession private constructor(
         process?.destroy()
         socketFile.delete()
         if (active === this) active = null
-        onClosed()
+        onClosed(this)
         scope.cancel()
         thread.shutdown()
     }
@@ -498,8 +559,28 @@ class MpvSession private constructor(
     companion object {
         @Volatile private var active: MpvSession? = null
 
-        /** Called when mpv closes; the desktop shell brings Zemu's window back to the front. */
-        var onClosed: () -> Unit = {}
+        /** Called when a session's mpv closes; the desktop shell hides its video area. */
+        var onClosed: (MpvSession) -> Unit = {}
+
+        /**
+         * Set by the desktop shell: shows a video area in Zemu's window and calls [launch] with its
+         * X11 window id. Without it (tests), mpv opens its own window.
+         */
+        var host: ((MpvSession) -> Unit)? = null
+
+        /** Sends a controller button to the playing video; false when nothing is playing. */
+        fun gamepad(b: com.zemu.tv.desktop.Gamepad.Button): Boolean {
+            val s = active?.takeIf { !it.finished } ?: return false
+            s.onPad(b)
+            return true
+        }
+
+        /** Sends an mpv command (keyboard shortcuts) to the playing video; false when nothing is playing. */
+        fun command(vararg args: Any?): Boolean {
+            val s = active?.takeIf { !it.finished } ?: return false
+            s.scope.launch { s.send(*args) }
+            return true
+        }
 
         fun mpvPath(): String? = System.getenv("PATH").orEmpty().split(':')
             .map { File(it, "mpv") }.firstOrNull { it.canExecute() }?.path
@@ -512,7 +593,9 @@ class MpvSession private constructor(
             }
             // One player at a time: a new title replaces whatever is playing.
             active?.send("quit")
-            MpvSession(c, meta, videoId, label, candidates, subs, startMs).start()
+            val s = MpvSession(c, meta, videoId, label, candidates, subs, startMs)
+            active = s
+            host?.invoke(s) ?: s.launch(null)
         }
 
         /** "en" → ["en", "eng"], so mpv matches files tagged either way. */

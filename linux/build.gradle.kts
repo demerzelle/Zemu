@@ -26,6 +26,9 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
 """ to """    val nav = rememberNavController()
     com.zemu.tv.desktop.DesktopNav.controller = nav
 """,
+        """                    CardAction.ROW_OPTIONS -> menuRowOptions?.invoke()""" to
+            """                    CardAction.ROW_OPTIONS -> menuRowOptions?.invoke()
+                    CardAction.DOWNLOAD -> com.zemu.tv.desktop.CardDownload.start(m)""",
         // A steady logo glow: the breathing one repaints the whole window 60 times a second on desktop.
         """            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "logoGlow")
             val glow by pulse.animateFloat(
@@ -41,10 +44,6 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
     "com/zemu/tv/ui/theme/DynamicThemes.kt" to listOf(
         """fun of(name: String) = entries.firstOrNull { it.name == (RENAMED[name] ?: name) } ?: NONE""" to
             """fun of(@Suppress("UNUSED_PARAMETER") name: String) = NONE""",
-    ),
-    "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
-        """    group("animated", "Animated themes"""" to """    if (false) group("animated", "Animated themes"""",
-        """ On Android 12 and newer, menus also blur what's behind them.""" to "",
     ),
     "com/zemu/tv/ui/kids/KidsMode.kt" to listOf(
         """DynamicTheme.entries.filter { !it.hidden }.forEach""" to """DynamicTheme.entries.filter { it == com.zemu.tv.ui.theme.DynamicTheme.NONE }.forEach""",
@@ -69,8 +68,66 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
     ),
     "com/zemu/tv/ui/components/CardMenu.kt" to listOf(
         """e.nativeKeyEvent.repeatCount > 0 -> true""" to """false -> true""",
+        // Download from a card's menu: the movie, or every season of a show.
+        """    MARK_WATCHED("Mark as watched"),""" to """    DOWNLOAD("Download"),
+    MARK_WATCHED("Mark as watched"),""",
+        """    add(if (watched) CardAction.MARK_UNWATCHED else CardAction.MARK_WATCHED)""" to
+            """    if (com.zemu.tv.desktop.CardDownload.enabled()) add(CardAction.DOWNLOAD)
+    add(if (watched) CardAction.MARK_UNWATCHED else CardAction.MARK_WATCHED)""",
     ),
-    "com/zemu/tv/ui/details/DetailsScreen.kt" to listOf("import android.content.Intent\n" to ""),
+    "com/zemu/tv/ui/details/DetailsScreen.kt" to listOf(
+        "import android.content.Intent\n" to "",
+        // Downloads ask first: what, how big, and where (with Change folder).
+        """                    val err = downloads.start(m, vm.currentVideoId(), vm.episodeLabel(), rs.stream.raw.url.orEmpty(), rs.stream.raw.behaviorHints?.proxyHeaders?.request.orEmpty(), rs.stream.raw.behaviorHints?.filename, rs.stream.sizeBytes)
+                    Toast.makeText(context, err ?: "Downloading. Find it under Downloads in the menu.", Toast.LENGTH_LONG).show()""" to
+            """                    com.zemu.tv.desktop.DownloadPrompt.single(m, vm.currentVideoId(), vm.episodeLabel(), rs.stream)""",
+        // Whole seasons / series: in the title's More menu, for series with downloads on.
+        """                add(SheetAction("Refresh streams") { vm.reloadStreams() })""" to
+            """                if (type == "series" && m.videos.isNotEmpty() && c.downloads.available && c.userStore.settings.value.downloads) {
+                    season?.let { s -> add(SheetAction(if (s == 0) "Download the specials" else "Download season ${'$'}s") { com.zemu.tv.desktop.DownloadPrompt.season(m, s) }) }
+                    if (vm.seasons.count { it != 0 } > 1) add(SheetAction("Download all seasons") { com.zemu.tv.desktop.DownloadPrompt.allSeasons(m) })
+                }
+                add(SheetAction("Refresh streams") { vm.reloadStreams() })""",
+        // ...and next to the season chips, where people look for it.
+        """                        onSeason = vm::selectSeason,
+""" to """                        onSeason = vm::selectSeason,
+                        onDownloadSeason = if (c.downloads.available && settings.downloads) ({ s -> com.zemu.tv.desktop.DownloadPrompt.season(m, s) }) else null,
+                        onEpisodeMenu = { v -> com.zemu.tv.desktop.EpisodeMenu.open(m, v, play = { vm.selectEpisode(v, autoPlay = true) }, pick = { vm.selectEpisode(v) }) },
+""",
+        """    onSeason: (Int) -> Unit,
+""" to """    onSeason: (Int) -> Unit,
+    onDownloadSeason: ((Int) -> Unit)? = null,
+    onEpisodeMenu: ((Video) -> Unit)? = null,
+""",
+        // Right-click (or hold A / Enter) on an episode: its own menu.
+        """EpisodeCard(v, v.id == selected?.id, nextUp = v.id == nextUpId, progress = progress[v.id] ?: 0f, onFocused = { highlighted = v; onEpisodeFocused() }) { onEpisode(v) }""" to
+            """EpisodeCard(v, v.id == selected?.id, nextUp = v.id == nextUpId, progress = progress[v.id] ?: 0f, onFocused = { highlighted = v; onEpisodeFocused() }, onLongClick = onEpisodeMenu?.let { f -> { f(v) } }) { onEpisode(v) }""",
+        """private fun EpisodeCard(video: Video, selected: Boolean, nextUp: Boolean = false, progress: Float = 0f, onFocused: () -> Unit = {}, onClick: () -> Unit) {""" to
+            """private fun EpisodeCard(video: Video, selected: Boolean, nextUp: Boolean = false, progress: Float = 0f, onFocused: () -> Unit = {}, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {""",
+        """            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).onFocusChanged { if (it.isFocused) onFocused() }.touchClick(onClick),""" to
+            """            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).onFocusChanged { if (it.isFocused) onFocused() }.touchClick(onClick, onLongClick),""",
+        """                TvChip(if (s == 0) "Specials" else "Season ${'$'}s", selected = s == season, onClick = { onSeason(s) })
+            }""" to """                TvChip(if (s == 0) "Specials" else "Season ${'$'}s", selected = s == season, onClick = { onSeason(s) })
+            }
+            if (onDownloadSeason != null && season != null) item(key = "download-season") {
+                TvChip("⬇  Download ${'$'}{if (season == 0) "specials" else "season ${'$'}season"}", selected = false, onClick = { onDownloadSeason(season) })
+            }""",
+    ),
+    // Where downloads go, with a controller-friendly folder browser.
+    "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
+        """    group("animated", "Animated themes"""" to """    if (false) group("animated", "Animated themes"""",
+        """ On Android 12 and newer, menus also blur what's behind them.""" to "",
+        """            vm.update { it.copy(downloads = !it.downloads) }
+        }
+""" to """            vm.update { it.copy(downloads = !it.downloads) }
+        }
+        val downloadFolder = com.zemu.tv.ZemuApp.container.downloads.folderState.collectAsStateWithLifecycle().value
+        ValueRow("Download folder", downloadFolder.path) { com.zemu.tv.desktop.FolderSetting.open = true }
+""",
+    ),
     // No speech recognizer on desktop.
     "com/zemu/tv/ui/search/SearchScreen.kt" to listOf(
         """import android.content.Intent
@@ -97,26 +154,8 @@ import androidx.activity.result.contract.ActivityResultContracts
         """runCatching { voice.launch(voiceIntent) }""" to "",
     ),
 )
-val patchedDir = layout.buildDirectory.dir("patched")
-val patchShared by tasks.registering {
-    inputs.property("patches", patches.toString())
-    inputs.files(patches.keys.map { "../app/src/main/java/$it" })
-    outputs.dir(patchedDir)
-    doLast {
-        patches.forEach { (path, edits) ->
-            var text = file("../app/src/main/java/$path").readText()
-            edits.forEach { (old, new) ->
-                check(old in text) { "Patch for $path no longer matches: $old" }
-                text = text.replace(old, new)
-            }
-            patchedDir.get().file(path).asFile.apply { parentFile.mkdirs() }.writeText(text)
-        }
-    }
-}
-tasks.named("compileKotlin") { dependsOn(patchShared) }
-
 // The Android app's Kotlin is shared; files that are Android-only are replaced in src/main/kotlin.
-val androidOnly = listOf(
+val replaced = listOf(
     "com/zemu/tv/ZemuApp.kt",
     "com/zemu/tv/MainActivity.kt",
     "com/zemu/tv/AppContainer.kt",
@@ -130,7 +169,40 @@ val androidOnly = listOf(
     "com/zemu/tv/ui/components/ZemuLoader.kt",
     "com/zemu/tv/ui/components/Haptics.kt",
     "com/zemu/tv/ui/SoundFx.kt",
-) + patches.keys // the patched copies replace these
+)
+fun isReplaced(path: String) = replaced.any { path == it || (it.endsWith("/") && path.startsWith(it)) }
+
+/** Edits applied to every shared file: dialogs get arrow-key / controller navigation of their own. */
+val globalPatches = listOf(
+    "import androidx.compose.ui.window.Dialog\n" to "import com.zemu.tv.desktop.DpadDialog as Dialog\n",
+    "androidx.compose.ui.window.Dialog(" to "com.zemu.tv.desktop.DpadDialog(",
+)
+val sharedRoot = file("../app/src/main/java")
+val patchedPaths: Set<String> = patches.keys + sharedRoot.walk()
+    .filter { it.isFile && it.extension == "kt" }
+    .map { it.relativeTo(sharedRoot).invariantSeparatorsPath }
+    .filter { !isReplaced(it) && globalPatches.any { (old, _) -> old in file("../app/src/main/java/$it").readText() } }
+
+val patchedDir = layout.buildDirectory.dir("patched")
+val patchShared by tasks.registering {
+    inputs.property("patches", patches.toString() + globalPatches.toString())
+    inputs.files(patchedPaths.map { "../app/src/main/java/$it" })
+    outputs.dir(patchedDir)
+    doLast {
+        patchedDir.get().asFile.deleteRecursively()
+        patchedPaths.forEach { path ->
+            var text = file("../app/src/main/java/$path").readText()
+            patches[path].orEmpty().forEach { (old, new) ->
+                check(old in text) { "Patch for $path no longer matches: $old" }
+                text = text.replace(old, new)
+            }
+            globalPatches.forEach { (old, new) -> text = text.replace(old, new) }
+            patchedDir.get().file(path).asFile.apply { parentFile.mkdirs() }.writeText(text)
+        }
+    }
+}
+tasks.named("compileKotlin") { dependsOn(patchShared) }
+val androidOnly = replaced + patchedPaths // the patched copies replace these
 sourceSets.main {
     kotlin.srcDirs("../app/src/main/java", patchedDir)
     kotlin.exclude { e ->
@@ -160,10 +232,14 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+/** JDK internals Zemu reads its window's X11 id from, so mpv can draw inside it (PlayerHost.kt). */
+val x11Opens = "java.desktop/sun.awt java.desktop/sun.awt.X11"
+
 compose.desktop {
     application {
         mainClass = "com.zemu.tv.desktop.MainKt"
-        jvmArgs += listOf("-Xss2m", "-Xmx512m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1")
+        jvmArgs += listOf("-Xss2m", "-Xmx512m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1") +
+            x11Opens.split(' ').map { "--add-opens=$it=ALL-UNNAMED" }
         nativeDistributions {
             // jpackage only builds packages for the OS it runs on.
             if (System.getProperty("os.name").startsWith("Linux")) targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
@@ -188,7 +264,7 @@ tasks.jar { manifest { attributes("Implementation-Version" to zemuVersion) } }
 val linuxJar by tasks.registering(Jar::class) {
     archiveFileName.set("zemu.jar")
     destinationDirectory.set(layout.buildDirectory.dir("linux"))
-    manifest { attributes("Main-Class" to "com.zemu.tv.desktop.MainKt", "Implementation-Version" to zemuVersion) }
+    manifest { attributes("Main-Class" to "com.zemu.tv.desktop.MainKt", "Implementation-Version" to zemuVersion, "Add-Opens" to x11Opens) }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets.main.get().output)
     dependsOn(configurations.runtimeClasspath)
