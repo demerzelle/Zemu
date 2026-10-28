@@ -32,6 +32,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -98,7 +99,25 @@ private fun firstInstance(): Boolean = runCatching {
     ch.tryLock()?.also { instanceLock = it } != null
 }.getOrDefault(true)
 
+/**
+ * Follow the desktop's display scale. GNOME tells X11 apps through Xft.dpi (192 at 125–200% on
+ * Wayland, where it scales them down itself), which Java doesn't read on its own. Whole steps
+ * only: Java's X11 scale is an integer; Settings → UI zoom covers the rest.
+ */
+private fun useDesktopScale() {
+    if (System.getProperty("sun.java2d.uiScale") != null || System.getenv("GDK_SCALE") != null) return
+    val dpi = runCatching {
+        ProcessBuilder("xrdb", "-query").redirectErrorStream(true).start().inputStream.bufferedReader().useLines { lines ->
+            lines.firstOrNull { it.startsWith("Xft.dpi:") }?.substringAfter(':')?.trim()?.toDouble()
+        }
+    }.getOrNull() ?: return
+    val scale = Math.round(dpi / 96)
+    if (scale > 1) System.setProperty("sun.java2d.uiScale", scale.toString())
+}
+
 fun main() {
+    // Before anything touches AWT.
+    useDesktopScale()
     useSystemAddressOrder()
     if (!firstInstance()) {
         System.err.println("Zemu is already running.")
@@ -108,16 +127,42 @@ fun main() {
     firstRun()
     Gamepad.start()
     PlayerHost.install()
+    com.zemu.tv.player.KeyRepeat.install()
+    CursorAutoHide.install()
+    FocusRescue.install()
+    // For trying the player without the UI: ZEMU_PLAY_FILE=/path/to/video plays it at startup.
+    System.getenv("ZEMU_PLAY_FILE")?.let { path ->
+        ZemuApp.container.appScope.launch {
+            delay(3_000)
+            val m = com.zemu.tv.data.Meta(id = "local:$path", type = "movie", name = File(path).nameWithoutExtension)
+            MpvSession.start(ZemuApp.container, m, m.id, null, listOf(com.zemu.tv.player.PlayCandidate(path, "Local file")), emptyList(), 0)
+        }
+    }
+
+    // For testing navigation remotely: ZEMU_PAD="DOWN DOWN UP" presses those controller buttons 2 s
+    // apart once Home has loaded.
+    System.getenv("ZEMU_PAD")?.let { buttons ->
+        Thread {
+            Thread.sleep(25_000)
+            buttons.split(' ').filter { it.isNotBlank() }.forEachIndexed { i, b ->
+                Gamepad.tap(Gamepad.Button.valueOf(b))
+                System.err.println("ZEMU_PAD $i $b")
+                Thread.sleep(2_000)
+            }
+        }.apply { isDaemon = true }.start()
+    }
 
     application {
         val windowState = rememberWindowState(placement = WindowPlacement.Maximized, size = DpSize(1280.dp, 800.dp))
         val icon = remember { BitmapPainter(ZemuApp::class.java.classLoader.getResourceAsStream("logo_mark.png")!!.use(::loadImageBitmap)) }
         Window(onCloseRequest = ::exitApplication, state = windowState, title = "Zemu", icon = icon) {
-            SideEffect { window.minimumSize = java.awt.Dimension(960, 600) }
-            SideEffect { Gamepad.window = window }
-            App(onToggleFullscreen = {
-                windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) WindowPlacement.Maximized else WindowPlacement.Fullscreen
-            })
+            // The layouts reflow at any size; the small minimum keeps un-maximizing from leaving a
+            // 2×2 window (GNOME restores a window that started maximized to its minimum size).
+            SideEffect { Gamepad.window = window; FullScreen.window = window; window.minimumSize = java.awt.Dimension(480, 270) }
+            App(onToggleFullscreen = { FullScreen.toggle() })
+            PlayerOverlay(window)
+            val playing = PlayerHost.session?.isPlaying == true
+            LaunchedEffect(playing) { KeepAwake.set(playing) }
         }
     }
 }
@@ -134,9 +179,11 @@ private fun App(onToggleFullscreen: () -> Unit) {
     var screensaverOn by remember { mutableStateOf(false) }
     var saverCurrent by remember { mutableStateOf<com.zemu.tv.data.ScreensaverSlide?>(null) }
     val focus = LocalFocusManager.current
+    SideEffect { FocusRescue.manager = focus }
 
     BoxWithConstraints(
         Modifier.fillMaxSize()
+            .onFocusChanged { FocusRescue.focused = it.hasFocus }
             .onPointerEvent(PointerEventType.Move) { lastInput = System.currentTimeMillis() }
             .onPointerEvent(PointerEventType.Press) { e ->
                 lastInput = System.currentTimeMillis()
@@ -152,10 +199,7 @@ private fun App(onToggleFullscreen: () -> Unit) {
                     }
                     return@onPreviewKeyEvent true
                 }
-                val playing = PlayerHost.session != null
-                if (e.type == KeyEventType.KeyDown && (e.key == Key.F11 || (playing && e.key == Key.F) || (e.key == Key.Enter && e.isAltPressed))) { onToggleFullscreen(); return@onPreviewKeyEvent true }
-                // While a video plays, keys control it.
-                if (PlayerHost.key(e)) return@onPreviewKeyEvent true
+                if (e.type == KeyEventType.KeyDown && (e.key == Key.F11 || (e.key == Key.Enter && e.isAltPressed))) { onToggleFullscreen(); return@onPreviewKeyEvent true }
                 if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) { goBack(); return@onPreviewKeyEvent true }
                 false
             }
@@ -176,7 +220,7 @@ private fun App(onToggleFullscreen: () -> Unit) {
                 val settings = if (kids.on) savedSettings.copy(screensaver = false) else savedSettings
                 val colors = settings.resolvedColors()
                 SoundFx.enabled = settings.soundEffects
-                SideEffect { SoundFx.use(app, SoundFx.setFor(colors.style)) }
+                SideEffect { SoundFx.use(app, if (settings.soundPack == "lofi") SoundFx.setFor(colors.style) else "pack-${settings.soundPack}") }
                 ZemuTheme(colors, settings.uiZoom, settings.font, settings.fontSize) {
                     Box(Modifier.fillMaxSize()) {
                         if (picking) {
@@ -231,7 +275,7 @@ private fun App(onToggleFullscreen: () -> Unit) {
 }
 
 @androidx.compose.runtime.Composable
-private fun androidx.compose.foundation.layout.BoxScope.ToastHost() {
+fun androidx.compose.foundation.layout.BoxScope.ToastHost() {
     val shown = Toast.current.value ?: return
     LaunchedEffect(shown.id) {
         delay(shown.durationMs)

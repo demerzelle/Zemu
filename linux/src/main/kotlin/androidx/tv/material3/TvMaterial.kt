@@ -118,7 +118,7 @@ object ClickableSurfaceDefaults {
         containerColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
         contentColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
         focusedContainerColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-        focusedContentColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        focusedContentColor: Color = androidx.compose.material3.contentColorFor(focusedContainerColor),
         pressedContainerColor: Color = focusedContainerColor,
         pressedContentColor: Color = focusedContentColor,
     ) = ClickableSurfaceColors(containerColor, contentColor, focusedContainerColor, focusedContentColor)

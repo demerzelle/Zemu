@@ -116,10 +116,117 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
                 TvChip("⬇  Download ${'$'}{if (season == 0) "specials" else "season ${'$'}season"}", selected = false, onClick = { onDownloadSeason(season) })
             }""",
     ),
+    // Zemu's own player screen, drawn in a transparent window over mpv's video.
+    // Rows and cards; resting the mouse on a card for 3 s shows it in the hero.
+    "com/zemu/tv/ui/components/Cards.kt" to listOf(
+        // Rows don't restore their last poster: on desktop, entering a row above through it bounced
+        // focus out to the row's name, so Up skipped every row's posters.
+        """            modifier = Modifier.focusRestorer(),
+            contentPadding = contentPadding,""" to """            modifier = Modifier,
+            contentPadding = contentPadding,""",
+        """            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(meta) }""" to
+            """            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(meta) }
+            .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
+        """            .onFocusChanged { if (it.isFocused) onFocused(meta) }""" to
+            """            .onFocusChanged { if (it.isFocused) onFocused(meta) }
+            .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
+    ),
+    // Top 10 Today rows (Home: movies and series; Movies, Series, Anime: their own).
+    "com/zemu/tv/data/Tmdb.kt" to listOf(
+        """    private fun TmdbItem.toMeta(type: String): Meta {""" to """    /** Today's trending titles (TMDB /trending/<movie|tv>/day). Cached for 30 minutes. */
+    suspend fun trendingToday(type: String): List<Meta> {
+        if (!enabled) return emptyList()
+        val media = if (type == "series") "tv" else "movie"
+        val key = "trending/${'$'}media"
+        val now = System.currentTimeMillis()
+        discoverCache[key]?.let { (at, list) -> if (now - at < 30 * 60_000L) return list }
+        val body = get("/trending/${'$'}media/day")
+        val list = withContext(Dispatchers.Default) {
+            json.decodeFromString(TmdbPage.serializer(), body).results.filter { it.posterPath != null }.map { it.toMeta(type) }
+        }
+        discoverCache[key] = now to list
+        return list
+    }
+
+    private fun TmdbItem.toMeta(type: String): Meta {""",
+    ),
+    "com/zemu/tv/ui/home/HomeViewModel.kt" to listOf(
+        """    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater) { rows, recs, later ->
+        if (!isHome) return@combine rows""" to """    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater, com.zemu.tv.desktop.Top10.rows(c, page)) { rows, recs, later, top10 ->
+        if (!isHome) return@combine (rows + top10).sortedBy { it.priority }""",
+        """            addAll(rows)
+            if (recs.isNotEmpty())""" to """            addAll(rows)
+            addAll(top10)
+            if (recs.isNotEmpty())""",
+    ),
+    "com/zemu/tv/ui/home/HomeScreen.kt" to listOf(
+        """                    ) { _, m, mod ->
+                        when (row.style) {""" to """                    ) { i, m, mod ->
+                        when (row.style) {""",
+        """                            else PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "${'$'}it%" })""" to
+            """                            else com.zemu.tv.desktop.Ranked(if (row.key.startsWith("top10-")) i + 1 else null) { PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "${'$'}it%" }) }""",
+    ),
+    // The picture starts 22% in: fully covered there, so its left edge never shows on wide screens.
+    "com/zemu/tv/ui/components/Hero.kt" to listOf(
+        """                    0f to Palette.Background,
+                    0.3f to Palette.Background.copy(alpha = 0.92f),
+                    0.6f to Palette.Background.copy(alpha = 0.35f),""" to """                    0f to Palette.Background,
+                    0.25f to Palette.Background,
+                    0.42f to Palette.Background.copy(alpha = 0.85f),
+                    0.65f to Palette.Background.copy(alpha = 0.35f),""",
+    ),
+    "com/zemu/tv/player/PlayerScreen.kt" to listOf(
+        """            .background(Color.Black)
+            .onPreviewKeyEvent { e ->
+                lastInteraction = SystemClock.uptimeMillis()""" to """            .background(Color.Transparent)
+            .onPreviewKeyEvent { e ->
+                lastInteraction = SystemClock.uptimeMillis()""",
+        // Esc and Backspace are the desktop's Back.
+        """if (e.key == Key.Back && dialog == null && (menu || cardVisible || skipVisible))""" to
+            """if ((e.key == Key.Back || e.key == Key.Escape || e.key == Key.Backspace) && dialog == null && (menu || cardVisible || skipVisible))""",
+        // Controller buttons under the controls they trigger (only while a controller is connected).
+        """                            color = if (item.active) Palette.Accent else Color.White.copy(alpha = 0.55f))
+                    }""" to """                            color = if (item.active) Palette.Accent else Color.White.copy(alpha = 0.55f))
+                    }
+                    com.zemu.tv.desktop.PadHint(item.key)""",
+        """        Text("Hold OK on Audio or Subtitles to see every track",""" to """        Text(com.zemu.tv.desktop.trackPanelHint(),""",
+        // Full screen, next to My List.
+        """        add(MenuItem("fav", "My List", if (inMyList) "Added" else null, if (inMyList) AppIcons.Heart else AppIcons.HeartOutline, active = inMyList) { onToggleMyList() })""" to
+            """        add(MenuItem("fav", "My List", if (inMyList) "Added" else null, if (inMyList) AppIcons.Heart else AppIcons.HeartOutline, active = inMyList) { onToggleMyList() })
+        add(MenuItem("fullscreen", "Full screen", if (com.zemu.tv.desktop.FullScreen.on) "On" else null, com.zemu.tv.desktop.FullScreen.icon, active = com.zemu.tv.desktop.FullScreen.on) { com.zemu.tv.desktop.FullScreen.toggle() })""",
+        // A Back button before the title, for the mouse.
+        """                    Column(Modifier.weight(1f)) {
+                        Text(a.title,""" to """                    com.zemu.tv.desktop.PlayerBackButton { a.stop() }
+                    Column(Modifier.weight(1f)) {
+                        Text(a.title,""",
+    ),
     // Where downloads go, with a controller-friendly folder browser.
+    // Desktop sound packs (Settings → Sound effects), "lofi" being the theme's own sounds made soft.
+    "com/zemu/tv/data/Models.kt" to listOf(
+        """    val soundEffects: Boolean = true,
+""" to """    val soundEffects: Boolean = true,
+    val soundPack: String = "lofi",
+""",
+    ),
     "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
         """    group("animated", "Animated themes"""" to """    if (false) group("animated", "Animated themes"""",
         """ On Android 12 and newer, menus also blur what's behind them.""" to "",
+        // More zoom steps: on top of the system's display scale, for TVs and small screens alike.
+        """            listOf(80, 90, 100, 110, 125, 150).forEach { z ->""" to """            listOf(60, 70, 80, 90, 100, 110, 125, 150, 175, 200).forEach { z ->""",
+        """            vm.update { it.copy(soundEffects = !it.soundEffects) }
+        }
+""" to """            vm.update { it.copy(soundEffects = !it.soundEffects) }
+        }
+        if (settings.soundEffects) {
+            Text("Sound pack", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.zemu.tv.ui.SoundFx.PACKS.forEach { (k, label) ->
+                    TvChip(label, settings.soundPack == k, { vm.update { it.copy(soundPack = k) } })
+                }
+            }
+        }
+""",
         """            vm.update { it.copy(downloads = !it.downloads) }
         }
 """ to """            vm.update { it.copy(downloads = !it.downloads) }
@@ -159,7 +266,12 @@ val replaced = listOf(
     "com/zemu/tv/ZemuApp.kt",
     "com/zemu/tv/MainActivity.kt",
     "com/zemu/tv/AppContainer.kt",
-    "com/zemu/tv/player/",
+    // The player screen (PlayerScreen.kt) is shared; the ExoPlayer side is replaced by MpvSession.
+    "com/zemu/tv/player/PlayerActivity.kt",
+    "com/zemu/tv/player/Playback.kt",
+    "com/zemu/tv/player/TrailerActivity.kt",
+    "com/zemu/tv/player/YouTubeEmbed.kt",
+    "com/zemu/tv/player/DecoderMode.kt",
     "com/zemu/tv/launcher/",
     "com/zemu/tv/data/Downloads.kt",
     "com/zemu/tv/data/Updater.kt",
@@ -294,3 +406,6 @@ tasks.test {
     environment("XDG_CACHE_HOME", layout.buildDirectory.dir("tmp/test-cache").get().asFile.path)
     systemProperty("zemu.testClip", layout.buildDirectory.file("testvid/clip.mkv").get().asFile.path)
 }
+
+// src/main/resources is a default resource folder and also listed above.
+tasks.processResources { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }

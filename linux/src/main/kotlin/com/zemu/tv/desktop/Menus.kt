@@ -110,3 +110,20 @@ fun BoxScope.BackButton() {
         }
     }
 }
+
+/** Back button at the start of the player's top bar. */
+@Composable
+fun PlayerBackButton(onBack: () -> Unit) {
+    FocusSurface(
+        onClick = onBack,
+        modifier = Modifier.padding(end = 16.dp).size(44.dp),
+        shape = CircleShape,
+        containerColor = Color.Black.copy(alpha = 0.55f),
+        contentColor = Color.White,
+        focusedScale = 1.1f,
+    ) {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
+        }
+    }
+}

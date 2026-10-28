@@ -21,12 +21,26 @@ from GitHub Releases.
 - **Keyboard, mouse or Xbox controller.** Arrows / D-pad / left stick move, Enter or A selects,
   Esc, Backspace, B or the mouse's back button go back, F11 toggles full screen. Right-click a card
   or an episode (or hold Enter / A, or press X) for its options. Y opens Search. Pages without the
-  side menu have a Back button in the top-left corner.
-- **Playback** happens inside Zemu's window, with mpv doing the decoding: Space pauses, Enter (A)
-  pauses or skips an intro/recap when offered, left/right (D-pad) seek 10 s, LB/RB 30 s, up/down
-  change the volume, J (X) subtitles, A key (Y) audio track, N (Menu) next episode, M mute, F full
-  screen, Esc (B) closes. Progress, Continue Watching, next-episode autoplay and falling back to
-  the next cached stream all work as on Android. Trailers play in mpv when `yt-dlp` is installed.
+  side menu have a Back button in the top-left corner. Resting the mouse on a poster for 3 seconds
+  shows it at the top of the page.
+- **Top 10 Today** rows: movies and series on Home, each on its own page, anime on Anime. With a
+  TMDB key (Settings) they're TMDB's trending today; without one, Cinemeta's popular titles. Anime
+  is Kitsu's trending list.
+- **Playback** uses Zemu's own player, the same as on Android TV (seek bar with intro/credits
+  marks, audio and subtitle tracks, speed, picture size, sleep timer, skip intro, next episode),
+  drawn over mpv's video inside Zemu's window. Enter (A) pauses and opens the controls, left/right
+  (D-pad) scrub, Esc (B) or the Back button in the top bar closes; Space pauses, F full screen, M mute, N next episode, J or S
+  subtitles, A audio track; on a controller LB/RB jump 10 s, X/Y change subtitles/audio and Menu
+  plays the next episode. With a controller connected, its buttons are shown under the controls.
+- **Full screen** (F11, Alt+Enter, or the player's Full screen button) covers the whole display,
+  top bar and dock included; there the mouse pointer hides after 5 seconds without moving. The
+  window can also be resized down to 480×270. Using the arrow keys or a controller hides the
+  pointer anywhere; moving the mouse brings it back.
+- **Sound packs**: Settings → Sound effects → Sound pack picks Lo-fi (the default), Wood,
+  Bubbles, Soft keys, Cosmic or Retro. The packs are made by `tools/make_sound_packs.py`.
+- **While a video plays** the screen stays on and the computer doesn't sleep; pausing lets it.
+- **Size** follows the desktop's display scale (Settings → Displays). Settings → Size, text &
+  artwork → UI zoom (60–200%) makes everything bigger or smaller on top of that.
 - **Downloads** are on. Hold Enter on a stream for "Download for offline", use "⬇ Download season"
   next to the season buttons, or "Download" in a card's or episode's menu. Every download asks
   first and shows where it goes, with Change folder. The default folder is set in Settings →
@@ -45,6 +59,9 @@ Almost always the network: a debrid stream needs roughly 5–40 Mbit/s for 1080p
 faster: `sudo apt install broadcom-sta-dkms`, then reboot. On Intel graphics up to 2015, also
 install `i965-va-driver` so H.264 is decoded by the GPU. Until then, filter streams to 720p in
 Settings, or download first and watch the download.
+
+Green or blocky video that otherwise plays smoothly is the GPU's decoder struggling with that
+file: turn on Settings → "Prefer software video decoders".
 
 ## Light on slow machines
 

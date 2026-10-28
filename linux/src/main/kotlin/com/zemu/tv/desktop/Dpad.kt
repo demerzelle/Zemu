@@ -32,6 +32,31 @@ fun dpadMove(e: KeyEvent, focus: FocusManager): Boolean {
 }
 
 /**
+ * When the focused poster is removed (a row reloads or reorders, e.g. Top 10 arriving late), nothing
+ * in the main window has focus and Compose drops every key. An arrow then puts focus back on the page.
+ */
+object FocusRescue {
+    @Volatile var manager: FocusManager? = null
+    /** Something in the main window's content has focus. */
+    @Volatile var focused = true
+
+    fun install() = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
+        val dir = when (e.keyCode) {
+            java.awt.event.KeyEvent.VK_UP -> FocusDirection.Up
+            java.awt.event.KeyEvent.VK_DOWN -> FocusDirection.Down
+            java.awt.event.KeyEvent.VK_LEFT -> FocusDirection.Left
+            java.awt.event.KeyEvent.VK_RIGHT -> FocusDirection.Right
+            else -> null
+        }
+        if (dir != null && e.id == java.awt.event.KeyEvent.KEY_PRESSED && !focused && javax.swing.SwingUtilities.getWindowAncestor(e.component) === Gamepad.window) {
+            System.err.println("Zemu: nothing had focus; arrow puts it back")
+            java.awt.EventQueue.invokeLater { if (!focused && (manager?.moveFocus(dir) == true || manager?.moveFocus(FocusDirection.Next) == true)) SoundFx.play(SoundFx.Event.MOVE) }
+        }
+        false
+    }
+}
+
+/**
  * Every shared dialog is built with this (swapped in at build time): a dialog has its own focus
  * layer, so it needs its own arrow-key navigation. Backspace closes it like Esc does.
  */

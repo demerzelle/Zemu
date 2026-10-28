@@ -1,5 +1,8 @@
 package com.zemu.tv.desktop
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.zemu.tv.player.MpvSession
 import java.awt.EventQueue
 import java.awt.KeyboardFocusManager
@@ -17,8 +20,8 @@ import java.nio.ByteOrder
  * software is needed. Hot-plugging works: the devices are looked up again until one appears.
  *
  * In Zemu: D-pad / left stick move, A selects (hold for options), B or View goes back, X or Menu
- * opens a title's options, Y opens Search. While a video plays, the buttons go to mpv instead
- * (see [MpvSession.gamepad]).
+ * opens a title's options, Y opens Search. In the player the D-pad, A and B work its controls like
+ * a remote, and X / Y / LB / RB / Menu are shortcuts (see [MpvSession.gamepad]).
  */
 object Gamepad {
     enum class Button { UP, DOWN, LEFT, RIGHT, A, B, X, Y, LB, RB, VIEW, MENU }
@@ -37,8 +40,12 @@ object Gamepad {
         544 to Button.UP, 545 to Button.DOWN, 546 to Button.LEFT, 547 to Button.RIGHT,
     )
 
-    /** The main window, for sending keys to Zemu only while it's the active window. */
+    /** The main window, for sending keys to Zemu only while it (or its player) is the active window. */
     @Volatile var window: Window? = null
+
+    /** A controller is plugged in or paired right now; controller hints only show while it is. */
+    var connected by mutableStateOf(false)
+        private set
 
     fun start() {
         if (!System.getProperty("os.name").startsWith("Linux")) return
@@ -50,7 +57,9 @@ object Gamepad {
         while (true) {
             val (event, js) = find() ?: run { Thread.sleep(3_000); null } ?: continue
             js?.let { path -> Thread({ runCatching { readStick(path) } }, "gamepad-stick").apply { isDaemon = true }.start() }
+            connected = true
             runCatching { readEvents(event) }
+            connected = false
             release()
             Thread.sleep(1_000)
         }
@@ -146,15 +155,12 @@ object Gamepad {
 
     // ---- Turning buttons into actions ----
 
-    private val directions = setOf(Button.UP, Button.DOWN, Button.LEFT, Button.RIGHT)
     @Volatile private var repeating: Button? = null
     @Volatile private var repeatId = 0
 
     private fun press(b: Button) {
-        if (MpvSession.gamepad(b)) {
-            if (b in directions) repeat(b) { MpvSession.gamepad(b) }
-            return
-        }
+        CursorAutoHide.hide()
+        if (MpvSession.gamepad(b)) return
         when (b) {
             Button.UP, Button.DOWN, Button.LEFT, Button.RIGHT -> { key(arrow(b), true); key(arrow(b), false); repeat(b) { key(arrow(b), true); key(arrow(b), false) } }
             // Held like a remote's OK: a long hold opens the title's options.
@@ -165,6 +171,9 @@ object Gamepad {
             Button.LB, Button.RB -> {}
         }
     }
+
+    /** A press and release, for the ZEMU_PAD test hook. */
+    internal fun tap(b: Button) { press(b); up(b) }
 
     private fun up(b: Button) {
         if (repeating == b) { repeating = null; repeatId++ }
@@ -198,10 +207,10 @@ object Gamepad {
         else -> KeyEvent.VK_RIGHT
     }
 
-    /** Sends a key to whatever has focus in Zemu's window, as if typed; nothing when Zemu isn't active. */
+    /** Sends a key to whatever has focus in Zemu (main window or player), as if typed; nothing when Zemu isn't active. */
     private fun key(code: Int, down: Boolean) = EventQueue.invokeLater {
-        val w = window ?: return@invokeLater
-        if (!w.isActive) return@invokeLater
+        // Only Zemu's own windows are ever active here (main window, player, dialogs).
+        val w = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow ?: return@invokeLater
         val target = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner ?: w.mostRecentFocusOwner ?: w
         val char = if (code == KeyEvent.VK_ENTER) '\n' else KeyEvent.CHAR_UNDEFINED
         target.dispatchEvent(KeyEvent(target, if (down) KeyEvent.KEY_PRESSED else KeyEvent.KEY_RELEASED, System.currentTimeMillis(), 0, code, char))
