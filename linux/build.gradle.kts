@@ -157,11 +157,10 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
             .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
     ),
     "com/zemu/tv/player/PlayerScreen.kt" to listOf(
-        // Clicking off a menu closes it; Subtitles opens its menu (J, S and X still cycle).
+        // Clicking off a menu closes it.
         """.background(Palette.Surface.copy(alpha = 0.96f)""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.96f)""",
         """.background(Palette.Surface.copy(alpha = 0.92f)""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.92f)""",
         """.background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(50))""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(50))""",
-        """onLongClick = { onDialog(PlayerDialog.SUBTITLES) }) { a.cycleSubtitles() })""" to """onLongClick = { onDialog(PlayerDialog.SUBTITLES) }) { onDialog(PlayerDialog.SUBTITLES) })""",
         """            .background(Color.Black)
             .onPreviewKeyEvent { e ->
                 lastInteraction = SystemClock.uptimeMillis()""" to """            .background(Color.Transparent)

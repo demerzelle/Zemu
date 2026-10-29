@@ -574,12 +574,18 @@ private fun TrackColumn(
     options: List<TrackOption>,
     modifier: Modifier,
     focus: FocusRequester,
+    /** Shown above the tracks (subtitle position and style). */
     footers: List<Pair<String, () -> Unit>> = emptyList(),
     onPick: (TrackOption) -> Unit,
 ) {
     Column(modifier) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp))
         androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            itemsIndexed(footers, key = { _, f -> "footer-${f.first}" }) { i, footer ->
+                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(bottom = if (i == footers.lastIndex) 8.dp else 0.dp), shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.02f) {
+                    Text(footer.first, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
+            }
             itemsIndexed(options, key = { _, o -> o.key }) { i, o ->
                 val first = (options.indexOfFirst { it.selected }.takeIf { it >= 0 } ?: 0) == i
                 FocusSurface(
@@ -591,11 +597,6 @@ private fun TrackColumn(
                 ) {
                     Text((if (o.selected) "✓  " else "     ") + o.label, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
-                }
-            }
-            itemsIndexed(footers, key = { _, f -> "footer-${f.first}" }) { i, footer ->
-                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = if (i == 0) 8.dp else 0.dp), shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.02f) {
-                    Text(footer.first, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                 }
             }
         }
