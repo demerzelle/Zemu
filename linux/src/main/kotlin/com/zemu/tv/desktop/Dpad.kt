@@ -1,6 +1,24 @@
 package com.zemu.tv.desktop
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -64,11 +82,38 @@ object FocusRescue {
 fun DpadDialog(onDismissRequest: () -> Unit, properties: DialogProperties = DialogProperties(), content: @Composable () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) {
         val focus = LocalFocusManager.current
-        Box(
-            Modifier.onKeyEvent { e ->
-                if (e.type == KeyEventType.KeyDown && e.key == Key.Backspace) { SoundFx.play(SoundFx.Event.BACK); onDismissRequest(); true }
-                else dpadMove(e, focus)
-            },
-        ) { content() }
+        val panels = remember { mutableStateMapOf<Any, Rect>() }
+        var box by remember { mutableStateOf<LayoutCoordinates?>(null) }
+        val dismiss by rememberUpdatedState(onDismissRequest)
+        CompositionLocalProvider(LocalPanels provides panels) {
+            Box(
+                Modifier
+                    .onGloballyPositioned { box = it }
+                    // A click off the menu's panel closes it (menus cover the whole window, so the
+                    // platform's own click-outside never fires). Only dialogs that mark a panel.
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            waitForUpOrCancellation() ?: return@awaitEachGesture
+                            val at = box?.localToWindow(down.position) ?: return@awaitEachGesture
+                            if (panels.isNotEmpty() && panels.values.none { it.contains(at) }) dismiss()
+                        }
+                    }
+                    .onKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown && e.key == Key.Backspace) { SoundFx.play(SoundFx.Event.BACK); dismiss(); true }
+                        else dpadMove(e, focus)
+                    },
+            ) { content() }
+        }
     }
+}
+
+private val LocalPanels = staticCompositionLocalOf<MutableMap<Any, Rect>?> { null }
+
+/** Marks a dialog's menu panel: clicking anywhere else closes the dialog (patched into shared menus). */
+fun dialogPanel(): Modifier = Modifier.composed {
+    val panels = LocalPanels.current ?: return@composed Modifier
+    val key = remember { Any() }
+    DisposableEffect(key) { onDispose { panels.remove(key) } }
+    Modifier.onGloballyPositioned { panels[key] = it.boundsInWindow() }
 }

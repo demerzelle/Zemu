@@ -67,6 +67,8 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
         "import androidx.compose.ui.graphics.asImageBitmap" to "import androidx.compose.ui.graphics.toComposeImageBitmap",
     ),
     "com/zemu/tv/ui/components/CardMenu.kt" to listOf(
+        // Clicking off a menu closes it.
+        """.glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))""" to """.then(com.zemu.tv.desktop.dialogPanel()).glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(14.dp)))""",
         """e.nativeKeyEvent.repeatCount > 0 -> true""" to """false -> true""",
         // Download from a card's menu: the movie, or every season of a show.
         """    MARK_WATCHED("Mark as watched"),""" to """    DOWNLOAD("Download"),
@@ -155,6 +157,11 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
             .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
     ),
     "com/zemu/tv/player/PlayerScreen.kt" to listOf(
+        // Clicking off a menu closes it; Subtitles opens its menu (J, S and X still cycle).
+        """.background(Palette.Surface.copy(alpha = 0.96f)""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.96f)""",
+        """.background(Palette.Surface.copy(alpha = 0.92f)""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.92f)""",
+        """.background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(50))""" to """.then(com.zemu.tv.desktop.dialogPanel()).background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(50))""",
+        """onLongClick = { onDialog(PlayerDialog.SUBTITLES) }) { a.cycleSubtitles() })""" to """onLongClick = { onDialog(PlayerDialog.SUBTITLES) }) { onDialog(PlayerDialog.SUBTITLES) })""",
         """            .background(Color.Black)
             .onPreviewKeyEvent { e ->
                 lastInteraction = SystemClock.uptimeMillis()""" to """            .background(Color.Transparent)
@@ -180,6 +187,10 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
                         Text(a.title,""",
     ),
     // Where downloads go, with a controller-friendly folder browser.
+    // Clicking off a menu closes it.
+    "com/zemu/tv/ui/components/Controls.kt" to listOf(
+        """                .glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))""" to """                .then(com.zemu.tv.desktop.dialogPanel()).glassPanel(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp)))""",
+    ),
     "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
         """    "Manage addons" to SettingsCategory.ACCOUNTS,""" to """    "Manage addons" to SettingsCategory.ACCOUNTS,
     "Scrolling rows with the mouse (arrows, hover speed)" to SettingsCategory.BROWSING,""",

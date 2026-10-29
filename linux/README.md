@@ -20,7 +20,7 @@ from GitHub Releases.
 
 - **Keyboard, mouse or Xbox controller.** Arrows / D-pad / left stick move, Enter or A selects,
   Esc, Backspace, B or the mouse's back button go back, F11 toggles full screen. Right-click a card
-  or an episode (or hold Enter / A, or press X) for its options. Y opens Search. Pages without the
+  or an episode (or hold Enter / A, or press X) for its options. Clicking anywhere off a menu closes it. Y opens Search. Pages without the
   side menu have a Back button in the top-left corner. Resting the mouse on a poster for 3 seconds
   shows it at the top of the page.
 - **Scrolling rows with the mouse**: arrow buttons at a row's ends, or hovering near an end
@@ -35,7 +35,7 @@ from GitHub Releases.
   (D-pad) scrub, Esc (B) or the Back button in the top bar closes; Space pauses, F full screen, M mute, N next episode, J or S
   subtitles, A audio track; on a controller LB/RB jump 10 s, X/Y change subtitles/audio and Menu
   plays the next episode. With a controller connected, its buttons are shown under the controls.
-  Subtitles → Subtitle position… moves the subtitles up or down (↑/↓) with a live preview, e.g.
+  Clicking Subtitles lists every track; Subtitle position… there moves the subtitles up or down (↑/↓) with a live preview, e.g.
   off text burned into the picture or into the black bars.
 - **Full screen** (F11, Alt+Enter, or the player's Full screen button) covers the whole display,
   top bar and dock included; there the mouse pointer hides after 5 seconds without moving. The

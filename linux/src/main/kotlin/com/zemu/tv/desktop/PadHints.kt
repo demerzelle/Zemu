@@ -41,8 +41,8 @@ fun PadHint(controlKey: String) {
 
 /** The track panel hint, mentioning the controller only while one is connected. */
 fun trackPanelHint(): String =
-    if (Gamepad.connected) "Right-click, hold Enter or hold the A button on Audio or Subtitles to see every track"
-    else "Right-click or hold Enter on Audio or Subtitles to see every track"
+    if (Gamepad.connected) "Subtitles opens every track and Subtitle position; for Audio, right-click, hold Enter or hold A"
+    else "Subtitles opens every track and Subtitle position; for Audio, right-click or hold Enter"
 
 /**
  * An Xbox-style button: face buttons are dark discs with the letter in its color (A green, B red,
