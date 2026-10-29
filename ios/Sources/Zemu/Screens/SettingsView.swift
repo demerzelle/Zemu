@@ -5,31 +5,31 @@ import ZemuCore
 
 /** The groups shown in Settings' left-hand list. */
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case ADDONS, PROFILES, PLAYBACK, STREAMS, SUBTITLES, APPEARANCE, DEVICE, DATA
+    case ADDONS, PROFILES, PLAYBACK, SUBTITLES, APPEARANCE, NOTIFICATIONS, DEVICE, DATA
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .ADDONS: "Addons & Accounts"; case .PROFILES: "Profiles"; case .PLAYBACK: "Playback"; case .STREAMS: "Streams & Languages"
-        case .SUBTITLES: "Subtitles"; case .APPEARANCE: "Appearance"; case .DEVICE: "This Device"; case .DATA: "Data & Backup"
+        case .ADDONS: "Accounts & Addons"; case .PROFILES: "Profiles"; case .PLAYBACK: "Playback"; case .SUBTITLES: "Subtitles"
+        case .APPEARANCE: "Appearance"; case .NOTIFICATIONS: "Notifications"; case .DEVICE: "Video & Audio Formats"; case .DATA: "Data & Backup"
         }
     }
 
     var icon: String {
         switch self {
-        case .ADDONS: "puzzlepiece.extension"; case .PROFILES: "person.2"; case .PLAYBACK: "play.rectangle"; case .STREAMS: "line.3.horizontal.decrease.circle"
-        case .SUBTITLES: "captions.bubble"; case .APPEARANCE: "paintpalette"; case .DEVICE: "iphone"; case .DATA: "externaldrive"
+        case .ADDONS: "puzzlepiece.extension"; case .PROFILES: "person.2"; case .PLAYBACK: "play.rectangle"; case .SUBTITLES: "captions.bubble"
+        case .APPEARANCE: "paintpalette"; case .NOTIFICATIONS: "bell"; case .DEVICE: "iphone"; case .DATA: "externaldrive"
         }
     }
 
     var blurb: String {
         switch self {
-        case .ADDONS: "Your debrid service, stream addons, title details and cast info."
+        case .ADDONS: "Your debrid service, stream addons, metadata and cast info."
         case .PROFILES: "Who's watching, pictures and the profile picker."
-        case .PLAYBACK: "Instant play, autoplay, players and decoding."
-        case .STREAMS: "Which cached streams are shown and preferred."
-        case .SUBTITLES: "How subtitles look and the skip-intro button."
-        case .APPEARANCE: "Color themes, animated themes, trailers and notifications."
+        case .PLAYBACK: "How videos start and end, skipping intros, which streams are picked, the audio language and the player."
+        case .SUBTITLES: "Which subtitles are picked and how they look."
+        case .APPEARANCE: "Color themes and animated themes."
+        case .NOTIFICATIONS: "New-episode notifications."
         case .DEVICE: "What this iPhone or iPad can play, used for \"Best for this device\"."
         case .DATA: "Export or restore this profile, and clear history."
         }
@@ -80,9 +80,9 @@ struct SettingsView: View {
                     case .ADDONS: AddonsSettings()
                     case .PROFILES: ProfilesSection().padding(.top, 8)
                     case .PLAYBACK: PlaybackSettings()
-                    case .STREAMS: StreamsSettings()
                     case .SUBTITLES: SubtitleSettings()
                     case .APPEARANCE: AppearanceSettings()
+                    case .NOTIFICATIONS: NotificationSettings()
                     case .DEVICE: DeviceSettings()
                     case .DATA: DataSettings()
                     }
@@ -106,12 +106,19 @@ struct SettingsGroup<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        // A card per section, so each page reads as a few clear sections.
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 16, weight: .bold))
-            if let note { Text(note).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true) }
-            content()
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2).fill(P.accent).frame(width: 4, height: 18)
+                Text(title).font(.system(size: 16, weight: .bold))
+            }
+            if let note { Text(note).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 14) }
+            content().padding(.top, 2)
         }
-        .padding(.top, 20)
+        .padding(.horizontal, 18).padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(P.surface.opacity(0.35)))
+        .padding(.top, 14)
     }
 }
 
@@ -411,6 +418,16 @@ private struct PlaybackSettings: View {
                 }
             }
         }
+        SettingsGroup(title: "Skipping") {
+            ToggleRow(title: "Skip intro button", description: "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", isOn: s.skipIntroButton) { v in update { $0.skipIntroButton = v } }
+        }
+        SettingsGroup(title: "Cached streams", note: "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
+            ToggleRow(title: "Treat direct links as cached", description: "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.", isOn: s.trustDirectLinks) { v in update { $0.trustDirectLinks = v } }
+            PickerRow(title: "Maximum file size", options: [0, 5, 10, 20, 40, 80].map { ($0, $0 == 0 ? "No limit" : "\($0) GB") }, value: s.maxSizeGb) { v in update { $0.maxSizeGb = v } }
+        }
+        SettingsGroup(title: "Audio language", note: "Order matters: the first language is preferred. Also used to rank streams.") {
+            LanguagePicker(title: "Preferred audio", selected: s.audioLanguages) { l in update { $0.audioLanguages = l } }
+        }
         SettingsGroup(title: "Player", note: "Built-in player: mpv. It plays MKV, HEVC, AV1, DTS, TrueHD and styled subtitles.") {
             ToggleRow(title: "Use external player", description: "Open streams in VLC, Infuse or Outplayer instead of the built-in player.", isOn: s.useExternalPlayer) { v in update { $0.useExternalPlayer = v } }
             PickerRow(title: "External player", options: ExternalPlayer.choices.map { ($0, ExternalPlayer.isInstalled($0) ? $0 : "\($0) (not installed)") }, value: s.externalPlayer) { v in update { $0.externalPlayer = v } }
@@ -422,21 +439,6 @@ private struct PlaybackSettings: View {
 
 // MARK: - Streams
 
-private struct StreamsSettings: View {
-    var app = AppModel.shared
-    var body: some View {
-        let s = app.settings
-        SettingsGroup(title: "Cached streams", note: "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
-            ToggleRow(title: "Treat direct links as cached", description: "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.", isOn: s.trustDirectLinks) { v in update { $0.trustDirectLinks = v } }
-            PickerRow(title: "Maximum file size", options: [0, 5, 10, 20, 40, 80].map { ($0, $0 == 0 ? "No limit" : "\($0) GB") }, value: s.maxSizeGb) { v in update { $0.maxSizeGb = v } }
-        }
-        SettingsGroup(title: "Languages", note: "Order matters: the first language is preferred. Used to rank streams and pick audio and subtitle tracks.") {
-            LanguagePicker(title: "Preferred audio", selected: s.audioLanguages) { l in update { $0.audioLanguages = l } }
-            LanguagePicker(title: "Preferred subtitles", selected: s.subtitleLanguages) { l in update { $0.subtitleLanguages = l } }
-            ToggleRow(title: "Turn on subtitles automatically", description: "Select a subtitle track in your preferred language when playback starts.", isOn: s.autoSubtitles) { v in update { $0.autoSubtitles = v } }
-        }
-    }
-}
 
 private struct LanguagePicker: View {
     let title: String
@@ -495,13 +497,14 @@ private struct SubtitleSettings: View {
     var app = AppModel.shared
     var body: some View {
         let s = app.settings
+        SettingsGroup(title: "Which subtitles", note: "Order matters: the first language is preferred.") {
+            LanguagePicker(title: "Preferred subtitles", selected: s.subtitleLanguages) { l in update { $0.subtitleLanguages = l } }
+            ToggleRow(title: "Turn on subtitles automatically", description: "Select a subtitle track in your preferred language when playback starts.", isOn: s.autoSubtitles) { v in update { $0.autoSubtitles = v } }
+        }
         SettingsGroup(title: "Subtitle appearance", note: "Also available in the player.") {
             SubtitlePreview(settings: s)
             SubtitleStyleEditor()
             ToggleRow(title: "Keep styled subtitles as authored", description: "ASS/SSA subtitles (common for anime) keep their own fonts, colors and signs; only the size follows your setting. Off applies your style to them too.", isOn: s.keepStyledSubtitles) { v in update { $0.keepStyledSubtitles = v } }
-        }
-        SettingsGroup(title: "Skipping") {
-            ToggleRow(title: "Skip intro button", description: "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", isOn: s.skipIntroButton) { v in update { $0.skipIntroButton = v } }
         }
     }
 }
@@ -575,12 +578,6 @@ private struct AppearanceSettings: View {
         SettingsGroup(title: "Animated themes", note: "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. RGB, Snowfall and Rain keep your color theme.") {
             Choices(title: "Animated theme", options: DynamicTheme.allCases.map { ($0.rawValue, $0.label) }, current: s.dynamicTheme) { v in update { $0.dynamicTheme = v } }
         }
-        SettingsGroup(title: "Notifications") {
-            ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in
-                update { $0.notifyNewEpisodes = v }
-                if v { Integrations.shared.requestNotificationPermission() }
-            }
-        }
     }
 }
 
@@ -639,6 +636,21 @@ private struct ThemeSwatch: View {
         .buttonStyle(.plain)
         .onHover { hover = $0 }
         .zFocus(activate: action, onFocusChange: { hover = $0 }, cornerRadius: 12)
+    }
+}
+
+// MARK: - Notifications
+
+private struct NotificationSettings: View {
+    var app = AppModel.shared
+    var body: some View {
+        let s = app.settings
+        SettingsGroup(title: "Notifications") {
+            ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in
+                update { $0.notifyNewEpisodes = v }
+                if v { Integrations.shared.requestNotificationPermission() }
+            }
+        }
     }
 }
 

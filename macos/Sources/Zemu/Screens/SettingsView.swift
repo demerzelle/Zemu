@@ -6,31 +6,35 @@ import ZemuCore
 
 /** The groups shown in Settings' left-hand list. */
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case ADDONS, PROFILES, PLAYBACK, STREAMS, SUBTITLES, APPEARANCE, CONTROLS, DEVICE, DATA
+    case ADDONS, PROFILES, PLAYBACK, SUBTITLES, APPEARANCE, BROWSING, SOUNDS, SCREENSAVER, CONTROLS, DEVICE, DATA
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .ADDONS: "Addons & Accounts"; case .PROFILES: "Profiles"; case .PLAYBACK: "Playback"; case .STREAMS: "Streams & Languages"
-        case .SUBTITLES: "Subtitles"; case .APPEARANCE: "Appearance"; case .CONTROLS: "Keyboard & Controller"; case .DEVICE: "This Mac"; case .DATA: "Data & Backup"
+        case .ADDONS: "Accounts & Addons"; case .PROFILES: "Profiles & Kids"; case .PLAYBACK: "Playback"; case .SUBTITLES: "Subtitles"
+        case .APPEARANCE: "Appearance"; case .BROWSING: "Browsing"; case .SOUNDS: "Sounds & Notifications"; case .SCREENSAVER: "Screensaver"
+        case .CONTROLS: "Keyboard & Controller"; case .DEVICE: "Video & Audio Formats"; case .DATA: "Data & Backup"
         }
     }
 
     var icon: String {
         switch self {
-        case .ADDONS: "puzzlepiece.extension"; case .PROFILES: "person.2"; case .PLAYBACK: "play.rectangle"; case .STREAMS: "line.3.horizontal.decrease.circle"
-        case .SUBTITLES: "captions.bubble"; case .APPEARANCE: "paintpalette"; case .CONTROLS: "gamecontroller"; case .DEVICE: "desktopcomputer"; case .DATA: "externaldrive"
+        case .ADDONS: "puzzlepiece.extension"; case .PROFILES: "person.2"; case .PLAYBACK: "play.rectangle"; case .SUBTITLES: "captions.bubble"
+        case .APPEARANCE: "paintpalette"; case .BROWSING: "square.grid.2x2"; case .SOUNDS: "speaker.wave.2"; case .SCREENSAVER: "moon.stars"
+        case .CONTROLS: "gamecontroller"; case .DEVICE: "desktopcomputer"; case .DATA: "externaldrive"
         }
     }
 
     var blurb: String {
         switch self {
-        case .ADDONS: "Your debrid service, stream addons, title details and cast info."
-        case .PROFILES: "Who's watching, pictures and the profile picker."
-        case .PLAYBACK: "Instant play, autoplay, players and decoding."
-        case .STREAMS: "Which cached streams are shown and preferred."
-        case .SUBTITLES: "How subtitles look and the skip-intro button."
-        case .APPEARANCE: "Color themes, animated themes, trailers and notifications."
+        case .ADDONS: "Your debrid service, stream addons, metadata, Trakt and the free keys that add cast, scores and artwork."
+        case .PROFILES: "Who's watching, profile pictures, and parental controls for kid profiles."
+        case .PLAYBACK: "How videos start and end, skipping intros, which streams are picked, the audio language and the player."
+        case .SUBTITLES: "Which subtitles are picked and how they look."
+        case .APPEARANCE: "Color themes, animated themes, your own colors, text, size and artwork."
+        case .BROWSING: "The rows on Home and trailers."
+        case .SOUNDS: "Sound effects and new-episode notifications."
+        case .SCREENSAVER: "A slideshow of titles picked for you when Zemu sits idle."
         case .CONTROLS: "Zemu works entirely with a keyboard or a game controller (Xbox, PlayStation, MFi)."
         case .DEVICE: "What this Mac can play, used for \"Best for this Mac\"."
         case .DATA: "Export or restore this profile, and clear history."
@@ -84,9 +88,11 @@ struct SettingsView: View {
                         ProfilesSection().padding(.top, 8)
                         KidsSettingsSection()
                     case .PLAYBACK: PlaybackSettings()
-                    case .STREAMS: StreamsSettings()
                     case .SUBTITLES: SubtitleSettings()
                     case .APPEARANCE: AppearanceSettings()
+                    case .BROWSING: BrowsingSettings()
+                    case .SOUNDS: SoundSettings()
+                    case .SCREENSAVER: ScreensaverSettings()
                     case .CONTROLS: ControlsSettings()
                     case .DEVICE: DeviceSettings()
                     case .DATA: DataSettings()
@@ -111,12 +117,19 @@ struct SettingsGroup<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        // A card per section, so each page reads as a few clear sections.
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.z(size: 16, weight: .bold))
-            if let note { Text(note).font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true) }
-            content()
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2).fill(P.accent).frame(width: 4, height: 18)
+                Text(title).font(.z(size: 16, weight: .bold))
+            }
+            if let note { Text(note).font(.z(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 14) }
+            content().padding(.top, 2)
         }
-        .padding(.top, 20)
+        .padding(.horizontal, 18).padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(P.surface.opacity(0.35)))
+        .padding(.top, 14)
     }
 }
 
@@ -559,6 +572,16 @@ private struct PlaybackSettings: View {
                 }
             }
         }
+        SettingsGroup(title: "Skipping") {
+            ToggleRow(title: "Skip intro button", description: "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", isOn: s.skipIntroButton) { v in update { $0.skipIntroButton = v } }
+        }
+        SettingsGroup(title: "Cached streams", note: "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
+            ToggleRow(title: "Treat direct links as cached", description: "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.", isOn: s.trustDirectLinks) { v in update { $0.trustDirectLinks = v } }
+            PickerRow(title: "Maximum file size", options: [0, 5, 10, 20, 40, 80].map { ($0, $0 == 0 ? "No limit" : "\($0) GB") }, value: s.maxSizeGb) { v in update { $0.maxSizeGb = v } }
+        }
+        SettingsGroup(title: "Audio language", note: "Order matters: the first language is preferred. Also used to rank streams.") {
+            LanguagePicker(title: "Preferred audio", selected: s.audioLanguages) { l in update { $0.audioLanguages = l } }
+        }
         SettingsGroup(title: "Player", note: MPV.available ? "Built-in player: mpv (\(MPV.libraryPath ?? "")). It plays MKV, HEVC, AV1, DTS, TrueHD and styled subtitles." : "mpv isn't available, so the built-in player uses AVPlayer (MP4/HLS only). Install mpv (brew install mpv) or use an external player for MKV streams.") {
             ToggleRow(title: "Use external player", description: "Open streams in IINA, VLC or Infuse instead of the built-in player.", isOn: s.useExternalPlayer) { v in update { $0.useExternalPlayer = v } }
             PickerRow(title: "External player", options: ExternalPlayer.choices.map { ($0, ExternalPlayer.isInstalled($0) ? $0 : "\($0) (not installed)") }, value: s.externalPlayer) { v in update { $0.externalPlayer = v } }
@@ -570,21 +593,6 @@ private struct PlaybackSettings: View {
 
 // MARK: - Streams
 
-private struct StreamsSettings: View {
-    var app = AppModel.shared
-    var body: some View {
-        let s = app.settings
-        SettingsGroup(title: "Cached streams", note: "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
-            ToggleRow(title: "Treat direct links as cached", description: "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.", isOn: s.trustDirectLinks) { v in update { $0.trustDirectLinks = v } }
-            PickerRow(title: "Maximum file size", options: [0, 5, 10, 20, 40, 80].map { ($0, $0 == 0 ? "No limit" : "\($0) GB") }, value: s.maxSizeGb) { v in update { $0.maxSizeGb = v } }
-        }
-        SettingsGroup(title: "Languages", note: "Order matters: the first language is preferred. Used to rank streams and pick audio and subtitle tracks.") {
-            LanguagePicker(title: "Preferred audio", selected: s.audioLanguages) { l in update { $0.audioLanguages = l } }
-            LanguagePicker(title: "Preferred subtitles", selected: s.subtitleLanguages) { l in update { $0.subtitleLanguages = l } }
-            ToggleRow(title: "Turn on subtitles automatically", description: "Select a subtitle track in your preferred language when playback starts.", isOn: s.autoSubtitles) { v in update { $0.autoSubtitles = v } }
-        }
-    }
-}
 
 private struct LanguagePicker: View {
     let title: String
@@ -648,13 +656,14 @@ private struct SubtitleSettings: View {
     var app = AppModel.shared
     var body: some View {
         let s = app.settings
+        SettingsGroup(title: "Which subtitles", note: "Order matters: the first language is preferred.") {
+            LanguagePicker(title: "Preferred subtitles", selected: s.subtitleLanguages) { l in update { $0.subtitleLanguages = l } }
+            ToggleRow(title: "Turn on subtitles automatically", description: "Select a subtitle track in your preferred language when playback starts.", isOn: s.autoSubtitles) { v in update { $0.autoSubtitles = v } }
+        }
         SettingsGroup(title: "Subtitle appearance", note: "Also available in the player (press C).") {
             SubtitlePreview(settings: s)
             SubtitleStyleEditor()
             ToggleRow(title: "Keep styled subtitles as authored", description: "ASS/SSA subtitles (common for anime) keep their own fonts, colors and signs; only the size follows your setting. Off applies your style to them too.", isOn: s.keepStyledSubtitles) { v in update { $0.keepStyledSubtitles = v } }
-        }
-        SettingsGroup(title: "Skipping") {
-            ToggleRow(title: "Skip intro button", description: "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", isOn: s.skipIntroButton) { v in update { $0.skipIntroButton = v } }
         }
     }
 }
@@ -764,51 +773,6 @@ private struct AppearanceSettings: View {
         SettingsGroup(title: "Pictures and logos") {
             ToggleRow(title: "Backdrop pictures", description: "Show the title's picture behind the top of Home, the Movies/Series/Anime pages and title pages.", isOn: s.heroArt) { v in update { $0.heroArt = v } }
             ToggleRow(title: "Title logos", description: "Show titles as their logo artwork. Off writes them out in plain text.", isOn: s.logoArt) { v in update { $0.logoArt = v } }
-            ToggleRow(title: "Hide watched titles in rows", description: "Keep movies and shows you've finished out of suggestions and categories.", isOn: s.hideWatchedInRows) { v in update { $0.hideWatchedInRows = v } }
-        }
-        SettingsGroup(title: "Trailers") {
-            ToggleRow(title: "Trailers", description: "Off: no trailers anywhere (no autoplay, no Trailer buttons or menu items).", isOn: s.trailers) { v in update { $0.trailers = v } }
-            ToggleRow(title: "Autoplay trailers", description: "Play the trailer behind the title after you rest the pointer on it for a few seconds.", isOn: s.heroTrailers) { v in update { $0.heroTrailers = v } }
-            ToggleRow(title: "Trailer sound", description: "Play autoplaying trailers with sound. Full-window trailers always have sound.", isOn: s.heroTrailerSound) { v in update { $0.heroTrailerSound = v } }
-        }
-        SettingsGroup(title: "Rows", note: "Add rows of your own (a service, a studio, a genre or any addon list) and bring back rows you removed. On a page, drag a row's grip to move it, pin it to keep it, or click the crossed-out eye to remove it.") {
-            // Zemu's Movies and Series pages are Browse grids, so only Home has rows to manage for now.
-            ForEach([("home", "Home")], id: \.0) { page, label in
-                RowsManager(page: page, label: label)
-            }
-        }
-        SettingsGroup(title: "Screensaver", note: "A slideshow of suggested titles after Zemu sits idle. Any key, click or controller button wakes it; Return plays the title showing. Needs a TMDB or fanart.tv key to find backdrops. Kid profiles have none.") {
-            ToggleRow(title: "Screensaver", description: "Off by default.", isOn: s.screensaver) { v in update { $0.screensaver = v } }
-            if s.screensaver {
-                FlowChips {
-                    MenuChip(title: "Start after \(durationLabel(s.screensaverIdleSec))", heading: "Start after") {
-                        choiceItems([30, 60, 120, 300, 600, 900, 1800].map { ($0, durationLabel($0)) }, current: s.screensaverIdleSec) { v in update { $0.screensaverIdleSec = v } }
-                    }
-                    MenuChip(title: "Each title \(durationLabel(s.screensaverImageSec))", heading: "Show each title for") {
-                        choiceItems([5, 8, 10, 15, 20, 30, 60].map { ($0, durationLabel($0)) }, current: s.screensaverImageSec) { v in update { $0.screensaverImageSec = v } }
-                    }
-                    MenuChip(title: "Fade \(String(format: "%.1f", Double(s.screensaverFadeTenths) / 10)) s", heading: "Crossfade") {
-                        choiceItems([5, 10, 15, 20, 30, 50].map { ($0, String(format: "%.1f s", Double($0) / 10)) }, current: s.screensaverFadeTenths) { v in update { $0.screensaverFadeTenths = v } }
-                    }
-                    Chip(title: "Show title", selected: s.screensaverShowTitle) { update { $0.screensaverShowTitle.toggle() } }
-                }
-            }
-        }
-        SettingsGroup(title: "Sounds") {
-            ToggleRow(title: "Sound effects", description: "Clicks and blips when you move, select and go back with the keyboard or a controller. Themes with their own look bring their own sounds.", isOn: s.soundEffects) { v in update { $0.soundEffects = v } }
-            if s.soundEffects {
-                HStack(spacing: 8) {
-                    ForEach(SoundFx.packs, id: \.0) { key, label in
-                        Chip(title: label, selected: s.soundPack == key) { update { $0.soundPack = key } }
-                    }
-                }
-            }
-        }
-        SettingsGroup(title: "Notifications") {
-            ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in
-                update { $0.notifyNewEpisodes = v }
-                if v { Integrations.shared.requestNotificationPermission() }
-            }
         }
     }
 }
@@ -912,6 +876,74 @@ private struct ControlsSettings: View {
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(P.surface))
         .zFocus(activate: nil, cornerRadius: 10)
+    }
+}
+
+// MARK: - Browsing, sounds, screensaver
+
+private struct BrowsingSettings: View {
+    var app = AppModel.shared
+    var body: some View {
+        let s = app.settings
+        SettingsGroup(title: "Rows", note: "Add rows of your own (a service, a studio, a genre or any addon list) and bring back rows you removed. On a page, drag a row's grip to move it, pin it to keep it, or click the crossed-out eye to remove it.") {
+            // Zemu's Movies and Series pages are Browse grids, so only Home has rows to manage for now.
+            ForEach([("home", "Home")], id: \.0) { page, label in
+                RowsManager(page: page, label: label)
+            }
+            ToggleRow(title: "Hide watched titles in rows", description: "Keep movies and shows you've finished out of suggestions and categories.", isOn: s.hideWatchedInRows) { v in update { $0.hideWatchedInRows = v } }
+        }
+        SettingsGroup(title: "Trailers") {
+            ToggleRow(title: "Trailers", description: "Off: no trailers anywhere (no autoplay, no Trailer buttons or menu items).", isOn: s.trailers) { v in update { $0.trailers = v } }
+            ToggleRow(title: "Autoplay trailers", description: "Play the trailer behind the title after you rest the pointer on it for a few seconds.", isOn: s.heroTrailers) { v in update { $0.heroTrailers = v } }
+            ToggleRow(title: "Trailer sound", description: "Play autoplaying trailers with sound. Full-window trailers always have sound.", isOn: s.heroTrailerSound) { v in update { $0.heroTrailerSound = v } }
+        }
+    }
+}
+
+private struct SoundSettings: View {
+    var app = AppModel.shared
+    var body: some View {
+        let s = app.settings
+        SettingsGroup(title: "Sounds") {
+            ToggleRow(title: "Sound effects", description: "Clicks and blips when you move, select and go back with the keyboard or a controller. Themes with their own look bring their own sounds.", isOn: s.soundEffects) { v in update { $0.soundEffects = v } }
+            if s.soundEffects {
+                HStack(spacing: 8) {
+                    ForEach(SoundFx.packs, id: \.0) { key, label in
+                        Chip(title: label, selected: s.soundPack == key) { update { $0.soundPack = key } }
+                    }
+                }
+            }
+        }
+        SettingsGroup(title: "Notifications") {
+            ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in
+                update { $0.notifyNewEpisodes = v }
+                if v { Integrations.shared.requestNotificationPermission() }
+            }
+        }
+    }
+}
+
+private struct ScreensaverSettings: View {
+    var app = AppModel.shared
+    var body: some View {
+        let s = app.settings
+        SettingsGroup(title: "Screensaver", note: "A slideshow of suggested titles after Zemu sits idle. Any key, click or controller button wakes it; Return plays the title showing. Needs a TMDB or fanart.tv key to find backdrops. Kid profiles have none.") {
+            ToggleRow(title: "Screensaver", description: "Off by default.", isOn: s.screensaver) { v in update { $0.screensaver = v } }
+            if s.screensaver {
+                FlowChips {
+                    MenuChip(title: "Start after \(durationLabel(s.screensaverIdleSec))", heading: "Start after") {
+                        choiceItems([30, 60, 120, 300, 600, 900, 1800].map { ($0, durationLabel($0)) }, current: s.screensaverIdleSec) { v in update { $0.screensaverIdleSec = v } }
+                    }
+                    MenuChip(title: "Each title \(durationLabel(s.screensaverImageSec))", heading: "Show each title for") {
+                        choiceItems([5, 8, 10, 15, 20, 30, 60].map { ($0, durationLabel($0)) }, current: s.screensaverImageSec) { v in update { $0.screensaverImageSec = v } }
+                    }
+                    MenuChip(title: "Fade \(String(format: "%.1f", Double(s.screensaverFadeTenths) / 10)) s", heading: "Crossfade") {
+                        choiceItems([5, 10, 15, 20, 30, 50].map { ($0, String(format: "%.1f s", Double($0) / 10)) }, current: s.screensaverFadeTenths) { v in update { $0.screensaverFadeTenths = v } }
+                    }
+                    Chip(title: "Show title", selected: s.screensaverShowTitle) { update { $0.screensaverShowTitle.toggle() } }
+                }
+            }
+        }
     }
 }
 
