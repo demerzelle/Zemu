@@ -220,8 +220,10 @@ final class MPV: PlaybackEngine {
         default: set("sub-border-size", "2.6"); set("sub-shadow-offset", "0")
         }
         set("sub-border-color", "#FF000000")
-        // sub-margin-y is in scaled pixels of a 720-line frame.
-        set("sub-margin-y", String(Int(s.subtitleBottom * 720)))
+        // The usual 8% margin (scaled pixels of a 720-line frame); the position setting moves every
+        // line from there with sub-pos, which works with the file's own style too ("scale").
+        set("sub-margin-y", String(Int(0.08 * 720)))
+        set("sub-pos", String(Int((100 - (s.subtitleBottom - 0.08) * 100).rounded())))
         set("sub-ass-override", s.keepStyledSubtitles ? "scale" : "force")
         set("sub-delay", String(s.subtitleDelay))
     }

@@ -712,10 +712,9 @@ private fun SubtitleStyleDialog(
 }
 
 /**
- * Moves the subtitles up or down while the video keeps playing, e.g. off text burned into the
- * picture or into the black bars. Only a slim hint bar shows, plus a sample line where the
- * subtitles will sit; the real ones move live too. Up/Down move (hold to keep going), OK or Back
- * closes.
+ * Moves the subtitles on screen up or down while the video keeps playing, e.g. off text burned
+ * into the picture or into the black bars. Only a slim hint bar shows. Up/Down move (hold to keep
+ * going), OK or Back closes.
  */
 @Composable
 private fun SubtitlePositionDialog(
@@ -726,7 +725,7 @@ private fun SubtitlePositionDialog(
     val focus = remember { FocusRequester() }
     fun move(d: Float) = update { it.copy(subtitleBottom = ((it.subtitleBottom + d) * 100).roundToInt().div(100f).coerceIn(0f, 0.9f)) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        androidx.compose.foundation.layout.BoxWithConstraints(
+        Box(
             Modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
@@ -752,14 +751,6 @@ private fun SubtitlePositionDialog(
                 Text("▼", fontSize = 18.sp, modifier = Modifier.clickable { move(-0.01f) }.padding(horizontal = 6.dp))
                 Text("Up/Down to move  ·  OK or Back when done", fontSize = 13.sp, color = Palette.TextSecondary)
             }
-            Text(
-                "Subtitles will appear here",
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * settings.subtitleBottom),
-                style = androidx.compose.ui.text.TextStyle(
-                    color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
-                    shadow = androidx.compose.ui.graphics.Shadow(Color.Black, androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 6f),
-                ),
-            )
         }
     }
     LaunchedEffect(Unit) { delay(80); runCatching { focus.requestFocus() } }

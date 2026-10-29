@@ -35,7 +35,7 @@ from GitHub Releases.
   (D-pad) scrub, Esc (B) or the Back button in the top bar closes; Space pauses, F full screen, M mute, N next episode, J or S
   subtitles, A audio track; on a controller LB/RB jump 10 s, X/Y change subtitles/audio and Menu
   plays the next episode. With a controller connected, its buttons are shown under the controls.
-  Right-clicking Subtitles (or holding Enter on it) opens its menu; Subtitle position… at the top moves the subtitles up or down (↑/↓) with a live preview, e.g.
+  Right-clicking Subtitles (or holding Enter on it) opens its menu; Subtitle position… at the top moves the subtitles on screen up or down (↑/↓) as they play, e.g.
   off text burned into the picture or into the black bars.
 - **Full screen** (F11, Alt+Enter, or the player's Full screen button) covers the whole display,
   top bar and dock included; there the mouse pointer hides after 5 seconds without moving. The

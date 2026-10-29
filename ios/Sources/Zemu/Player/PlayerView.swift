@@ -397,9 +397,8 @@ private struct SeekFocus: ViewModifier {
 }
 
 /**
- * Moving the subtitles up or down while the video plays, e.g. off text burned into the picture or
- * into the black bars: a slim bar at the top and a sample line where they'll sit; the real ones
- * move live too.
+ * Moving the subtitles on screen up or down while the video plays, e.g. off text burned into the
+ * picture or into the black bars: only a slim bar at the top shows.
  */
 private struct SubtitlePositionOverlay: View {
     let p: PlayerModel
@@ -424,14 +423,6 @@ private struct SubtitlePositionOverlay: View {
                     .background(Capsule().fill(.black.opacity(0.7)))
                     .padding(.top, 24)
                     Spacer()
-                }
-                VStack {
-                    Spacer()
-                    Text("Subtitles will appear here")
-                        .font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
-                        .shadow(color: .black, radius: 3, y: 2)
-                        .padding(.bottom, g.size.height * app.settings.subtitleBottom)
-                        .allowsHitTesting(false)
                 }
             }
             .frame(width: g.size.width, height: g.size.height)

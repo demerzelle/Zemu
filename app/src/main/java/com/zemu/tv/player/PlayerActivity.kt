@@ -223,8 +223,7 @@ class PlayerActivity : ComponentActivity() {
             view.setUserDefaultTextSize()
             view.setApplyEmbeddedStyles(true)
             view.setApplyEmbeddedFontSizes(true)
-            // Position still follows the setting, so subtitles can be moved off the picture.
-            view.setBottomPaddingFraction(s.subtitleBottom)
+            moveSubtitles(view, s)
             return
         }
         view.setApplyEmbeddedFontSizes(false)
@@ -237,7 +236,17 @@ class PlayerActivity : ComponentActivity() {
         view.setStyle(CaptionStyleCompat(s.subtitleColor.toInt(), bg, 0, edge, 0xFF000000.toInt(), null))
         view.setApplyEmbeddedStyles(false)
         view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * s.subtitleScale)
-        view.setBottomPaddingFraction(s.subtitleBottom)
+        moveSubtitles(view, s)
+    }
+
+    /**
+     * Moves the whole subtitle layer up or down from the usual spot, so every subtitle on screen
+     * moves, whatever its format or style (positioned and picture subtitles too).
+     */
+    private fun moveSubtitles(view: SubtitleView, s: AppSettings) {
+        view.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+        fun shift() { view.translationY = -(s.subtitleBottom - SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION) * view.height }
+        if (view.height > 0) shift() else view.post { shift() }
     }
 
     // ---- Playback ----

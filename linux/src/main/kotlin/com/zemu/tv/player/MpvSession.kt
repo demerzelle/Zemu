@@ -249,13 +249,16 @@ class MpvSession private constructor(
     }
 
     private fun subtitleStyle(s: com.zemu.tv.data.AppSettings): List<String> {
-        // Position still follows the setting, so subtitles can be moved off the picture.
-        if (s.subtitleOriginalStyle) return listOf("--sub-ass-override=no", "--sub-margin-y=${(s.subtitleBottom * 720).toInt()}")
+        // The position setting moves every line from the usual 8% with sub-pos, which also works with
+        // the file's own style ("yes" keeps it; "no" would ignore sub-pos).
+        val pos = "--sub-pos=${Math.round(100 - (s.subtitleBottom - 0.08f) * 100)}"
+        if (s.subtitleOriginalStyle) return listOf("--sub-ass-override=yes", pos)
         return listOf(
             "--sub-ass-override=force",
+            pos,
             "--sub-font-size=${(55 * s.subtitleScale).toInt()}",
             "--sub-color=${String.format("#%08X", s.subtitleColor and 0xFFFFFFFFL)}",
-            "--sub-margin-y=${(s.subtitleBottom * 720).toInt()}",
+            "--sub-margin-y=${(0.08f * 720).toInt()}",
             "--sub-back-color=" + when (s.subtitleBackground) { 1 -> "#99000000"; 2 -> "#FF000000"; else -> "#00000000" },
             "--sub-border-size=${if (s.subtitleEdge == 1) 3 else 0}",
             "--sub-shadow-offset=${if (s.subtitleEdge == 2) 2 else 0}",
