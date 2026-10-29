@@ -69,7 +69,9 @@ object CursorAutoHide {
     private const val IDLE_MS = 5_000L
     private val blank: Cursor = Toolkit.getDefaultToolkit().createCustomCursor(BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), Point(0, 0), "blank")
     @Volatile private var lastMove = System.currentTimeMillis()
-    @Volatile private var hidden = false
+    /** The pointer is hidden: the keyboard or a controller is in use, not the mouse. */
+    var hidden by mutableStateOf(false)
+        private set
 
     fun install() {
         Toolkit.getDefaultToolkit().addAWTEventListener(

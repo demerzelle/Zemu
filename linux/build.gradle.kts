@@ -121,9 +121,32 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
     "com/zemu/tv/ui/components/Cards.kt" to listOf(
         // Rows don't restore their last poster: on desktop, entering a row above through it bounced
         // focus out to the row's name, so Up skipped every row's posters.
-        """            modifier = Modifier.focusRestorer(),
-            contentPadding = contentPadding,""" to """            modifier = Modifier,
-            contentPadding = contentPadding,""",
+        // Mouse-only scrolling too: arrows or hovering an end (com.zemu.tv.desktop.MouseScroll).
+        """        LazyRow(
+            state = rememberLazyListState(),
+            modifier = Modifier.focusRestorer(),
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            itemsIndexed(items, key = { _, it -> key(it) }) { index, item ->
+                val req = requesters[key(item)]
+                itemContent(index, item, if (req != null) Modifier.focusRequester(req) else Modifier)
+            }
+        }
+""" to """        com.zemu.tv.desktop.MouseScroll { rowState ->
+        LazyRow(
+            state = rowState,
+            modifier = Modifier,
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            itemsIndexed(items, key = { _, it -> key(it) }) { index, item ->
+                val req = requesters[key(item)]
+                itemContent(index, item, if (req != null) Modifier.focusRequester(req) else Modifier)
+            }
+        }
+        }
+""",
         """            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(meta) }""" to
             """            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(meta) }
             .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
@@ -206,13 +229,40 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
         """    val soundEffects: Boolean = true,
 """ to """    val soundEffects: Boolean = true,
     val soundPack: String = "lofi",
+    /** Mouse-only row scrolling: "arrows" (buttons at the ends) or "edges" (hover near an end). */
+    val mouseRowScroll: String = "arrows",
+    /** Hover-scroll speed, 1–5 (com.zemu.tv.desktop.EDGE_SPEEDS). */
+    val edgeScrollSpeed: Int = 3,
 """,
     ),
     "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
+        """    "Manage addons" to SettingsCategory.ACCOUNTS,""" to """    "Manage addons" to SettingsCategory.ACCOUNTS,
+    "Scrolling rows with the mouse (arrows, hover speed)" to SettingsCategory.BROWSING,""",
         """    group("animated", "Animated themes"""" to """    if (false) group("animated", "Animated themes"""",
         """ On Android 12 and newer, menus also blur what's behind them.""" to "",
         // More zoom steps: on top of the system's display scale, for TVs and small screens alike.
         """            listOf(80, 90, 100, 110, 125, 150).forEach { z ->""" to """            listOf(60, 70, 80, 90, 100, 110, 125, 150, 175, 200).forEach { z ->""",
+        """            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
+        }
+""" to """            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
+        }
+    }
+    group("mouse", "Scrolling rows with the mouse", "Arrow buttons at the ends of a row, or hover near an end to scroll it. Only while you use the mouse, not the keyboard or a controller.") {
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TvChip("Arrow buttons", settings.mouseRowScroll == "arrows", { vm.update { it.copy(mouseRowScroll = "arrows") } })
+            TvChip("Hover an edge", settings.mouseRowScroll == "edges", { vm.update { it.copy(mouseRowScroll = "edges") } })
+        }
+        if (settings.mouseRowScroll == "edges") {
+            Text("Hover scroll speed", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1 to "Slowest", 2 to "Slow", 3 to "Medium", 4 to "Fast", 5 to "Fastest").forEach { (v, label) ->
+                    TvChip(label, settings.edgeScrollSpeed == v, { vm.update { it.copy(edgeScrollSpeed = v) } })
+                }
+            }
+        }
+""",
         """            vm.update { it.copy(soundEffects = !it.soundEffects) }
         }
 """ to """            vm.update { it.copy(soundEffects = !it.soundEffects) }

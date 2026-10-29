@@ -1,5 +1,13 @@
 package com.zemu.tv.ui.settings
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.zemu.tv.ui.components.AppIcons
 import com.zemu.tv.ui.theme.retroScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -137,21 +145,19 @@ class SettingsViewModel(private val c: AppContainer, private val appRef: com.zem
 private enum class SettingsDialog { AUDIO, SUBS, MAX_SIZE, COUNTDOWN, STILL_EPISODES }
 
 /** The groups shown in Settings' left-hand list. */
-private enum class SettingsCategory(val label: String, val blurb: String) {
-    SEARCH("Search settings", "Type what you're looking for, then pick a result."),
-    QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look."),
-    ACCOUNTS("Accounts & keys", "Your debrid service, Trakt, and the free TMDB and OMDb keys that add cast, logos, ratings and critic scores."),
-    ADDONS("Addons & catalogs", "Stream addons, the metadata provider and your streaming services."),
-    PROFILES("Profiles", "Who's watching, pictures and the profile picker."),
-    KIDS("Kids", "Parental controls: kid profiles, the ratings a kid may watch and the parent code."),
-    PLAYBACK("Playback", "Starting playback, autoplay, skipping intros, trailers, players and history."),
-    STREAMS("Streams & languages", "Which cached streams are shown and preferred, and your languages."),
-    SUBTITLES("Subtitles", "Which subtitles are picked and how they look."),
-    THEMES("Themes & colors", "Light mode, glass, color themes, animated themes, your own colors and saved palettes."),
-    DISPLAY("Display & text", "UI zoom, font, text size, title artwork and the rows on each page."),
-    SOUND("Sounds & touch", "Sound effects and vibration."),
-    SCREENSAVER("Screensaver", "A slideshow of titles picked for you when Zemu sits idle."),
-    DEVICE("This TV", "What this TV can play, used to pick \"Best for this TV\" streams. Change anything that was detected wrong."),
+private enum class SettingsCategory(val label: String, val blurb: String, val icon: ImageVector) {
+    SEARCH("Search settings", "Type what you're looking for, then pick a result.", Icons.Filled.Search),
+    QUICK("Quick setup", "The few things that matter most: your debrid account, the TMDB key, your streaming services and the look.", Icons.Filled.Star),
+    ACCOUNTS("Accounts & addons", "Your debrid service, stream addons, metadata, streaming services, Trakt and the free keys that add cast, logos and critic scores.", AppIcons.Puzzle),
+    PROFILES("Profiles & kids", "Who's watching, profile pictures, and parental controls for kid profiles.", Icons.Filled.Person),
+    PLAYBACK("Playback", "How videos start and end, skipping intros, which streams are picked and the audio language.", AppIcons.Play),
+    SUBTITLES("Subtitles", "Which subtitles are picked and how they look.", AppIcons.Subtitles),
+    APPEARANCE("Appearance", "Light mode, themes, colors, size and text.", AppIcons.Palette),
+    BROWSING("Browsing", "The rows on each page, trailers and search history.", Icons.Filled.Home),
+    SOUND("Sounds & touch", "Sound effects and vibration.", AppIcons.Audio),
+    SCREENSAVER("Screensaver", "A slideshow of titles picked for you when Zemu sits idle.", AppIcons.Sleep),
+    DEVICE("Video & audio formats", "What this device can play, used to pick \"Best for this TV\" streams. Change anything that was detected wrong.", AppIcons.Tv),
+    SYSTEM("Updates & storage", "Updates, downloads and watch history.", Icons.Filled.Settings),
 }
 
 @Composable
@@ -181,6 +187,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
             SettingsCategory.entries.forEach { cat ->
                 CategoryItem(
                     cat.label,
+                    cat.icon,
                     selected = cat == category,
                     modifier = if (cat == SettingsCategory.QUICK) Modifier.focusRequester(topFocus) else Modifier,
                     onFocused = { category = cat },
@@ -206,18 +213,19 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
             when (category) {
                 SettingsCategory.SEARCH -> searchCategory { category = it }
                 SettingsCategory.QUICK -> quickCategory(vm, settings, remote, onOpenServices)
-                SettingsCategory.ACCOUNTS -> accountsCategory(vm, settings, remote)
-                SettingsCategory.ADDONS -> addonsCategory(vm, settings, remote, onOpenAddons, onOpenServices)
-                SettingsCategory.PROFILES -> item(key = "profiles") { ProfilesSection(remote) }
-                SettingsCategory.KIDS -> item(key = "kids") { KidsSection() }
+                SettingsCategory.ACCOUNTS -> accountsCategory(vm, settings, remote, onOpenAddons, onOpenServices)
+                SettingsCategory.PROFILES -> {
+                    group("profiles", "Profiles") { ProfilesSection(remote) }
+                    group("kids", "Kids") { KidsSection() }
+                }
                 SettingsCategory.PLAYBACK -> playbackCategory(vm, settings) { dialog = it }
-                SettingsCategory.STREAMS -> streamsCategory(vm, settings) { dialog = it }
-                SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings)
-                SettingsCategory.THEMES -> themesCategory(vm, settings)
-                SettingsCategory.DISPLAY -> displayCategory(vm, settings, onManageRows)
+                SettingsCategory.SUBTITLES -> subtitlesCategory(vm, settings) { dialog = it }
+                SettingsCategory.APPEARANCE -> appearanceCategory(vm, settings)
+                SettingsCategory.BROWSING -> browsingCategory(vm, settings, onManageRows)
                 SettingsCategory.SOUND -> soundsCategory(vm, settings)
                 SettingsCategory.SCREENSAVER -> screensaverCategory(vm, settings)
                 SettingsCategory.DEVICE -> deviceCategory(vm, settings)
+                SettingsCategory.SYSTEM -> systemCategory(vm, settings)
             }
         }
     }
@@ -261,7 +269,7 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
 }
 
 @Composable
-private fun CategoryItem(label: String, selected: Boolean, modifier: Modifier, onFocused: () -> Unit, onClick: () -> Unit) {
+private fun CategoryItem(label: String, icon: ImageVector, selected: Boolean, modifier: Modifier, onFocused: () -> Unit, onClick: () -> Unit) {
     FocusSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { if (it.isFocused) onFocused() },
@@ -273,6 +281,8 @@ private fun CategoryItem(label: String, selected: Boolean, modifier: Modifier, o
         Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(width = 4.dp, height = 18.dp).background(if (selected) Palette.Accent else Color.Transparent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(2.dp))))
             Spacer(Modifier.width(10.dp))
+            androidx.tv.material3.Icon(icon, contentDescription = null, tint = if (selected) Palette.Accent else Palette.TextSecondary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
             Text(label, fontSize = 16.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -281,10 +291,16 @@ private fun CategoryItem(label: String, selected: Boolean, modifier: Modifier, o
 /** A labelled group inside a category; [spaced] adds room above it. */
 private fun LazyListScope.group(key: String, title: String, note: String? = null, content: @Composable () -> Unit) {
     item(key = key) {
-        Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            note?.let { Text(it, color = Palette.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp)) }
-            Spacer(Modifier.size(8.dp))
+        // A card per section, so each page reads as a few clear sections.
+        val shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(16.dp))
+        Column(Modifier.fillMaxWidth().padding(top = 14.dp).background(Palette.Surface.copy(alpha = 0.35f), shape).padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(width = 4.dp, height = 18.dp).background(Palette.Accent, com.zemu.tv.ui.theme.boxy(RoundedCornerShape(2.dp))))
+                Spacer(Modifier.width(10.dp))
+                Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+            note?.let { Text(it, color = Palette.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, start = 14.dp)) }
+            Spacer(Modifier.size(10.dp))
             content()
         }
     }
@@ -293,51 +309,51 @@ private fun LazyListScope.group(key: String, title: String, note: String? = null
 /** Where each setting lives, for Search settings. */
 private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Debrid account (Real-Debrid, AllDebrid, Premiumize, TorBox)" to SettingsCategory.ACCOUNTS,
-    "Manage addons" to SettingsCategory.ADDONS,
-    "Metadata provider" to SettingsCategory.ADDONS,
+    "Manage addons" to SettingsCategory.ACCOUNTS,
+    "Metadata provider" to SettingsCategory.ACCOUNTS,
     "TMDB key (cast, studios, streaming services)" to SettingsCategory.ACCOUNTS,
     "OMDb key (Rotten Tomatoes, Metacritic scores)" to SettingsCategory.ACCOUNTS,
     "Trakt (watchlist, history, scrobbling)" to SettingsCategory.ACCOUNTS,
-    "My streaming services" to SettingsCategory.ADDONS,
+    "My streaming services" to SettingsCategory.ACCOUNTS,
     "Profiles and profile pictures" to SettingsCategory.PROFILES,
-    "Kid profiles, parental controls, allowed ratings, parent code" to SettingsCategory.KIDS,
+    "Kid profiles, parental controls, allowed ratings, parent code" to SettingsCategory.PROFILES,
     "Instant play" to SettingsCategory.PLAYBACK,
     "Autoplay next episode" to SettingsCategory.PLAYBACK,
     "Play something similar" to SettingsCategory.PLAYBACK,
     "Countdown" to SettingsCategory.PLAYBACK,
     "Are you still watching?" to SettingsCategory.PLAYBACK,
-    "Check for updates" to SettingsCategory.DEVICE,
-    "Share search history across profiles" to SettingsCategory.DISPLAY,
+    "Check for updates" to SettingsCategory.SYSTEM,
+    "Share search history across profiles" to SettingsCategory.BROWSING,
     "External player (VLC, Just Player)" to SettingsCategory.PLAYBACK,
-    "Clear watch history" to SettingsCategory.PLAYBACK,
-    "Treat direct links as cached" to SettingsCategory.STREAMS,
-    "Maximum file size" to SettingsCategory.STREAMS,
-    "Preferred audio language" to SettingsCategory.STREAMS,
-    "Preferred subtitle language" to SettingsCategory.STREAMS,
-    "Turn on subtitles automatically" to SettingsCategory.STREAMS,
+    "Clear watch history" to SettingsCategory.SYSTEM,
+    "Treat direct links as cached" to SettingsCategory.PLAYBACK,
+    "Maximum file size" to SettingsCategory.PLAYBACK,
+    "Preferred audio language" to SettingsCategory.PLAYBACK,
+    "Preferred subtitle language" to SettingsCategory.SUBTITLES,
+    "Turn on subtitles automatically" to SettingsCategory.SUBTITLES,
     "Prefer SDH subtitles (deaf / hard of hearing)" to SettingsCategory.SUBTITLES,
     "Original subtitle style / custom style on or off" to SettingsCategory.SUBTITLES,
     "Subtitle size, color, background, outline, position" to SettingsCategory.SUBTITLES,
     "Skip intro button" to SettingsCategory.PLAYBACK,
-    "Light mode / dark mode" to SettingsCategory.THEMES,
-    "Glass style" to SettingsCategory.THEMES,
-    "Color theme" to SettingsCategory.THEMES,
-    "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.THEMES,
-    "Customize colors (background, buttons, text, accent)" to SettingsCategory.THEMES,
-    "Hide watched titles in rows" to SettingsCategory.DISPLAY,
-    "Manage rows (pin, move, remove, add categories)" to SettingsCategory.DISPLAY,
-    "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.THEMES,
+    "Light mode / dark mode" to SettingsCategory.APPEARANCE,
+    "Glass style" to SettingsCategory.APPEARANCE,
+    "Color theme" to SettingsCategory.APPEARANCE,
+    "Animated themes (PS2, Acidwave, Cyberpunk, Halloween …)" to SettingsCategory.APPEARANCE,
+    "Customize colors (background, buttons, text, accent)" to SettingsCategory.APPEARANCE,
+    "Hide watched titles in rows" to SettingsCategory.BROWSING,
+    "Manage rows (pin, move, remove, add categories)" to SettingsCategory.BROWSING,
+    "Weather, Holidays, Cybercore, Graffiti, Liquid Glass themes" to SettingsCategory.APPEARANCE,
     "Screensaver" to SettingsCategory.SCREENSAVER,
     "Vibration" to SettingsCategory.SOUND,
     "Sound effects (clicks, blips)" to SettingsCategory.SOUND,
-    "Trailers (autoplay, sound)" to SettingsCategory.PLAYBACK,
-    "UI zoom (poster, text and icon size)" to SettingsCategory.DISPLAY,
-    "Title artwork, logo artwork (plain text titles)" to SettingsCategory.DISPLAY,
-    "Turn off trailers completely" to SettingsCategory.PLAYBACK,
-    "Font, text size" to SettingsCategory.DISPLAY,
-    "Saved palettes, palette editor" to SettingsCategory.THEMES,
-    "Mouse pointer color, size and position (Cybercore)" to SettingsCategory.THEMES,
-    "Downloads (offline playback)" to SettingsCategory.PLAYBACK,
+    "Trailers (autoplay, sound)" to SettingsCategory.BROWSING,
+    "UI zoom (poster, text and icon size)" to SettingsCategory.APPEARANCE,
+    "Title artwork, logo artwork (plain text titles)" to SettingsCategory.APPEARANCE,
+    "Turn off trailers completely" to SettingsCategory.BROWSING,
+    "Font, text size" to SettingsCategory.APPEARANCE,
+    "Saved palettes, palette editor" to SettingsCategory.APPEARANCE,
+    "Mouse pointer color, size and position (Cybercore)" to SettingsCategory.APPEARANCE,
+    "Downloads (offline playback)" to SettingsCategory.SYSTEM,
     "4K, HDR10, Dolby Vision, Atmos, DTS support" to SettingsCategory.DEVICE,
     "Reset to recommended settings for my TV" to SettingsCategory.DEVICE,
     "Play Dolby Vision as HDR10" to SettingsCategory.DEVICE,
@@ -378,9 +394,32 @@ private fun LazyListScope.quickCategory(vm: SettingsViewModel, settings: AppSett
     }
 }
 
-private fun LazyListScope.accountsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?) {
+private fun LazyListScope.accountsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit, onOpenServices: () -> Unit) {
     group("debrid", "Debrid account") {
         DebridSection(vm.container, remote)
+    }
+    group("addons", "Stream addons", "Zemu uses Stremio addons. Install a debrid-enabled one (AIOStreams, Torrentio, Comet, MediaFusion, …). Only cached streams are shown.") {
+        val addons by vm.addons.collectAsStateWithLifecycle()
+        val streamAddons = addons.count { it.manifest.hasResource("stream") }
+        ValueRow("Manage addons", "${addons.size} installed · $streamAddons with streams") { onOpenAddons() }
+    }
+    group("meta", "Metadata provider") {
+        val addons by vm.addons.collectAsStateWithLifecycle()
+        val providers = addons.filter { a -> a.manifest.hasResource("meta") || a.manifest.catalogs.any { it.type in setOf("movie", "series") } }
+        Text(
+            if (providers.isEmpty()) "No metadata provider installed: catalogs and title details won't load. Install Cinemeta or another metadata addon."
+            else "Used first for title details and the Movies and Series pages. Others fill in when it has nothing.",
+            color = if (providers.isEmpty()) Palette.Cached else Palette.TextSecondary, fontSize = 13.sp,
+        )
+        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { TvChip("Automatic", selected = settings.metaProvider.isEmpty() || providers.none { it.manifest.id == settings.metaProvider }, onClick = { vm.update { it.copy(metaProvider = "") } }) }
+            items(providers, key = { it.manifest.id }) { a ->
+                TvChip(a.manifest.name, selected = settings.metaProvider == a.manifest.id, onClick = { vm.update { it.copy(metaProvider = a.manifest.id) } })
+            }
+        }
+    }
+    group("services", "My streaming services", "The services you subscribe to come first on Home, Movies and Series and get their own rows.") {
+        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "None picked: showing the popular ones" }) { onOpenServices() }
     }
     group(
         "trakt", "Trakt",
@@ -412,29 +451,186 @@ private fun LazyListScope.accountsCategory(vm: SettingsViewModel, settings: AppS
     }
 }
 
-private fun LazyListScope.addonsCategory(vm: SettingsViewModel, settings: AppSettings, remote: String?, onOpenAddons: () -> Unit, onOpenServices: () -> Unit) {
-    group("addons", "Stream addons", "Zemu uses Stremio addons. Install a debrid-enabled one (AIOStreams, Torrentio, Comet, MediaFusion, …). Only cached streams are shown.") {
-        val addons by vm.addons.collectAsStateWithLifecycle()
-        val streamAddons = addons.count { it.manifest.hasResource("stream") }
-        ValueRow("Manage addons", "${addons.size} installed · $streamAddons with streams") { onOpenAddons() }
+private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppSettings, openDialog: (SettingsDialog) -> Unit) {
+    group("instant", "Starting playback") {
+        ToggleRow(
+            "Instant play",
+            "Selecting a movie, a show or an episode starts it right away with the best cached stream (the one you used last time when it's still cached). Shows resume where you left off.",
+            settings.instantPlay,
+        ) { vm.update { it.copy(instantPlay = !it.instantPlay) } }
     }
-    group("meta", "Metadata provider") {
-        val addons by vm.addons.collectAsStateWithLifecycle()
-        val providers = addons.filter { a -> a.manifest.hasResource("meta") || a.manifest.catalogs.any { it.type in setOf("movie", "series") } }
-        Text(
-            if (providers.isEmpty()) "No metadata provider installed: catalogs and title details won't load. Install Cinemeta or another metadata addon."
-            else "Used first for title details and the Movies and Series pages. Others fill in when it has nothing.",
-            color = if (providers.isEmpty()) Palette.Cached else Palette.TextSecondary, fontSize = 13.sp,
-        )
-        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { TvChip("Automatic", selected = settings.metaProvider.isEmpty() || providers.none { it.manifest.id == settings.metaProvider }, onClick = { vm.update { it.copy(metaProvider = "") } }) }
-            items(providers, key = { it.manifest.id }) { a ->
-                TvChip(a.manifest.name, selected = settings.metaProvider == a.manifest.id, onClick = { vm.update { it.copy(metaProvider = a.manifest.id) } })
+    group("autoplay", "When something ends") {
+        ToggleRow("Autoplay next episode", "Near the end of an episode, count down and start the next one.", settings.autoplayNext) {
+            vm.update { it.copy(autoplayNext = !it.autoplayNext) }
+        }
+        ToggleRow("Play something similar after a series", "After a series finale, count down to a recommended show. Movies never autoplay: when the credits start, Zemu goes back to Home.", settings.autoplaySimilar) {
+            vm.update { it.copy(autoplaySimilar = !it.autoplaySimilar) }
+        }
+        if (settings.autoplayNext || settings.autoplaySimilar) {
+            ValueRow("Countdown", "${settings.autoplayCountdownSec} seconds") { openDialog(SettingsDialog.COUNTDOWN) }
+        }
+        if (settings.autoplayNext) {
+            ToggleRow("Ask \"Are you still watching?\"", "Pause and check in after several episodes play without touching the remote.", settings.stillWatchingPrompt) {
+                vm.update { it.copy(stillWatchingPrompt = !it.stillWatchingPrompt) }
+            }
+            if (settings.stillWatchingPrompt) {
+                ValueRow("Ask after", "${settings.stillWatchingEpisodes} episodes in a row") { openDialog(SettingsDialog.STILL_EPISODES) }
             }
         }
     }
-    group("services", "My streaming services", "The services you subscribe to come first on Home, Movies and Series and get their own rows.") {
-        ValueRow("My streaming services", settings.myServices.values.joinToString().ifEmpty { "None picked: showing the popular ones" }) { onOpenServices() }
+    group("skip", "Skipping") {
+        ToggleRow("Skip intro button", "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", settings.skipIntroButton) {
+            vm.update { it.copy(skipIntroButton = !it.skipIntroButton) }
+        }
+    }
+    group("cached", "Cached streams", "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
+        ToggleRow(
+            "Treat direct links as cached",
+            "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.",
+            settings.trustDirectLinks,
+        ) { vm.update { it.copy(trustDirectLinks = !it.trustDirectLinks) } }
+        ValueRow("Maximum file size", if (settings.maxSizeGb == 0) "No limit" else "${settings.maxSizeGb} GB") { openDialog(SettingsDialog.MAX_SIZE) }
+    }
+    group("audio-language", "Audio language") {
+        ValueRow("Preferred audio", settings.audioLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "Any" }) { openDialog(SettingsDialog.AUDIO) }
+    }
+    group("player", "Player") {
+        ToggleRow("Use external player", "Open streams in VLC, Just Player, MX Player, etc. instead of the built-in player.", settings.useExternalPlayer) {
+            vm.update { it.copy(useExternalPlayer = !it.useExternalPlayer) }
+        }
+    }
+}
+
+private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: AppSettings, openDialog: (SettingsDialog) -> Unit) {
+    group("subtitle-prefs", "Which subtitles") {
+        ValueRow("Preferred subtitles", settings.subtitleLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "None" }) { openDialog(SettingsDialog.SUBS) }
+        ToggleRow("Turn on subtitles automatically", "Select a subtitle track in your preferred language when playback starts.", settings.autoSubtitles) {
+            vm.update { it.copy(autoSubtitles = !it.autoSubtitles) }
+        }
+        ToggleRow("Prefer SDH subtitles", "Choose subtitles for the deaf and hard of hearing (with sound descriptions like [door slams]) when a language has them.", settings.preferSdh) {
+            vm.update { it.copy(preferSdh = !it.preferSdh) }
+        }
+    }
+    group("subtitle-style", "Subtitle appearance", "Turn Custom style off to show subtitles exactly as the file styles them. Also in the player: hold OK on Subtitles → Subtitle style.") {
+        if (!settings.subtitleOriginalStyle) SubtitlePreview(settings)
+        SubtitleStyleEditor(settings) { t -> vm.update(t) }
+    }
+}
+
+private fun LazyListScope.appearanceCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group("mode", "Light & glass") {
+        ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
+            vm.updateLook { it.copy(lightMode = !it.lightMode) }
+        }
+        ToggleRow("Glass style", "Frosted, see-through panels and menus over a soft glow of your theme color. On Android 12 and newer, menus also blur what's behind them.", settings.glassStyle) {
+            vm.updateLook { it.copy(glassStyle = !it.glassStyle) }
+        }
+    }
+    group("theme", "Color theme", "With an animated theme on, a palette recolors it: its menus and its scene.") {
+        ThemePicker(settings) { t -> vm.updateLook(t) }
+    }
+    group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
+        val current = DynamicTheme.of(settings.dynamicTheme)
+        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(DynamicTheme.entries.filter { (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
+                TvChip(d.label, selected = current == d, onClick = {
+                    vm.updateLook { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
+                })
+            }
+        }
+        // Sub-themes: the kind of weather, the holiday, the vintage desktop.
+        if (current.variants.isNotEmpty()) {
+            val chosen = settings.themeVariants[current.name] ?: current.variants.first().first
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(current.variants, key = { it.first }) { (k, label) ->
+                    val shown = if (k == "AUTO") "$label: ${com.zemu.tv.ui.theme.Holiday.today().label}" else label
+                    TvChip(shown, selected = chosen == k, onClick = { vm.updateLook { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
+                }
+            }
+        }
+        // Cybercore's mouse pointer: its color, size and where it sits on the selected button.
+        if (current == DynamicTheme.RETRO) {
+            Text("Mouse pointer", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 10.dp))
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val colors = listOf(0L to "Default", 0xFFFFFFFFL to "White", 0xFF000000L to "Black", 0xFFFFE600L to "Yellow", 0xFF39FF14L to "Green", 0xFFFF5FB8L to "Pink", 0xFF00B7FFL to "Blue", 0xFFFF3B30L to "Red")
+                items(colors, key = { it.first }) { (v, label) ->
+                    TvChip(label, settings.pointerColor == v, { vm.update { it.copy(pointerColor = v) } })
+                }
+            }
+            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(listOf(75, 100, 150, 200), key = { "size$it" }) { z ->
+                    TvChip("Size $z%", settings.pointerSize == z, { vm.update { it.copy(pointerSize = z) } })
+                }
+                items(listOf("LEFT" to "Left", "CENTER" to "Center", "RIGHT" to "Right", "CORNER" to "Corner"), key = { it.first }) { (k, label) ->
+                    TvChip(label, settings.pointerPosition == k, { vm.update { it.copy(pointerPosition = k) } })
+                }
+            }
+        }
+    }
+    group("colors", "Customize colors", "Every color the theme uses, as a palette: pick one to change it. Each theme keeps its own, separately for light and dark mode. Save palettes to reuse them, for every theme or just this one.") {
+        ColorCustomizer(settings, vm::updateLook) { t -> vm.update(t) }
+    }
+    group("size", "Size, text & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu. Font and text size change only the text, in any theme.") {
+        Text("UI zoom", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        // Wraps onto a second line at big zoom sizes.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(80, 90, 100, 110, 125, 150).forEach { z ->
+                TvChip("$z%", settings.uiZoom == z, { vm.update { it.copy(uiZoom = z) } })
+            }
+        }
+        Text("Font", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.zemu.tv.ui.theme.FONT_CHOICES.forEach { (k, label) ->
+                // Each chip is written in its own font.
+                val f = com.zemu.tv.ui.theme.fontFamilyOf(k)
+                FocusSurface(onClick = { vm.update { it.copy(font = k) } }, shape = com.zemu.tv.ui.theme.styledShape(RoundedCornerShape(50)), containerColor = if (settings.font == k) Palette.SurfaceHigh else Palette.Surface) {
+                    Text((if (settings.font == k) "✓ " else "") + label, fontFamily = f, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
+            }
+        }
+        Text("Text size", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(85, 100, 115, 130, 150).forEach { z ->
+                TvChip("$z%", settings.fontSize == z, { vm.update { it.copy(fontSize = z) } })
+            }
+        }
+        ToggleRow("Title artwork", "The big picture behind the title at the top of Home, Browse and the title page.", settings.heroArt) {
+            vm.update { it.copy(heroArt = !it.heroArt) }
+        }
+        ToggleRow("Logo artwork", "Show titles as their logo artwork. Off: plain text.", settings.logoArt) {
+            vm.update { it.copy(logoArt = !it.logoArt) }
+        }
+    }
+}
+
+private fun LazyListScope.browsingCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
+    group("rows", "Rows on each page", "Change, reorder, remove or add the rows on each page.") {
+        listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
+            ValueRow("Manage $label rows", "Pin · move · remove · add") { onManageRows(page) }
+        }
+        ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
+            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
+        }
+    }
+    group("trailers", "Trailers") {
+        ToggleRow("Trailers", "Off: no trailers anywhere, no autoplay and no Trailer buttons.", settings.trailers) {
+            vm.update { it.copy(trailers = !it.trailers) }
+        }
+        if (settings.trailers) ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
+            vm.update { it.copy(heroTrailers = !it.heroTrailers) }
+        }
+        if (settings.trailers) ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
+            vm.update { it.copy(heroTrailerSound = !it.heroTrailerSound) }
+        }
+    }
+    group("recents", "Search history", "Recent searches and recently viewed titles show on the Search screen before you type.") {
+        val scope = rememberCoroutineScope()
+        ToggleRow("Share with every profile on this TV", "One list for everyone, instead of one per profile.", settings.shareRecents) {
+            scope.launch { vm.container.userStore.setShareRecents(!settings.shareRecents) }
+        }
     }
 }
 
@@ -498,200 +694,6 @@ private fun TraktSection(vm: SettingsViewModel, settings: AppSettings) {
     }
 }
 
-private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppSettings, openDialog: (SettingsDialog) -> Unit) {
-    group("instant", "Starting playback") {
-        ToggleRow(
-            "Instant play",
-            "Selecting a movie, a show or an episode starts it right away with the best cached stream (the one you used last time when it's still cached). Shows resume where you left off.",
-            settings.instantPlay,
-        ) { vm.update { it.copy(instantPlay = !it.instantPlay) } }
-    }
-    group("autoplay", "When something ends") {
-        ToggleRow("Autoplay next episode", "Near the end of an episode, count down and start the next one.", settings.autoplayNext) {
-            vm.update { it.copy(autoplayNext = !it.autoplayNext) }
-        }
-        ToggleRow("Play something similar after a series", "After a series finale, count down to a recommended show. Movies never autoplay: when the credits start, Zemu goes back to Home.", settings.autoplaySimilar) {
-            vm.update { it.copy(autoplaySimilar = !it.autoplaySimilar) }
-        }
-        if (settings.autoplayNext || settings.autoplaySimilar) {
-            ValueRow("Countdown", "${settings.autoplayCountdownSec} seconds") { openDialog(SettingsDialog.COUNTDOWN) }
-        }
-        if (settings.autoplayNext) {
-            ToggleRow("Ask \"Are you still watching?\"", "Pause and check in after several episodes play without touching the remote.", settings.stillWatchingPrompt) {
-                vm.update { it.copy(stillWatchingPrompt = !it.stillWatchingPrompt) }
-            }
-            if (settings.stillWatchingPrompt) {
-                ValueRow("Ask after", "${settings.stillWatchingEpisodes} episodes in a row") { openDialog(SettingsDialog.STILL_EPISODES) }
-            }
-        }
-    }
-    group("skip", "Skipping") {
-        ToggleRow("Skip intro button", "Show \"Skip intro\" / \"Skip recap\" while they play (community timestamps from TheIntroDB and AniSkip). The next-episode card starts at the credits.", settings.skipIntroButton) {
-            vm.update { it.copy(skipIntroButton = !it.skipIntroButton) }
-        }
-    }
-    group("trailers", "Trailers") {
-        ToggleRow("Trailers", "Off: no trailers anywhere, no autoplay and no Trailer buttons.", settings.trailers) {
-            vm.update { it.copy(trailers = !it.trailers) }
-        }
-        if (settings.trailers) ToggleRow("Autoplay trailers", "Play the trailer behind the title after you pause on it for a few seconds.", settings.heroTrailers) {
-            vm.update { it.copy(heroTrailers = !it.heroTrailers) }
-        }
-        if (settings.trailers) ToggleRow("Trailer sound", "Play autoplaying trailers with sound. Full-screen trailers (hold OK on a poster) always have sound.", settings.heroTrailerSound) {
-            vm.update { it.copy(heroTrailerSound = !it.heroTrailerSound) }
-        }
-    }
-    group("player", "Player") {
-        ToggleRow("Use external player", "Open streams in VLC, Just Player, MX Player, etc. instead of the built-in player.", settings.useExternalPlayer) {
-            vm.update { it.copy(useExternalPlayer = !it.useExternalPlayer) }
-        }
-    }
-    group("downloads", "Downloads") {
-        ToggleRow("Downloads", "Save titles on this device to watch without internet: adds Downloads to the menu and \"Download for offline\" when you hold OK on a stream. Titles already downloaded stay until you delete them.", settings.downloads) {
-            vm.update { it.copy(downloads = !it.downloads) }
-        }
-    }
-    group("history", "History") {
-        ValueRow("Clear watch history", "Resets Continue Watching and recommendations") { vm.clearHistory() }
-    }
-}
-
-private fun LazyListScope.streamsCategory(vm: SettingsViewModel, settings: AppSettings, openDialog: (SettingsDialog) -> Unit) {
-    group("cached", "Cached streams", "Catalogs show every title. When you open one, only streams cached on your debrid service are listed.") {
-        ToggleRow(
-            "Treat direct links as cached",
-            "Count plain HTTP streams without debrid markers as instantly playable. Leave off for strict debrid-cached only.",
-            settings.trustDirectLinks,
-        ) { vm.update { it.copy(trustDirectLinks = !it.trustDirectLinks) } }
-        ValueRow("Maximum file size", if (settings.maxSizeGb == 0) "No limit" else "${settings.maxSizeGb} GB") { openDialog(SettingsDialog.MAX_SIZE) }
-    }
-    group("languages", "Languages") {
-        ValueRow("Preferred audio", settings.audioLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "Any" }) { openDialog(SettingsDialog.AUDIO) }
-        ValueRow("Preferred subtitles", settings.subtitleLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "None" }) { openDialog(SettingsDialog.SUBS) }
-        ToggleRow("Turn on subtitles automatically", "Select a subtitle track in your preferred language when playback starts.", settings.autoSubtitles) {
-            vm.update { it.copy(autoSubtitles = !it.autoSubtitles) }
-        }
-    }
-}
-
-private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: AppSettings) {
-    group("subtitle-prefs", "Subtitle preferences") {
-        ToggleRow("Prefer SDH subtitles", "Choose subtitles for the deaf and hard of hearing (with sound descriptions like [door slams]) when a language has them.", settings.preferSdh) {
-            vm.update { it.copy(preferSdh = !it.preferSdh) }
-        }
-    }
-    group("subtitle-style", "Subtitle appearance", "Turn Custom style off to show subtitles exactly as the file styles them. Also in the player: hold OK on Subtitles → Subtitle style.") {
-        if (!settings.subtitleOriginalStyle) SubtitlePreview(settings)
-        SubtitleStyleEditor(settings) { t -> vm.update(t) }
-    }
-}
-
-private fun LazyListScope.themesCategory(vm: SettingsViewModel, settings: AppSettings) {
-    group("mode", "Look") {
-        ToggleRow("Light mode", "Light backgrounds with dark text. The video player always stays dark.", settings.lightMode) {
-            vm.updateLook { it.copy(lightMode = !it.lightMode) }
-        }
-        ToggleRow("Glass style", "Frosted, see-through panels and menus over a soft glow of your theme color. On Android 12 and newer, menus also blur what's behind them.", settings.glassStyle) {
-            vm.updateLook { it.copy(glassStyle = !it.glassStyle) }
-        }
-    }
-    group("theme", "Color theme", "With an animated theme on, a palette recolors it: its menus and its scene.") {
-        ThemePicker(settings) { t -> vm.updateLook(t) }
-    }
-    group("animated", "Animated themes", "Weather and Holidays have their own kinds to pick from. Ethereal, PS2 · Y2K, Acidwave, Cybercore, Graffiti and Liquid Glass restyle the whole app; change any of their colors under Customize colors.") {
-        val current = DynamicTheme.of(settings.dynamicTheme)
-        LazyRow(contentPadding = PaddingValues(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(DynamicTheme.entries.filter { (!it.hidden || settings.catRaveUnlocked) }, key = { it.name }) { d ->
-                TvChip(d.label, selected = current == d, onClick = {
-                    vm.updateLook { it.copy(dynamicTheme = d.name, themeBeforeRave = if (d == DynamicTheme.CATRAVE && it.dynamicTheme != "CATRAVE") it.dynamicTheme else it.themeBeforeRave) }
-                })
-            }
-        }
-        // Sub-themes: the kind of weather, the holiday, the vintage desktop.
-        if (current.variants.isNotEmpty()) {
-            val chosen = settings.themeVariants[current.name] ?: current.variants.first().first
-            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(current.variants, key = { it.first }) { (k, label) ->
-                    val shown = if (k == "AUTO") "$label: ${com.zemu.tv.ui.theme.Holiday.today().label}" else label
-                    TvChip(shown, selected = chosen == k, onClick = { vm.updateLook { it.copy(themeVariants = it.themeVariants + (current.name to k)) } })
-                }
-            }
-        }
-        // Cybercore's mouse pointer: its color, size and where it sits on the selected button.
-        if (current == DynamicTheme.RETRO) {
-            Text("Mouse pointer", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 10.dp))
-            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                val colors = listOf(0L to "Default", 0xFFFFFFFFL to "White", 0xFF000000L to "Black", 0xFFFFE600L to "Yellow", 0xFF39FF14L to "Green", 0xFFFF5FB8L to "Pink", 0xFF00B7FFL to "Blue", 0xFFFF3B30L to "Red")
-                items(colors, key = { it.first }) { (v, label) ->
-                    TvChip(label, settings.pointerColor == v, { vm.update { it.copy(pointerColor = v) } })
-                }
-            }
-            LazyRow(contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(listOf(75, 100, 150, 200), key = { "size$it" }) { z ->
-                    TvChip("Size $z%", settings.pointerSize == z, { vm.update { it.copy(pointerSize = z) } })
-                }
-                items(listOf("LEFT" to "Left", "CENTER" to "Center", "RIGHT" to "Right", "CORNER" to "Corner"), key = { it.first }) { (k, label) ->
-                    TvChip(label, settings.pointerPosition == k, { vm.update { it.copy(pointerPosition = k) } })
-                }
-            }
-        }
-    }
-    group("colors", "Customize colors", "Every color the theme uses, as a palette: pick one to change it. Each theme keeps its own, separately for light and dark mode. Save palettes to reuse them, for every theme or just this one.") {
-        ColorCustomizer(settings, vm::updateLook) { t -> vm.update(t) }
-    }
-}
-
-private fun LazyListScope.displayCategory(vm: SettingsViewModel, settings: AppSettings, onManageRows: (String) -> Unit) {
-    group("size", "Size, text & artwork", "UI zoom makes everything bigger or smaller: posters, text, icons and the player's menu. Font and text size change only the text, in any theme.") {
-        Text("UI zoom", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        // Wraps onto a second line at big zoom sizes.
-        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(80, 90, 100, 110, 125, 150).forEach { z ->
-                TvChip("$z%", settings.uiZoom == z, { vm.update { it.copy(uiZoom = z) } })
-            }
-        }
-        Text("Font", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
-        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.zemu.tv.ui.theme.FONT_CHOICES.forEach { (k, label) ->
-                // Each chip is written in its own font.
-                val f = com.zemu.tv.ui.theme.fontFamilyOf(k)
-                FocusSurface(onClick = { vm.update { it.copy(font = k) } }, shape = com.zemu.tv.ui.theme.styledShape(RoundedCornerShape(50)), containerColor = if (settings.font == k) Palette.SurfaceHigh else Palette.Surface) {
-                    Text((if (settings.font == k) "✓ " else "") + label, fontFamily = f, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                }
-            }
-        }
-        Text("Text size", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
-        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-        androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(85, 100, 115, 130, 150).forEach { z ->
-                TvChip("$z%", settings.fontSize == z, { vm.update { it.copy(fontSize = z) } })
-            }
-        }
-        ToggleRow("Title artwork", "The big picture behind the title at the top of Home, Browse and the title page.", settings.heroArt) {
-            vm.update { it.copy(heroArt = !it.heroArt) }
-        }
-        ToggleRow("Logo artwork", "Show titles as their logo artwork. Off: plain text.", settings.logoArt) {
-            vm.update { it.copy(logoArt = !it.logoArt) }
-        }
-    }
-    group("rows", "Home & browsing", "Change, reorder, remove or add the rows on each page.") {
-        listOf("home" to "Home", "movie" to "Movies", "series" to "Series", "anime" to "Anime").forEach { (page, label) ->
-            ValueRow("Manage $label rows", "Pin · move · remove · add") { onManageRows(page) }
-        }
-        ToggleRow("Hide watched titles in rows", "Keep movies and shows you've finished out of suggestions and categories.", settings.hideWatchedInRows) {
-            vm.update { it.copy(hideWatchedInRows = !it.hideWatchedInRows) }
-        }
-    }
-    group("recents", "Search history", "Recent searches and recently viewed titles show on the Search screen before you type.") {
-        val scope = rememberCoroutineScope()
-        ToggleRow("Share with every profile on this TV", "One list for everyone, instead of one per profile.", settings.shareRecents) {
-            scope.launch { vm.container.userStore.setShareRecents(!settings.shareRecents) }
-        }
-    }
-}
-
 private fun LazyListScope.soundsCategory(vm: SettingsViewModel, settings: AppSettings) {
     group("sounds", "Sound effects") {
         ToggleRow("Sound effects", "Soft clicks when you move, select, hold OK and go back. PS2, Acidwave, Cybercore, Graffiti, Liquid Glass, Ethereal and the Cat Rave each have their own sounds.", settings.soundEffects) {
@@ -747,20 +749,6 @@ private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSet
     val detected = vm.container.detectedCapabilities
     val caps = vm.capabilities
     fun res(r: Int) = if (r >= 2160) "4K" else "${r}p"
-    group("updates", "Updates", "New versions come from the Zemu releases on GitHub.") {
-        val updater = vm.container.appContext.app.updater
-        var status by remember { mutableStateOf<String?>(null) }
-        val scope = rememberCoroutineScope()
-        ValueRow("Check for updates", status ?: "You have ${updater.currentVersion}") {
-            status = "Checking…"
-            scope.launch {
-                status = runCatching { updater.check() }.fold(
-                    { u -> if (u == null) "Up to date (${updater.currentVersion})" else { updater.showNow.value = true; "Zemu ${u.version} is available" } },
-                    { "Couldn't reach GitHub" },
-                )
-            }
-        }
-    }
     group("reset", "Recommended settings") {
         val changed = settings.deviceOverrides.isNotEmpty() || settings.maxResolutionOverride != 0 || settings.avoidDolbyVision || settings.preferSoftwareDecoders
         ValueRow("Reset to recommended settings for my TV", if (changed) "Uses what this TV reports" else "Already using them") {
@@ -773,7 +761,7 @@ private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSet
             vm.update { s -> s.copy(maxResolutionOverride = options[(options.indexOf(s.maxResolutionOverride) + 1).mod(options.size)]) }
         }
     }
-    group("formats", "Formats this TV can play", "OK switches a format on or off. \"Detected\" means it's what the TV reported.") {
+    group("formats", "Formats this device can play", "OK switches a format on or off. \"Detected\" means it's what the TV reported.") {
         DeviceCapabilities.KEYS.forEach { (key, label) ->
             val on = caps.supports(key)
             val manual = key in settings.deviceOverrides
@@ -794,6 +782,31 @@ private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSet
         ToggleRow("Prefer software video decoders", "Slower, but plays files the hardware decoder rejects.", settings.preferSoftwareDecoders) {
             vm.update { it.copy(preferSoftwareDecoders = !it.preferSoftwareDecoders) }
         }
+    }
+}
+
+private fun LazyListScope.systemCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group("updates", "Updates", "New versions come from the Zemu releases on GitHub.") {
+        val updater = vm.container.appContext.app.updater
+        var status by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+        ValueRow("Check for updates", status ?: "You have ${updater.currentVersion}") {
+            status = "Checking…"
+            scope.launch {
+                status = runCatching { updater.check() }.fold(
+                    { u -> if (u == null) "Up to date (${updater.currentVersion})" else { updater.showNow.value = true; "Zemu ${u.version} is available" } },
+                    { "Couldn't reach GitHub" },
+                )
+            }
+        }
+    }
+    group("downloads", "Downloads") {
+        ToggleRow("Downloads", "Save titles on this device to watch without internet: adds Downloads to the menu and \"Download for offline\" when you hold OK on a stream. Titles already downloaded stay until you delete them.", settings.downloads) {
+            vm.update { it.copy(downloads = !it.downloads) }
+        }
+    }
+    group("history", "Watch history") {
+        ValueRow("Clear watch history", "Resets Continue Watching and recommendations") { vm.clearHistory() }
     }
 }
 
