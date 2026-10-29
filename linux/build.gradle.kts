@@ -154,50 +154,6 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
             """            .onFocusChanged { if (it.isFocused) onFocused(meta) }
             .then(com.zemu.tv.desktop.hoverHold { onFocused(meta) })""",
     ),
-    // Top 10 Today rows (Home: movies and series; Movies, Series, Anime: their own).
-    "com/zemu/tv/data/Tmdb.kt" to listOf(
-        """    private fun TmdbItem.toMeta(type: String): Meta {""" to """    /** Today's trending titles (TMDB /trending/<movie|tv>/day). Cached for 30 minutes. */
-    suspend fun trendingToday(type: String): List<Meta> {
-        if (!enabled) return emptyList()
-        val media = if (type == "series") "tv" else "movie"
-        val key = "trending/${'$'}media"
-        val now = System.currentTimeMillis()
-        discoverCache[key]?.let { (at, list) -> if (now - at < 30 * 60_000L) return list }
-        val body = get("/trending/${'$'}media/day")
-        val list = withContext(Dispatchers.Default) {
-            json.decodeFromString(TmdbPage.serializer(), body).results.filter { it.posterPath != null }.map { it.toMeta(type) }
-        }
-        discoverCache[key] = now to list
-        return list
-    }
-
-    private fun TmdbItem.toMeta(type: String): Meta {""",
-    ),
-    "com/zemu/tv/ui/home/HomeViewModel.kt" to listOf(
-        """    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater) { rows, recs, later ->
-        if (!isHome) return@combine rows""" to """    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater, com.zemu.tv.desktop.Top10.rows(c, page)) { rows, recs, later, top10 ->
-        if (!isHome) return@combine (rows + top10).sortedBy { it.priority }""",
-        """            addAll(rows)
-            if (recs.isNotEmpty())""" to """            addAll(rows)
-            addAll(top10)
-            if (recs.isNotEmpty())""",
-    ),
-    "com/zemu/tv/ui/home/HomeScreen.kt" to listOf(
-        """                    ) { _, m, mod ->
-                        when (row.style) {""" to """                    ) { i, m, mod ->
-                        when (row.style) {""",
-        """                            else PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "${'$'}it%" })""" to
-            """                            else com.zemu.tv.desktop.Ranked(if (row.key.startsWith("top10-")) i + 1 else null) { PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "${'$'}it%" }) }""",
-    ),
-    // The picture starts 22% in: fully covered there, so its left edge never shows on wide screens.
-    "com/zemu/tv/ui/components/Hero.kt" to listOf(
-        """                    0f to Palette.Background,
-                    0.3f to Palette.Background.copy(alpha = 0.92f),
-                    0.6f to Palette.Background.copy(alpha = 0.35f),""" to """                    0f to Palette.Background,
-                    0.25f to Palette.Background,
-                    0.42f to Palette.Background.copy(alpha = 0.85f),
-                    0.65f to Palette.Background.copy(alpha = 0.35f),""",
-    ),
     "com/zemu/tv/player/PlayerScreen.kt" to listOf(
         """            .background(Color.Black)
             .onPreviewKeyEvent { e ->
@@ -224,17 +180,6 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
                         Text(a.title,""",
     ),
     // Where downloads go, with a controller-friendly folder browser.
-    // Desktop sound packs (Settings → Sound effects), "lofi" being the theme's own sounds made soft.
-    "com/zemu/tv/data/Models.kt" to listOf(
-        """    val soundEffects: Boolean = true,
-""" to """    val soundEffects: Boolean = true,
-    val soundPack: String = "lofi",
-    /** Mouse-only row scrolling: "arrows" (buttons at the ends) or "edges" (hover near an end). */
-    val mouseRowScroll: String = "arrows",
-    /** Hover-scroll speed, 1–5 (com.zemu.tv.desktop.EDGE_SPEEDS). */
-    val edgeScrollSpeed: Int = 3,
-""",
-    ),
     "com/zemu/tv/ui/settings/SettingsScreen.kt" to listOf(
         """    "Manage addons" to SettingsCategory.ACCOUNTS,""" to """    "Manage addons" to SettingsCategory.ACCOUNTS,
     "Scrolling rows with the mouse (arrows, hover speed)" to SettingsCategory.BROWSING,""",
@@ -259,20 +204,6 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
             androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1 to "Slowest", 2 to "Slow", 3 to "Medium", 4 to "Fast", 5 to "Fastest").forEach { (v, label) ->
                     TvChip(label, settings.edgeScrollSpeed == v, { vm.update { it.copy(edgeScrollSpeed = v) } })
-                }
-            }
-        }
-""",
-        """            vm.update { it.copy(soundEffects = !it.soundEffects) }
-        }
-""" to """            vm.update { it.copy(soundEffects = !it.soundEffects) }
-        }
-        if (settings.soundEffects) {
-            Text("Sound pack", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
-            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.zemu.tv.ui.SoundFx.PACKS.forEach { (k, label) ->
-                    TvChip(label, settings.soundPack == k, { vm.update { it.copy(soundPack = k) } })
                 }
             }
         }
@@ -457,5 +388,3 @@ tasks.test {
     systemProperty("zemu.testClip", layout.buildDirectory.file("testvid/clip.mkv").get().asFile.path)
 }
 
-// src/main/resources is a default resource folder and also listed above.
-tasks.processResources { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }

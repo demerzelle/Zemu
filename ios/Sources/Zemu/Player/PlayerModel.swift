@@ -1,5 +1,6 @@
 import UIKit
 import Observation
+import AVFoundation
 import ZemuCore
 
 /** One playable stream handed to the player; the player falls back through them in order. */
@@ -94,6 +95,11 @@ final class PlayerModel {
     @ObservationIgnored private var dismissedSegment: Segment?
     @ObservationIgnored private var recommendationRequested = false
     @ObservationIgnored private var closed = false
+    /** An AirPlay screen is picked: play with AVPlayer, since mpv can only send AirPlay sound. */
+    @ObservationIgnored private var airPlay = false
+    /** This stream failed on AVPlayer, so it stays on mpv while AirPlay is picked. */
+    @ObservationIgnored private var airPlayUnsupported = false
+    @ObservationIgnored private var routeObserver: NSObjectProtocol?
     @ObservationIgnored private var lastSave = Date()
 
     init(session: Session, meta: Meta, videoId: String, label: String?, candidates: [PlayCandidate], subtitles: [SubtitleTrack], startMs: Int64) {
@@ -107,9 +113,13 @@ final class PlayerModel {
         let s = session.settings
         softwareDecoding = s.preferSoftwareDecoders
         volume = s.volume
-        engine = MPV.available ? MPV() : AVEngine()
+        airPlay = Self.airPlayRouteActive
+        engine = MPV.available && !airPlay ? MPV() : AVEngine()
         start(at: startMs)
         loadEpisodes()
+        routeObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setAirPlay(Self.airPlayRouteActive) }
+        }
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
@@ -133,7 +143,7 @@ final class PlayerModel {
 
     private func makeEngine() -> PlaybackEngine {
         engine.stop()
-        return MPV.available ? MPV() : AVEngine()
+        return MPV.available && !(airPlay && !airPlayUnsupported) ? MPV() : AVEngine()
     }
 
     private func start(at position: Int64, freshEngine: Bool = false) {
@@ -598,12 +608,35 @@ final class PlayerModel {
         }
     }
 
+    // MARK: AirPlay
+
+    var airPlayPlayer: AVPlayer? { (engine as? AVEngine)?.player }
+
+    static var airPlayRouteActive: Bool {
+        AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+    }
+
+    /** Switches engines when an AirPlay screen is picked or dropped, carrying on from the same spot. */
+    func setAirPlay(_ on: Bool) {
+        guard on != airPlay, !closed else { return }
+        airPlay = on
+        airPlayUnsupported = false
+        guard MPV.available, (engine is MPV) == on else { return }
+        start(at: positionMs > 0 ? positionMs : resumeMs, freshEngine: true)
+    }
+
     // MARK: Errors / fallback
 
     private func handleError(_ message: String, fatal: Bool) {
         guard !closed else { return }
         loadTimer?.cancel()
         let position = positionMs > 0 ? positionMs : resumeMs
+        if airPlay && !airPlayUnsupported && engine is AVEngine && MPV.available {
+            airPlayUnsupported = true
+            flash("This file type can't AirPlay video, so the picture stays on this device.")
+            start(at: position, freshEngine: true)
+            return
+        }
         // Hardware decoding problems: retry this stream with software decoding once.
         if !fatal && !softwareDecoding && engine is MPV {
             softwareDecoding = true
@@ -673,6 +706,7 @@ final class PlayerModel {
         closed = true
         tickTask?.cancel(); countdownTask?.cancel(); scrubTask?.cancel(); loadTimer?.cancel()
         hideTask?.cancel()
+        routeObserver.map(NotificationCenter.default.removeObserver)
         engine.stop()
         Integrations.shared.playbackStopped(self)
         if AppModel.shared.player === self { AppModel.shared.player = nil }

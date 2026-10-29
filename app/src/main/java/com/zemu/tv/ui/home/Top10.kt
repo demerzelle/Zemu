@@ -1,4 +1,4 @@
-package com.zemu.tv.desktop
+package com.zemu.tv.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -8,8 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import com.zemu.tv.ui.theme.Palette
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,7 +26,6 @@ import androidx.compose.ui.zIndex
 import androidx.tv.material3.Text
 import com.zemu.tv.AppContainer
 import com.zemu.tv.data.Meta
-import com.zemu.tv.ui.home.HomeRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -57,18 +57,17 @@ object Top10 {
  * color while the poster is highlighted. Ranked posters sit a little further apart to make room.
  * No rank: just the poster.
  */
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun Ranked(rank: Int?, poster: @Composable () -> Unit) {
     if (rank == null) return poster()
     var focused by remember { mutableStateOf(false) }
-    var hovered by remember { mutableStateOf(false) }
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
     Box(
         Modifier
             .padding(start = 10.dp, end = 6.dp)
             .onFocusChanged { focused = it.hasFocus }
-            .onPointerEvent(PointerEventType.Enter) { hovered = true }
-            .onPointerEvent(PointerEventType.Exit) { hovered = false },
+            .hoverable(hover),
     ) {
         Box(Modifier.padding(top = 46.dp)) { poster() }
         Text(

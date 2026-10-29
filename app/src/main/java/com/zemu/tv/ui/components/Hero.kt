@@ -197,8 +197,9 @@ fun Backdrop(meta: Meta?, modifier: Modifier = Modifier, trailerAfterMs: Long? =
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to Palette.Background,
-                    0.3f to Palette.Background.copy(alpha = 0.92f),
-                    0.6f to Palette.Background.copy(alpha = 0.35f),
+                    0.25f to Palette.Background,
+                    0.42f to Palette.Background.copy(alpha = 0.85f),
+                    0.65f to Palette.Background.copy(alpha = 0.35f),
                     1f to Color.Transparent,
                 ),
             ),

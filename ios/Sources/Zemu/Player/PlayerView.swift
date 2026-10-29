@@ -113,6 +113,7 @@ struct PlayerView: View {
                     Text("\(p.streamLabel)  ·  \(p.engineName)").font(.system(size: 12)).foregroundStyle(Palette.textMuted).marquee()
                 }
                 Spacer()
+                AirPlayButton(p: p).frame(width: 40, height: 40)
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)

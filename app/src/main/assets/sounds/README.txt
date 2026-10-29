@@ -22,6 +22,7 @@ Folders (which theme uses them):
   ocean/       Ocean
   pocket/      Pocket LCD (handheld)
   sixteen/     16-Bit (console)
+  pack-*/      the sound packs in Settings → Sounds & touch → Sound pack (made by tools/make_sound_packs.py)
 
 The .wav files here are placeholders. To use your own, drop a file with the same name in the
 same folder — move.ogg, move.mp3, move.m4a or move.wav. If both exist, .ogg, .mp3 and .m4a win

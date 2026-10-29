@@ -19,6 +19,12 @@ object SoundFx {
     private var lastMove = 0L
     var enabled = true
 
+    /** Sound packs (assets sounds/pack-<key>), by setting key; "lofi" is the theme's own set. */
+    val PACKS = listOf("lofi" to "Theme sounds", "wood" to "Wood", "bubbles" to "Bubbles", "keys" to "Soft keys", "cosmic" to "Cosmic", "retro" to "Retro")
+
+    /** The set to load: the chosen pack, or the theme's own. */
+    fun setFor(style: UiStyle, pack: String): String = if (pack == "lofi") setFor(style) else "pack-$pack"
+
     fun setFor(style: UiStyle): String = when (style) {
         UiStyle.PS2 -> "ps2"
         UiStyle.ACID -> "acidwave"

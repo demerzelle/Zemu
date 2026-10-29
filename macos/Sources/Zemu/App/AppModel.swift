@@ -144,7 +144,7 @@ final class AppModel {
         let variant = d.resolveVariant(s.variant(of: d))
         if P.scene != d.style { P.scene = d.style }
         if P.sceneVariant != variant { P.sceneVariant = variant }
-        SoundFx.set = d.style.soundSet
+        SoundFx.set = s.soundPack == "theme" ? d.style.soundSet : "pack-\(s.soundPack)"
     }
 
     // MARK: Command palette (⌘K) and shortcuts (⌘/)

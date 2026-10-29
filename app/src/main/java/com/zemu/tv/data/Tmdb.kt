@@ -282,6 +282,21 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         return list
     }
 
+    /** Today's trending titles (TMDB /trending/<movie|tv>/day). Cached for 30 minutes. */
+    suspend fun trendingToday(type: String): List<Meta> {
+        if (!enabled) return emptyList()
+        val media = if (type == "series") "tv" else "movie"
+        val key = "trending/$media"
+        val now = System.currentTimeMillis()
+        discoverCache[key]?.let { (at, list) -> if (now - at < 30 * 60_000L) return list }
+        val body = get("/trending/$media/day")
+        val list = withContext(Dispatchers.Default) {
+            json.decodeFromString(TmdbPage.serializer(), body).results.filter { it.posterPath != null }.map { it.toMeta(type) }
+        }
+        discoverCache[key] = now to list
+        return list
+    }
+
     private fun TmdbItem.toMeta(type: String): Meta {
         val tv = type == "series"
         val names = if (tv) TV_GENRES else MOVIE_GENRES

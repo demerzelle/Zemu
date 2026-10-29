@@ -49,7 +49,11 @@ struct PageRows: View {
         case .landscape:
             LandscapeCard(meta: m, subtitle: row.subtitles[m.id], progress: row.progress[m.id], onHover: onHover, resume: row.resume[m.id])
         case .poster:
-            PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: onHover)
+            if row.key.hasPrefix("top10-"), let i = row.items.firstIndex(where: { $0.id == m.id }) {
+                Ranked(rank: i + 1) { PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: onHover) }
+            } else {
+                PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: onHover)
+            }
         case .services, .studios:
             LogoCard(meta: m)
         }

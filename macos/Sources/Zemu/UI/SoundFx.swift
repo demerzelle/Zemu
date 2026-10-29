@@ -9,7 +9,10 @@ import AppKit
 enum SoundFx {
     enum Event: String { case move, select, hold, back }
 
-    /** The sound set of the current theme. */
+    /** Sound packs in Settings, by setting value; "theme" is the theme's own set. */
+    static let packs = [("theme", "Theme sounds"), ("wood", "Wood"), ("bubbles", "Bubbles"), ("keys", "Soft keys"), ("cosmic", "Cosmic"), ("retro", "Retro")]
+
+    /** The sound set in use: the theme's, or a pack (pack-<name>). */
     static var set = "default"
     private static var cache: [String: NSSound] = [:]
     private static var lastMove = Date.distantPast

@@ -796,6 +796,13 @@ private struct AppearanceSettings: View {
         }
         SettingsGroup(title: "Sounds") {
             ToggleRow(title: "Sound effects", description: "Clicks and blips when you move, select and go back with the keyboard or a controller. Themes with their own look bring their own sounds.", isOn: s.soundEffects) { v in update { $0.soundEffects = v } }
+            if s.soundEffects {
+                HStack(spacing: 8) {
+                    ForEach(SoundFx.packs, id: \.0) { key, label in
+                        Chip(title: label, selected: s.soundPack == key) { update { $0.soundPack = key } }
+                    }
+                }
+            }
         }
         SettingsGroup(title: "Notifications") {
             ToggleRow(title: "New episode notifications", description: "Get a notification when a show you watch has a new episode out.", isOn: s.notifyNewEpisodes) { v in

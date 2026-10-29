@@ -1,9 +1,9 @@
-"""Generates Zemu's desktop sound packs into src/main/resources/sounds/pack-<name>/ (python3 tools/make_sound_packs.py)."""
+"""Generates Zemu's sound packs into app/src/main/assets/sounds/pack-<name>/ (python3 tools/make_sound_packs.py)."""
 import os, wave
 import numpy as np
 
 SR = 44100
-OUT = os.path.join(os.path.dirname(__file__), "..", "src", "main", "resources", "sounds")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "assets", "sounds")
 
 
 def t(dur):

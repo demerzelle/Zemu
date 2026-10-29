@@ -10,7 +10,7 @@ import ZemuCore
 final class AVEngine: PlaybackEngine {
     let name = "AVPlayer"
     var onEvent: ((EngineEvent) -> Void)?
-    private let player = AVPlayer()
+    let player = AVPlayer()
     private let playerView = AVVideoView()
     var view: UIView { playerView }
     private var observers: [NSKeyValueObservation] = []
@@ -20,6 +20,8 @@ final class AVEngine: PlaybackEngine {
     init() {
         playerView.playerLayer.player = player
         player.automaticallyWaitsToMinimizeStalling = true
+        // AirPlay sends the stream to the TV instead of mirroring the screen.
+        player.usesExternalPlaybackWhileExternalScreenIsActive = true
     }
 
     func load(url: String, startMs: Int64, subtitles: [SubtitleTrack], options: EngineOptions) {

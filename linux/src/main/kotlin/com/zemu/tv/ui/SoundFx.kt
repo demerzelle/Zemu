@@ -40,6 +40,9 @@ object SoundFx {
         UiStyle.NORMAL -> "default"
     }
 
+    /** The set to load: the chosen pack, or the theme's own. */
+    fun setFor(style: UiStyle, pack: String): String = if (pack == "lofi") setFor(style) else "pack-$pack"
+
     @Suppress("UNUSED_PARAMETER")
     fun use(context: Context, set: String) {
         if (set == loadedSet || !enabled) return

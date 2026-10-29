@@ -699,6 +699,15 @@ private fun LazyListScope.soundsCategory(vm: SettingsViewModel, settings: AppSet
         ToggleRow("Sound effects", "Soft clicks when you move, select, hold OK and go back. PS2, Acidwave, Cybercore, Graffiti, Liquid Glass, Ethereal and the Cat Rave each have their own sounds.", settings.soundEffects) {
             vm.update { it.copy(soundEffects = !it.soundEffects) }
         }
+        if (settings.soundEffects) {
+            Text("Sound pack", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.zemu.tv.ui.SoundFx.PACKS.forEach { (k, label) ->
+                    TvChip(label, settings.soundPack == k, { vm.update { it.copy(soundPack = k) } })
+                }
+            }
+        }
     }
     group("feedback", "Touch screens") {
         ToggleRow("Vibration", "A short vibration when you change pages and when a video starts. Phones and tablets only.", settings.vibration) {

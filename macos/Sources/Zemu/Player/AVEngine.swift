@@ -10,7 +10,7 @@ import ZemuCore
 final class AVEngine: PlaybackEngine {
     let name = "AVPlayer"
     var onEvent: ((EngineEvent) -> Void)?
-    private let player = AVPlayer()
+    let player = AVPlayer()
     private let playerView = AVVideoView()
     var view: NSView { playerView }
     private var observers: [NSKeyValueObservation] = []

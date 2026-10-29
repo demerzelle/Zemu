@@ -23,6 +23,7 @@ final class HomeModel {
     @ObservationIgnored private unowned let s: Session
     private var catalogRows: [HomeRow] = []
     private var dailyRows: [HomeRow] = []
+    private var top10Rows: [HomeRow] = []
     private(set) var loading = true
     private(set) var error: String?
     @ObservationIgnored private var loadedFor: [String]?
@@ -32,6 +33,12 @@ final class HomeModel {
     init(_ s: Session) {
         self.s = s
         Task { await load() }
+        Task {
+            for (kind, label) in Top10.kinds("home") {
+                let items = await Top10.load(kind)
+                if !items.isEmpty { top10Rows.append(HomeRow(key: "top10-\(kind)", title: "Top 10 \(label) Today", items: items, priority: 0)) }
+            }
+        }
         // Reload catalogs when addons are installed or removed.
         trackers.append(Tracker({ [weak s] in s?.addons.addons.map(\.transportUrl) ?? [] }) { [weak self] urls in
             guard let self, self.s.addons.ready, let loaded = self.loadedFor, loaded != urls else { return }
@@ -82,6 +89,7 @@ final class HomeModel {
         }
         out += dailyRows
         out += catalogRows
+        out += top10Rows
         return out.stableSortedByPriority()
     }
 
@@ -255,7 +263,11 @@ struct HomeView: View {
                     case .landscape:
                         LandscapeCard(meta: m, subtitle: row.subtitles[m.id], progress: row.progress[m.id], onHover: hover, resume: row.resume[m.id])
                     case .poster:
-                        PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover)
+                        if row.key.hasPrefix("top10-"), let i = row.items.firstIndex(where: { $0.id == m.id }) {
+                            Ranked(rank: i + 1) { PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover) }
+                        } else {
+                            PosterCard(meta: m, badge: row.badges[m.id] ?? row.match[m.id].map { "\($0)%" }, onHover: hover)
+                        }
                     }
                 }
             }

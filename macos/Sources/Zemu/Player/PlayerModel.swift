@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import AVFoundation
 import ZemuCore
 
 /** One playable stream handed to the player; the player falls back through them in order. */
@@ -103,6 +104,10 @@ final class PlayerModel {
     @ObservationIgnored private var dismissedSegment: Segment?
     @ObservationIgnored private var recommendationRequested = false
     @ObservationIgnored private var closed = false
+    /** An AirPlay screen is picked: play with AVPlayer, since mpv can only send AirPlay sound. */
+    @ObservationIgnored private var airPlay = false
+    /** This stream failed on AVPlayer, so it stays on mpv while AirPlay is picked. */
+    @ObservationIgnored private var airPlayUnsupported = false
     @ObservationIgnored private var lastSave = Date()
     /** Playing only the saved file from last time: if it's gone, look up cached streams and keep going. */
     @ObservationIgnored private var savedFileOnly: Bool
@@ -119,7 +124,7 @@ final class PlayerModel {
         let s = session.settings
         softwareDecoding = s.preferSoftwareDecoders
         volume = s.volume
-        engine = MPV.available ? MPV() : AVEngine()
+        engine = MPV.available && !airPlay ? MPV() : AVEngine()
         start(at: startMs)
         loadEpisodes()
         tickTask = Task { [weak self] in
@@ -145,7 +150,7 @@ final class PlayerModel {
 
     private func makeEngine() -> PlaybackEngine {
         engine.stop()
-        return MPV.available ? MPV() : AVEngine()
+        return MPV.available && !(airPlay && !airPlayUnsupported) ? MPV() : AVEngine()
     }
 
     private func start(at position: Int64, freshEngine: Bool = false) {
@@ -621,12 +626,31 @@ final class PlayerModel {
         }
     }
 
+    // MARK: AirPlay
+
+    var airPlayPlayer: AVPlayer? { (engine as? AVEngine)?.player }
+
+    /** Switches engines when an AirPlay screen is picked or dropped, carrying on from the same spot. */
+    func setAirPlay(_ on: Bool) {
+        guard on != airPlay, !closed else { return }
+        airPlay = on
+        airPlayUnsupported = false
+        guard MPV.available, (engine is MPV) == on else { return }
+        start(at: positionMs > 0 ? positionMs : resumeMs, freshEngine: true)
+    }
+
     // MARK: Errors / fallback
 
     private func handleError(_ message: String, fatal: Bool) {
         guard !closed else { return }
         loadTimer?.cancel()
         let position = positionMs > 0 ? positionMs : resumeMs
+        if airPlay && !airPlayUnsupported && engine is AVEngine && MPV.available {
+            airPlayUnsupported = true
+            flash("This file type can't AirPlay video, so it's playing on this Mac.")
+            start(at: position, freshEngine: true)
+            return
+        }
         // Hardware decoding problems: retry this stream with software decoding once.
         if !fatal && !softwareDecoding && engine is MPV {
             softwareDecoding = true

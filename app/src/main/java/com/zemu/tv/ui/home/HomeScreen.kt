@@ -200,7 +200,7 @@ fun HomeScreen(
                         requesters = requesters,
                         favorite = row.favorite,
                         onTitleLongPress = { editingRow = row.key },
-                    ) { _, m, mod ->
+                    ) { i, m, mod ->
                         when (row.style) {
                             RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = {
                                 // In Progress replays the same file from where it stopped; a finished
@@ -221,7 +221,7 @@ fun HomeScreen(
                                 val p = com.zemu.tv.data.StreamingService.providerFor(row.service, row.serviceLabel)
                                 onBrowse(BrowseTarget(rowType, p?.ids, p?.label, row.studio))
                             }
-                            else PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" })
+                            else Ranked(if (row.key.startsWith("top10-")) i + 1 else null) { PosterCard(m, onClick = { onOpen(m) }, modifier = mod, onFocused = onFocus, badge = row.badges[m.id] ?: row.match[m.id]?.let { "$it%" }) }
                         }
                     }
                     }

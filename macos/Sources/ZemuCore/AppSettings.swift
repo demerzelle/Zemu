@@ -115,6 +115,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var screensaverShowTitle = true
     /** Clicks and blips when moving, selecting and going back (themed). Off by default on Mac. */
     public var soundEffects = false
+    /** "theme" (the theme's own sounds) or a sound pack: wood, bubbles, keys, cosmic, retro. */
+    public var soundPack = "theme"
     /** Streaming services you subscribe to (TMDB provider id to name); empty = show the popular ones. */
     public var myServices = [String: String]()
     /** Leave titles you've watched out of suggestion and category rows. */
@@ -200,6 +202,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         screensaverFadeTenths = v(.screensaverFadeTenths, d.screensaverFadeTenths)
         screensaverShowTitle = v(.screensaverShowTitle, d.screensaverShowTitle)
         soundEffects = v(.soundEffects, d.soundEffects)
+        soundPack = v(.soundPack, d.soundPack)
         myServices = v(.myServices, d.myServices)
         hideWatchedInRows = v(.hideWatchedInRows, d.hideWatchedInRows)
         preferSdh = v(.preferSdh, d.preferSdh)

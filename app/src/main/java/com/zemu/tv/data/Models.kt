@@ -181,6 +181,11 @@ data class AppSettings(
     val aspectMode: String = "FIT",
     /** Clicks and blips when moving, selecting, holding and going back (themed). */
     val soundEffects: Boolean = true,
+    val soundPack: String = "lofi",
+    /** Mouse-only row scrolling: "arrows" (buttons at the ends) or "edges" (hover near an end). */
+    val mouseRowScroll: String = "arrows",
+    /** Hover-scroll speed, 1–5 (com.zemu.tv.desktop.EDGE_SPEEDS). */
+    val edgeScrollSpeed: Int = 3,
     /** Short vibrations on phones when changing pages and starting a video. */
     val vibration: Boolean = true,
     /** Selecting a title or an episode starts playing right away instead of opening its page. */

@@ -187,6 +187,15 @@ final class HomeModel {
                 + s.store.addedRows(page: page)
             discoverRows[page] = []
             await withTaskGroup(of: Void.self) { g in
+                for (kind, label) in Top10.kinds(page) {
+                    g.addTask { @MainActor in
+                        let items = await Top10.load(kind)
+                        guard !items.isEmpty else { return }
+                        let key = "top10-\(kind)"
+                        self.discoverRows[page, default: []].removeAll { $0.key == key }
+                        self.discoverRows[page, default: []].append(HomeRow(key: key, title: "Top 10 \(label) Today", items: items, priority: 0))
+                    }
+                }
                 for spec in specs.distinct(by: \.key) {
                     g.addTask { @MainActor in
                         let items = await self.fetch(spec)

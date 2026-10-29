@@ -188,11 +188,12 @@ class HomeViewModel(private val c: AppContainer, val page: String = "home") : Vi
     }
 
     /** Plus, on Home, Watch Later and what your Trakt friends recommend (only once there is something). */
-    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater) { rows, recs, later ->
-        if (!isHome) return@combine rows
+    private val baseRows = combine(ownRows, c.trakt.friendRecs, c.userStore.watchLater, Top10.rows(c, page)) { rows, recs, later, top10 ->
+        if (!isHome) return@combine (rows + top10).sortedBy { it.priority }
         val names = { from: List<String> -> if (from.size > 2) "${from[0]} +${from.size - 1}" else from.joinToString(" & ") }
         buildList {
             addAll(rows)
+            addAll(top10)
             if (recs.isNotEmpty()) add(HomeRow("friends", "From Friends", recs.map { it.meta }, priority = 3, badges = recs.associate { it.meta.id to names(it.from) }))
             // Hideable like any row (hold OK on a card → Move or favorite this row, or Settings → Manage rows).
             if (later.isNotEmpty()) add(HomeRow("watchlater", "Watch Later", later, priority = 7))

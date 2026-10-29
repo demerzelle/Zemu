@@ -43,8 +43,10 @@ struct Backdrop: View {
                     .init(color: .clear, location: 0.65),
                 ] : [
                     .init(color: P.background, location: 0),
-                    .init(color: P.background.opacity(0.92), location: 0.3),
-                    .init(color: P.background.opacity(0.35), location: 0.6),
+                    // Solid where the picture starts (22% in), so its edge never shows.
+                    .init(color: P.background, location: 0.25),
+                    .init(color: P.background.opacity(0.85), location: 0.42),
+                    .init(color: P.background.opacity(0.35), location: 0.65),
                     .init(color: .clear, location: 1),
                 ], startPoint: .leading, endPoint: .trailing)
                 LinearGradient(stops: [.init(color: .clear, location: 0.5), .init(color: P.background, location: 1)], startPoint: .top, endPoint: .bottom)
