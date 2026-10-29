@@ -84,6 +84,8 @@ final class PlayerModel {
     /** On-screen controls; they hide after a few idle seconds while playing. */
     private(set) var controlsVisible = true
     var subtitleStyleOpen = false
+    /** Moving the subtitles up or down: controls hidden, only a slim bar and a sample line show. */
+    var subtitlePositionOpen = false
     @ObservationIgnored private var hideTask: Task<Void, Never>?
 
     @ObservationIgnored private var episodes: [Video] = []
@@ -294,6 +296,17 @@ final class PlayerModel {
     }
 
     func applySubtitleStyle() { engine.applySubtitleStyle(session.settings) }
+
+    /** Raises (positive) or lowers the subtitles by a fraction of the picture's height, live. */
+    func moveSubtitles(_ delta: Double) {
+        session.store.updateSettings { $0.subtitleBottom = min(0.9, max(0, (($0.subtitleBottom + delta) * 100).rounded() / 100)) }
+        applySubtitleStyle()
+    }
+
+    func openSubtitlePosition() {
+        subtitlePositionOpen = true
+        hideControls()
+    }
 
     func adjustSubtitleDelay(_ delta: Double) {
         session.store.updateSettings { $0.subtitleDelay = (($0.subtitleDelay + delta) * 10).rounded() / 10 }

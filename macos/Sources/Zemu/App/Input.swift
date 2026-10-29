@@ -255,6 +255,15 @@ final class InputRouter {
 
     private func routePlayer(_ action: InputAction, _ p: PlayerModel, source: InputSource, isRepeat: Bool) -> Bool {
         p.noteInteraction()
+        if p.subtitlePositionOpen {
+            switch action {
+            case .move(.up): p.moveSubtitles(0.01)
+            case .move(.down): p.moveSubtitles(-0.01)
+            case .select, .back: p.subtitlePositionOpen = false
+            default: break
+            }
+            return true
+        }
         let dialog = p.failure != nil || p.stillWatchingPrompt
         let menuMode = dialog || (p.controlsVisible && fe.focusedIsValid && fe.focused?.scope == "player")
 

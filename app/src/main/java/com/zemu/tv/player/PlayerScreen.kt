@@ -1,5 +1,7 @@
 package com.zemu.tv.player
 
+import androidx.compose.foundation.clickable
+import kotlin.math.roundToInt
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -72,7 +74,7 @@ import com.zemu.tv.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class PlayerDialog { SUBTITLE_STYLE, AUDIO, SUBTITLES }
+private enum class PlayerDialog { SUBTITLE_STYLE, SUBTITLE_POSITION, AUDIO, SUBTITLES }
 
 /** Track panel opened from Audio (left column focused) or Subtitles (right column). */
 
@@ -314,10 +316,12 @@ fun PlayerScreen(a: PlayerActivity) {
 
     when (dialog) {
         PlayerDialog.SUBTITLE_STYLE -> SubtitleStyleDialog(settings, update = { t -> scope.launch { c.userStore.updateSettings(t) } }) { dialog = null }
+        PlayerDialog.SUBTITLE_POSITION -> SubtitlePositionDialog(settings, update = { t -> scope.launch { c.userStore.updateSettings(t) } }) { dialog = null }
         PlayerDialog.AUDIO, PlayerDialog.SUBTITLES -> TrackPanel(
             a,
             focusSubtitles = dialog == PlayerDialog.SUBTITLES,
             onStyle = { dialog = PlayerDialog.SUBTITLE_STYLE },
+            onPosition = { dialog = PlayerDialog.SUBTITLE_POSITION },
             onDismiss = { dialog = null },
         )
         null -> {}
@@ -537,7 +541,7 @@ private fun MenuBar(
  * on Audio or Subtitles; Back closes it.
  */
 @Composable
-private fun TrackPanel(a: PlayerActivity, focusSubtitles: Boolean, onStyle: () -> Unit, onDismiss: () -> Unit) {
+private fun TrackPanel(a: PlayerActivity, focusSubtitles: Boolean, onStyle: () -> Unit, onPosition: () -> Unit, onDismiss: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val tv = a.tracksVersion
     val audio = a.audioOptions()
     val subs = a.subtitleOptions()
@@ -555,7 +559,7 @@ private fun TrackPanel(a: PlayerActivity, focusSubtitles: Boolean, onStyle: () -
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 TrackColumn("Audio", audio, Modifier.weight(1f), audioFocus) { a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_AUDIO) }
-                TrackColumn("Subtitles", subs, Modifier.weight(1f), subsFocus, footer = "Subtitle style…" to onStyle) {
+                TrackColumn("Subtitles", subs, Modifier.weight(1f), subsFocus, footers = listOf("Subtitle position…" to onPosition, "Subtitle style…" to onStyle)) {
                     a.selectTrack(it, androidx.media3.common.C.TRACK_TYPE_TEXT)
                 }
             }
@@ -570,7 +574,7 @@ private fun TrackColumn(
     options: List<TrackOption>,
     modifier: Modifier,
     focus: FocusRequester,
-    footer: Pair<String, () -> Unit>? = null,
+    footers: List<Pair<String, () -> Unit>> = emptyList(),
     onPick: (TrackOption) -> Unit,
 ) {
     Column(modifier) {
@@ -589,8 +593,8 @@ private fun TrackColumn(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                 }
             }
-            if (footer != null) item(key = "footer") {
-                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.02f) {
+            itemsIndexed(footers, key = { _, f -> "footer-${f.first}" }) { i, footer ->
+                FocusSurface(onClick = footer.second, modifier = Modifier.fillMaxWidth().padding(top = if (i == 0) 8.dp else 0.dp), shape = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)), focusedScale = 1.02f) {
                     Text(footer.first, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                 }
             }
@@ -704,6 +708,60 @@ private fun SubtitleStyleDialog(
             }
         }
     }
+}
+
+/**
+ * Moves the subtitles up or down while the video keeps playing, e.g. off text burned into the
+ * picture or into the black bars. Only a slim hint bar shows, plus a sample line where the
+ * subtitles will sit; the real ones move live too. Up/Down move (hold to keep going), OK or Back
+ * closes.
+ */
+@Composable
+private fun SubtitlePositionDialog(
+    settings: com.zemu.tv.data.AppSettings,
+    update: ((com.zemu.tv.data.AppSettings) -> com.zemu.tv.data.AppSettings) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    fun move(d: Float) = update { it.copy(subtitleBottom = ((it.subtitleBottom + d) * 100).roundToInt().div(100f).coerceIn(0f, 0.9f)) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionUp -> move(0.01f)
+                    Key.DirectionDown -> move(-0.01f)
+                    Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> onDismiss()
+                    else -> return@onPreviewKeyEvent false
+                }
+                true
+            },
+        ) {
+            Row(
+                Modifier.align(Alignment.TopCenter).padding(top = 24.dp)
+                    .background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(50))
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Subtitle position", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                // Clickable too, for the mouse and touch.
+                Text("▲", fontSize = 18.sp, modifier = Modifier.clickable { move(0.01f) }.padding(horizontal = 6.dp))
+                Text("${(settings.subtitleBottom * 100).roundToInt()}%", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("▼", fontSize = 18.sp, modifier = Modifier.clickable { move(-0.01f) }.padding(horizontal = 6.dp))
+                Text("Up/Down to move  ·  OK or Back when done", fontSize = 13.sp, color = Palette.TextSecondary)
+            }
+            Text(
+                "Subtitles will appear here",
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * settings.subtitleBottom),
+                style = androidx.compose.ui.text.TextStyle(
+                    color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
+                    shadow = androidx.compose.ui.graphics.Shadow(Color.Black, androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 6f),
+                ),
+            )
+        }
+    }
+    LaunchedEffect(Unit) { delay(80); runCatching { focus.requestFocus() } }
 }
 
 /** Shown over a video paused for a long time: its artwork drifting slowly, dimmed. */

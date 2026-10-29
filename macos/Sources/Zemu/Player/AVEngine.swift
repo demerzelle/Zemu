@@ -135,6 +135,7 @@ final class AVEngine: PlaybackEngine {
             kCMTextMarkupAttribute_RelativeFontSize as String: 100 * s.subtitleScale,
             kCMTextMarkupAttribute_CharacterBackgroundColorARGB as String: s.subtitleBackground == 0 ? [0, 0, 0, 0] : [s.subtitleBackground == 1 ? 0.6 : 1, 0, 0, 0],
             kCMTextMarkupAttribute_CharacterEdgeStyle as String: s.subtitleEdge == 2 ? kCMTextMarkupCharacterEdgeStyle_DropShadow : s.subtitleEdge == 1 ? kCMTextMarkupCharacterEdgeStyle_Uniform : kCMTextMarkupCharacterEdgeStyle_None,
+            kCMTextMarkupAttribute_OrthogonalLinePositionPercentageRelativeToWritingDirection as String: 100 - 100 * s.subtitleBottom,
         ]
         if let r = AVTextStyleRule(textMarkupAttributes: attrs) { rules.append(r) }
         item.textStyleRules = rules

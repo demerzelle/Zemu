@@ -249,7 +249,8 @@ class MpvSession private constructor(
     }
 
     private fun subtitleStyle(s: com.zemu.tv.data.AppSettings): List<String> {
-        if (s.subtitleOriginalStyle) return listOf("--sub-ass-override=no")
+        // Position still follows the setting, so subtitles can be moved off the picture.
+        if (s.subtitleOriginalStyle) return listOf("--sub-ass-override=no", "--sub-margin-y=${(s.subtitleBottom * 720).toInt()}")
         return listOf(
             "--sub-ass-override=force",
             "--sub-font-size=${(55 * s.subtitleScale).toInt()}",

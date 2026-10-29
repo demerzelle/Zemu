@@ -223,7 +223,8 @@ class PlayerActivity : ComponentActivity() {
             view.setUserDefaultTextSize()
             view.setApplyEmbeddedStyles(true)
             view.setApplyEmbeddedFontSizes(true)
-            view.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+            // Position still follows the setting, so subtitles can be moved off the picture.
+            view.setBottomPaddingFraction(s.subtitleBottom)
             return
         }
         view.setApplyEmbeddedFontSizes(false)

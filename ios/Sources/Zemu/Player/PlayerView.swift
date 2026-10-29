@@ -73,6 +73,7 @@ struct PlayerView: View {
             if p.controlsVisible || p.failure != nil { controls.transition(.opacity) }
 
             overlays
+            if p.subtitlePositionOpen { SubtitlePositionOverlay(p: p) }
         }
         .zFocusScope("player")
         .animation(.easeInOut(duration: 0.2), value: p.controlsVisible)
@@ -183,6 +184,7 @@ struct PlayerView: View {
         var items = [ActionItem(label: "Off", checked: !tracks.contains(where: \.selected)) { p.select(nil, kind: .sub) }]
         items += tracks.map { t in ActionItem(label: t.label, checked: t.selected) { p.select(t, kind: .sub) } }
         items += [
+            ActionItem(label: "Subtitle Position…", icon: "arrow.up.and.down") { p.openSubtitlePosition() },
             ActionItem(label: "Subtitle Style…", icon: "textformat") { p.subtitleStyleOpen = true; p.showControls() },
             ActionItem(label: "Add Subtitle File…", icon: "doc.badge.plus") { addSubtitleFile() },
             ActionItem(label: "Delay −0.1 s", icon: "minus", keepOpen: true) { p.adjustSubtitleDelay(-0.1) },
@@ -390,6 +392,49 @@ private struct SeekFocus: ViewModifier {
             }, ring: false)
         } else {
             content
+        }
+    }
+}
+
+/**
+ * Moving the subtitles up or down while the video plays, e.g. off text burned into the picture or
+ * into the black bars: a slim bar at the top and a sample line where they'll sit; the real ones
+ * move live too.
+ */
+private struct SubtitlePositionOverlay: View {
+    let p: PlayerModel
+    var app = AppModel.shared
+
+    var body: some View {
+        GeometryReader { g in
+            ZStack {
+                VStack {
+                    HStack(spacing: 14) {
+                        Text("Subtitle position").font(.system(size: 14, weight: .bold))
+                        Button { p.moveSubtitles(0.01) } label: { Image(systemName: "chevron.up").frame(width: 28, height: 28) }
+                            .buttonStyle(.plain).buttonRepeatBehavior(.enabled)
+                        Text("\(Int((app.settings.subtitleBottom * 100).rounded()))%").font(.system(size: 14, weight: .semibold)).monospacedDigit()
+                        Button { p.moveSubtitles(-0.01) } label: { Image(systemName: "chevron.down").frame(width: 28, height: 28) }
+                            .buttonStyle(.plain).buttonRepeatBehavior(.enabled)
+                        Text("Hold to keep moving").font(.system(size: 12)).foregroundStyle(Palette.textSecondary)
+                        Button("Done") { p.subtitlePositionOpen = false }.buttonStyle(.plain).font(.system(size: 14, weight: .bold)).foregroundStyle(P.accent)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18).padding(.vertical, 8)
+                    .background(Capsule().fill(.black.opacity(0.7)))
+                    .padding(.top, 24)
+                    Spacer()
+                }
+                VStack {
+                    Spacer()
+                    Text("Subtitles will appear here")
+                        .font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
+                        .shadow(color: .black, radius: 3, y: 2)
+                        .padding(.bottom, g.size.height * app.settings.subtitleBottom)
+                        .allowsHitTesting(false)
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height)
         }
     }
 }
