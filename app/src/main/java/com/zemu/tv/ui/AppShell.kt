@@ -578,14 +578,20 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
 }
 
 /**
- * Streaming service and studio rows list TMDB titles ("tmdb:movie:123"); they're looked up as
- * IMDb titles when opened, so the rest of the app only ever sees IMDb / Kitsu ids.
+ * Streaming service and studio rows list TMDB titles ("tmdb:movie:123"), and TMDB addons
+ * ("tmdb:123"); they're looked up as IMDb titles when opened, so the rest of the app only ever
+ * sees IMDb / Kitsu ids. An addon's title that can't be looked up (no TMDB key) opens as is,
+ * and its addon supplies the details.
  */
 private fun resolving(context: android.content.Context, scope: kotlinx.coroutines.CoroutineScope, m: Meta, block: (Meta) -> Unit) {
     if (!m.id.startsWith("tmdb:")) return block(m)
+    m.imdbIdField?.takeIf { it.startsWith("tt") }?.let { return block(m.copy(id = it)) }
     scope.launch {
-        val imdb = runCatching { context.container.tmdb.imdbFor(m.id) }.getOrNull()
-        if (imdb == null) android.widget.Toast.makeText(context, "Couldn't find ${m.name ?: "this title"} in the catalog", android.widget.Toast.LENGTH_SHORT).show()
-        else block(m.copy(id = imdb))
+        val imdb = runCatching { context.container.tmdb.imdbFor(m.id, m.type) }.getOrNull()
+        when {
+            imdb != null -> block(m.copy(id = imdb))
+            m.id.count { it == ':' } == 1 -> block(m)
+            else -> android.widget.Toast.makeText(context, "Couldn't find ${m.name ?: "this title"} in the catalog", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }

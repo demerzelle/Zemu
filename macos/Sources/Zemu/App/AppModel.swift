@@ -271,10 +271,21 @@ final class AppModel {
     func open(_ m: Meta) { openDetails(m, play: settings.instantPlay) }
 
     func openDetails(_ m: Meta, section: String = "", play: Bool = false) {
-        // Streaming service and studio rows list TMDB titles; they open as their IMDb title.
+        // Streaming service and studio rows (and TMDB addons) list TMDB titles; they open as their IMDb title.
+        // An addon's "tmdb:<id>" that can't be looked up (no TMDB key) opens as is; its addon has the details.
         if m.id.hasPrefix("tmdb:") {
+            if let imdb = m.imdbIdField, imdb.hasPrefix("tt") {
+                var seed = m
+                seed.id = imdb
+                push(.details(type: m.type, id: imdb, section: section, play: play, seed: seed))
+                return
+            }
             Task {
-                guard let imdb = try? await session.tmdb.imdbFor(m.id) else { toast("Couldn't find \(m.title) in the catalog"); return }
+                guard let imdb = try? await session.tmdb.imdbFor(m.id, type: m.type) else {
+                    if m.id.split(separator: ":").count == 2 { push(.details(type: m.type, id: m.id, section: section, play: play, seed: m)) }
+                    else { toast("Couldn't find \(m.title) in the catalog") }
+                    return
+                }
                 var seed = m
                 seed.id = imdb
                 push(.details(type: m.type, id: imdb, section: section, play: play, seed: seed))

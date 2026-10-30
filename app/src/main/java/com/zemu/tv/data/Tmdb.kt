@@ -209,7 +209,7 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
      */
     suspend fun usCertification(meta: Meta): String? {
         if (!enabled) return null
-        val (tv, id) = if (meta.id.startsWith("tmdb:")) meta.id.split(':').let { (it[1] == "tv") to it[2].toLong() } else {
+        val (tv, id) = if (meta.id.startsWith("tmdb:")) tmdbRef(meta.id, meta.type) ?: return "" else {
             meta.tmdbId?.toLongOrNull()?.let { (meta.type == "series") to it } ?: run {
                 val imdb = meta.imdbId.takeIf { it.startsWith("tt") } ?: return ""
                 val found = json.decodeFromString(TmdbFind.serializer(), get("/find/$imdb", "external_source=imdb_id"))
@@ -355,11 +355,10 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
         return "https://image.tmdb.org/t/p/w500${path.replace(".svg", ".png")}".also { studioLogos[studio.key] = it }
     }
 
-    /** The IMDb id of a "tmdb:<movie|tv>:<id>" title. */
-    suspend fun imdbFor(tmdbKey: String): String? {
-        val parts = tmdbKey.split(':')
-        val id = parts.getOrNull(2)?.toLongOrNull() ?: return null
-        return imdbIdFor(TmdbCredit(id = id, mediaType = parts[1]))
+    /** The IMDb id of a "tmdb:<movie|tv>:<id>" title, or an addon's "tmdb:<id>" one ([type] says which). */
+    suspend fun imdbFor(tmdbKey: String, type: String = "movie"): String? {
+        val (tv, id) = tmdbRef(tmdbKey, type) ?: return null
+        return imdbIdFor(TmdbCredit(id = id, mediaType = if (tv) "tv" else "movie"))
     }
 
     /** IMDb id for a TMDB title, so it can open in the app's Details page. */
@@ -373,6 +372,13 @@ class Tmdb(private val http: OkHttpClient, private val json: Json, private val k
     }
 
     companion object {
+        /** (is TV, TMDB id) from Zemu's "tmdb:<movie|tv>:<id>" or a TMDB addon's "tmdb:<id>". */
+        fun tmdbRef(key: String, type: String): Pair<Boolean, Long>? {
+            val parts = key.split(':')
+            val id = parts.last().toLongOrNull() ?: return null
+            return (if (parts.size > 2) parts[1] == "tv" else type == "series") to id
+        }
+
         private val CHANNEL_WORDS = listOf(" Channel", " with Ads", "Amazon Video", "Apple TV Store", "Google Play", "YouTube", "Fandango", "Vudu", "Microsoft Store", "Spectrum On Demand", "DIRECTV")
 
         /** TMDB genre ids, named the way Cinemeta names them. */

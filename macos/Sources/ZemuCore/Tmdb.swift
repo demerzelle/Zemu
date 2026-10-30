@@ -224,9 +224,8 @@ public final class Tmdb {
         guard enabled else { return nil }
         let tv: Bool, id: Int64
         if meta.id.hasPrefix("tmdb:") {
-            let p = meta.id.split(separator: ":")
-            guard p.count >= 3, let i = Int64(p[2]) else { return "" }
-            tv = p[1] == "tv"; id = i
+            guard let r = Tmdb.tmdbRef(meta.id, type: meta.type) else { return "" }
+            (tv, id) = r
         } else {
             guard let i = try await tmdbIdFor(meta) else { return "" }
             tv = meta.type == "series"; id = i
@@ -311,13 +310,20 @@ public final class Tmdb {
         return url
     }
 
-    /** The IMDb id of a "tmdb:<movie|tv>:<id>" title. */
-    public func imdbFor(_ tmdbKey: String) async throws -> String? {
-        let p = tmdbKey.split(separator: ":")
-        guard p.count >= 3, let id = Int64(p[2]) else { return nil }
-        let k = "\(p[1])/\(id)"
+    /** (is TV, TMDB id) from Zemu's "tmdb:<movie|tv>:<id>" or a TMDB addon's "tmdb:<id>". */
+    nonisolated public static func tmdbRef(_ key: String, type: String) -> (Bool, Int64)? {
+        let p = key.split(separator: ":")
+        guard let last = p.last, let id = Int64(last) else { return nil }
+        return (p.count > 2 ? p[1] == "tv" : type == "series", id)
+    }
+
+    /** The IMDb id of a "tmdb:<movie|tv>:<id>" title, or an addon's "tmdb:<id>" one ([type] says which). */
+    public func imdbFor(_ tmdbKey: String, type: String = "movie") async throws -> String? {
+        guard let (tv, id) = Tmdb.tmdbRef(tmdbKey, type: type) else { return nil }
+        let media = tv ? "tv" : "movie"
+        let k = "\(media)/\(id)"
         if let c = imdbCache[k] { return c }
-        guard let imdb = JSONValue.parse(try await get("/\(p[1])/\(id)/external_ids"))?["imdb_id"]?.string, imdb.hasPrefix("tt") else { return nil }
+        guard let imdb = JSONValue.parse(try await get("/\(media)/\(id)/external_ids"))?["imdb_id"]?.string, imdb.hasPrefix("tt") else { return nil }
         imdbCache[k] = imdb
         return imdb
     }
