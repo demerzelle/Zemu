@@ -46,7 +46,7 @@ Also: Alien Abduction, Pocket LCD, Ethereal, Graffiti, Liquid Glass, Cyberpunk, 
 
 Download the file for your TV from the [latest release](https://github.com/demerzelle/Zemu/releases/latest).
 
-**Android TV / Google TV** (tested on an onn 4K box): download `Zemu-AndroidTV-<version>.apk` and install it with an app such as Downloader or Send Files to TV, or with `adb install`. The `.zip` holds the same APK. Fire TV runs Android too and will probably work, but it hasn't been tested.
+**Android TV / Google TV** (tested on an onn 4K box): the quickest way is the **Downloader** app: enter the code **6414692** (or `aftv.news/6414692`) and it downloads the newest Zemu APK to install. Or download `Zemu-AndroidTV-<version>.apk` and install it with an app such as Send Files to TV, or with `adb install`. The `.zip` holds the same APK. Fire TV runs Android too and will probably work, but it hasn't been tested.
 
 **Roku:** Roku only allows apps outside its store in **developer mode**.
 1. On the remote, press Home 3×, Up 2×, Right, Left, Right, Left, Right, and follow the steps to turn on developer mode and set a password.

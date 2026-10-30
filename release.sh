@@ -38,6 +38,8 @@ APK=app/build/outputs/apk/release/app-release.apk
 SIGNER=$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "$APK" | sed -n 's/.*SHA-256 digest: //p' | head -1)
 [ "$SIGNER" = "$RELEASE_CERT_SHA256" ] || { git checkout -- app/build.gradle.kts roku/manifest; echo "APK is signed with $SIGNER, not the release key $RELEASE_CERT_SHA256. Installed copies couldn't update. Not publishing."; exit 1; }
 cp "$APK" "$OUT/Zemu-AndroidTV-$V.apk"
+# Same APK under a fixed name: .../releases/latest/download/Zemu-AndroidTV.apk always gets the newest (the Downloader code).
+cp "$APK" "$OUT/Zemu-AndroidTV.apk"
 (cd "$OUT" && zip -q "Zemu-AndroidTV-$V.zip" "Zemu-AndroidTV-$V.apk")
 
 (cd roku && npx --prefix tools bsc --project bsconfig.json >/dev/null && rm -f out/zemu.zip && cd out/staging && zip -qr -9 ../zemu.zip . -x '.*')
