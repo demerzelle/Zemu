@@ -226,31 +226,6 @@ val patches: Map<String, List<Pair<String, String>>> = mapOf(
         ValueRow("Download folder", downloadFolder.path) { com.zemu.tv.desktop.FolderSetting.open = true }
 """,
     ),
-    // No speech recognizer on desktop.
-    "com/zemu/tv/ui/search/SearchScreen.kt" to listOf(
-        """import android.content.Intent
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-""" to "",
-        """        val voiceIntent = remember {
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Search movies and series")
-        }
-        // Only devices with a speech recognizer (a mic remote, Google Assistant, ...) get the button.
-        val canVoice = remember {
-            SpeechRecognizer.isRecognitionAvailable(context) ||
-                context.packageManager.queryIntentActivities(voiceIntent, 0).isNotEmpty()
-        }
-        val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-            r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(vm::setQuery)
-        }
-""" to """        val canVoice = false
-""",
-        """runCatching { voice.launch(voiceIntent) }""" to "",
-    ),
 )
 // The Android app's Kotlin is shared; files that are Android-only are replaced in src/main/kotlin.
 val replaced = listOf(
@@ -272,6 +247,7 @@ val replaced = listOf(
     "com/zemu/tv/ui/components/ZemuLoader.kt",
     "com/zemu/tv/ui/components/Haptics.kt",
     "com/zemu/tv/ui/SoundFx.kt",
+    "com/zemu/tv/ui/search/VoiceSearch.kt",
 )
 fun isReplaced(path: String) = replaced.any { path == it || (it.endsWith("/") && path.startsWith(it)) }
 

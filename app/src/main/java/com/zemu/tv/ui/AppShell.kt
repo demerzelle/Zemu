@@ -510,6 +510,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                 .width(if (expanded) 170.dp else 36.dp)
                 // Up from the top of the menu reaches the logo; OK (or a tap) presses it.
                 .onFocusChanged { logoFocused = it.isFocused }
+                // Down goes to the first menu item (Search), not into the page beside it.
+                .focusProperties { down = requesters.getValue(main.first()) }
                 .graphicsLayer { if (logoFocused) { scaleX = 1.15f; scaleY = 1.15f } }
                 .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onLogo),
         )
@@ -522,8 +524,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
             Modifier
                 .fillMaxSize()
                 .onFocusChanged { hasFocus = it.hasFocus }
-                // Entering the menu always lands on the current page, not whichever item is nearest.
-                .focusProperties { enter = { selected?.let { requesters.getValue(it) } ?: FocusRequester.Default } }
+                // Entering the menu lands on the current page, not whichever item is nearest; down from the logo, on the top item.
+                .focusProperties { enter = { if (logoFocused) requesters.getValue(main.first()) else selected?.let { requesters.getValue(it) } ?: FocusRequester.Default } }
                 .focusGroup()
                 .verticalScroll(rememberScrollState())
                 .padding(start = 12.dp, end = 12.dp, top = top, bottom = 16.dp),

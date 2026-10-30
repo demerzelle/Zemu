@@ -14,11 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import android.content.Intent
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,28 +107,14 @@ fun SearchScreen(onOpen: (Meta) -> Unit) {
     LaunchedEffect(Unit) { runCatching { fieldRequester.requestFocus() } }
 
     Column(Modifier.fillMaxSize()) {
-        val context = LocalContext.current
-        val voiceIntent = remember {
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Search movies and series")
-        }
         // Only devices with a speech recognizer (a mic remote, Google Assistant, ...) get the button.
-        val canVoice = remember {
-            SpeechRecognizer.isRecognitionAvailable(context) ||
-                context.packageManager.queryIntentActivities(voiceIntent, 0).isNotEmpty()
-        }
-        val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-            r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(vm::setQuery)
-        }
+        val voice = rememberVoiceSearch(vm::setQuery)
         Row(
             Modifier.padding(start = 48.dp, end = 48.dp, top = 36.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (canVoice) {
-                TvIconButton(AppIcons.Mic, "Voice search", modifier = Modifier.padding(end = 14.dp)) {
-                    runCatching { voice.launch(voiceIntent) }
-                }
+            voice.start?.let { start ->
+                TvIconButton(AppIcons.Mic, "Voice search", modifier = Modifier.padding(end = 14.dp), active = voice.listening, onClick = start)
             }
             TvTextField(
                 value = ui.query,
@@ -144,6 +125,7 @@ fun SearchScreen(onOpen: (Meta) -> Unit) {
             )
         }
         val status = when {
+            voice.message != null -> voice.message
             ui.loading -> "Searching…"
             ui.searched && ui.rows.isEmpty() -> "No results."
             else -> null
