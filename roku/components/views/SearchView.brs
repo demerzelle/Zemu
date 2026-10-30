@@ -7,14 +7,33 @@ sub init()
     m.hint = m.top.findNode("hint")
     m.debounce = m.top.findNode("debounce")
     t = m.global.theme
-    m.keyboard.keyColor = t.text
-    m.keyboard.focusedKeyColor = t.focusText
-    m.keyboard.textEditBox.textColor = "0xFFFFFFFF"
+    ' The dynamic keyboard takes voice: hold the remote's mic while it's focused and the words are
+    ' typed in (the legacy MiniKeyboard has no voice entry). Whole words, not letter by letter.
+    m.keyboard.domain = "generic"
+    m.keyboard.textEditBox.voiceEnabled = true
+    m.keyboard.textEditBox.voiceEntryType = "generic"
+    p = CreateObject("roSGNode", "RSGPalette")
+    p.colors = {
+        KeyboardColor: t.surfaceHigh
+        InputFieldColor: t.bg
+        PrimaryTextColor: t.text
+        SecondaryTextColor: t.textMuted
+        FocusColor: "0xFFFFFFFF"
+        FocusItemColor: t.focusText
+    }
+    m.keyboard.palette = p
+    ' Results sit just right of the keyboard, whatever width this Roku OS draws it at.
+    kbRight = m.keyboard.translation[0] + m.keyboard.boundingRect().width
+    if kbRight > 420
+        m.results.translation = [kbRight + 20, 60]
+        m.hint.translation = [kbRight + 60, 120]
+        m.hint.width = 1240 - kbRight - 60
+    end if
     m.keyboard.textEditBox.hintText = "Movies, series, anime…"
     m.keyboard.textEditBox.hintTextColor = t.textMuted
     m.keyboard.observeField("text", "onText")
     m.debounce.observeField("fire", "search")
-    setupRowList(m.results, 739)
+    setupRowList(m.results, 1179 - m.results.translation[0])
     m.results.focusXOffset = [24]
     m.results.rowLabelOffset = [[24, 10]]
     m.results.observeField("rowItemSelected", "onSelected")

@@ -14,7 +14,7 @@
     <Label text="Search" translation="[64,34]" color="0xFFFFFFFF">
       <Font role="font" uri="font:BoldSystemFontFile" size="40" />
     </Label>
-    <MiniKeyboard id="keyboard" translation="[48,100]" />
+    <DynamicMiniKeyboard id="keyboard" translation="[48,100]" />
     <Label id="status" translation="[64,560]" width="400" wrap="true" color="0xB8B8C2FF">
       <Font role="font" uri="font:SystemFontFile" size="18" />
     </Label>
