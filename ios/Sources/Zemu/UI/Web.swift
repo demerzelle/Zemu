@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(tvOS)
 import WebKit
+#endif
 import ZemuCore
 
 /** Which hero trailer is playing and how far in, so it can continue full screen. */
@@ -10,6 +12,7 @@ final class HeroTrailerState {
     @ObservationIgnored var seconds: Double = 0
 }
 
+#if !os(tvOS)
 /**
  * YouTube IFrame player in a WKWebView. YouTube wants embeds to identify the app via the page
  * origin, so the HTML is loaded with a fixed base URL.
@@ -263,3 +266,57 @@ struct ConfigureWebView: UIViewRepresentable {
         web.configuration.userContentController.removeScriptMessageHandler(forName: "copied")
     }
 }
+#else
+
+// tvOS has no WebKit: addon configure pages open on a phone through a QR code.
+
+/** No muted hero trailers without a web view; the backdrop just stays. */
+struct HeroTrailer: View {
+    let videoId: String
+    var sound = false
+    var onFinished: () -> Void = {}
+
+    var body: some View { Color.clear.onAppear(perform: onFinished) }
+}
+
+/** An addon's `/configure` page: open it on a phone, then paste or type the resulting manifest link. */
+struct ConfigureSheet: View {
+    let request: ConfigureRequest
+    var app = AppModel.shared
+    @State private var link = ""
+    @State private var status: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Configure \(request.name)").font(.system(size: 20, weight: .bold))
+            Text(status ?? "Scan to configure it on your phone, then send its install link to the address below.")
+                .font(.system(size: 14)).foregroundStyle(status == nil ? Palette.textSecondary : Palette.cached)
+            QRCode(text: request.url).frame(width: 220, height: 220)
+            RemoteInputBanner()
+            TextField("Install link", text: $link).onSubmit(install).frame(maxWidth: 600)
+            HStack(spacing: 12) {
+                ZButton(title: "Install", primary: true, action: install)
+                ZButton(title: "Done") { app.configure = nil }
+            }
+        }
+        .padding(30)
+    }
+
+    private func install() {
+        let t = link.trimmed
+        guard !t.isEmpty else { return }
+        let url = t.hasPrefix("stremio://") ? "https://" + t.removingPrefix("stremio://") : t
+        status = "Installing…"
+        Task {
+            do {
+                let a = try await app.session.addons.install(url)
+                app.session.streams.invalidate()
+                app.toast("Installed \(a.manifest.name)")
+                app.configure = nil
+            } catch {
+                status = "Couldn't install: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+#endif

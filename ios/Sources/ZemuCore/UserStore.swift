@@ -21,12 +21,21 @@ public struct PinnedRow: Codable, Hashable, Sendable {
     }
 }
 
+/** "Remind me" on an upcoming episode: [meta] goes to Watch Later once [at] (epoch ms) passes. */
+public struct Reminder: Codable, Hashable, Sendable {
+    public var meta: Meta
+    public var at: Int64
+}
+
 /** Everything one profile stores, saved as a single JSON file. */
 struct UserData: Codable {
     /** nil until the first save, so first launch can install default addons. */
     var addons: [InstalledAddon]?
     var settings = AppSettings()
     var myList: [Meta] = []
+    /** A separate queue under My List, newest first. */
+    var watchLater: [Meta] = []
+    var reminders: [Reminder] = []
     var history: [WatchEntry] = []
     /** Titles marked watched (by meta id), newest first. */
     var watched: [String] = []
@@ -62,6 +71,8 @@ struct UserData: Codable {
         addons = c.lenient(.addons, [InstalledAddon].self)
         settings = c.lenient(.settings, AppSettings.self) ?? AppSettings()
         myList = c.lenient(.myList, [Meta].self) ?? []
+        watchLater = c.lenient(.watchLater, [Meta].self) ?? []
+        reminders = c.lenient(.reminders, [Reminder].self) ?? []
         history = c.lenient(.history, [WatchEntry].self) ?? []
         watched = c.lenient(.watched, [String].self) ?? []
         ratings = c.lenient(.ratings, [String: Int].self) ?? [:]
@@ -106,7 +117,7 @@ public final class UserStore {
     public init(profileId: String) {
         self.profileId = profileId
         file = ProfileStore.dataFile(for: profileId)
-        if let d = try? Data(contentsOf: file), let decoded = try? JSONDecoder().decode(UserData.self, from: d) {
+        if let d = TVBackup.read(file), let decoded = try? JSONDecoder().decode(UserData.self, from: d) {
             data = decoded
         } else {
             data = UserData()
@@ -254,6 +265,38 @@ public final class UserStore {
         data = d
     }
 
+    // MARK: Watch Later
+
+    public var watchLater: [Meta] { data.watchLater }
+    public func isInWatchLater(_ id: String) -> Bool { data.watchLater.contains { $0.id == id } }
+
+    public func toggleWatchLater(_ meta: Meta) {
+        var d = data
+        if isInWatchLater(meta.id) { d.watchLater.removeAll { $0.id == meta.id } }
+        else { d.watchLater.insert(meta.slim(), at: 0) }
+        data = d
+    }
+
+    public func isReminded(_ id: String) -> Bool { data.reminders.contains { $0.meta.id == id } }
+
+    public func toggleReminder(_ meta: Meta, at: Int64) {
+        var d = data
+        if isReminded(meta.id) { d.reminders.removeAll { $0.meta.id == meta.id } }
+        else { d.reminders.append(Reminder(meta: meta.slim(), at: at)) }
+        data = d
+    }
+
+    /** Moves shows whose reminded episode is out to Watch Later. */
+    public func fireDueReminders(now: Int64? = nil) {
+        let now = now ?? nowMs()
+        let due = data.reminders.filter { $0.at <= now }
+        guard !due.isEmpty else { return }
+        var d = data
+        d.reminders.removeAll { $0.at <= now }
+        for r in due where !d.watchLater.contains(where: { $0.id == r.meta.id }) { d.watchLater.insert(r.meta, at: 0) }
+        data = d
+    }
+
     // MARK: Search history
 
     /** Remembers a search with (a few of) its results; repeating a search moves it to the top. */
@@ -363,6 +406,20 @@ public final class UserStore {
             try? encoded.write(to: file, options: [.atomic])
             // The file holds debrid tokens and API keys.
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            #if os(tvOS)
+            // Rebuildable or bulky parts stay out of the backup; history goes first if it's still too big.
+            var slim = snapshot
+            slim.searchHistory = []
+            slim.searchPicks = []
+            slim.lastStreams = [:]
+            slim.lastStreamOrder = []
+            slim.history = Array(slim.history.prefix(200))
+            if let d = try? JSONEncoder().encode(slim), !TVBackup.save(d, for: file) {
+                slim.history = Array(slim.history.prefix(30))
+                slim.ratedMetas = []
+                if let d = try? JSONEncoder().encode(slim) { TVBackup.save(d, for: file) }
+            }
+            #endif
         }
         if blocking { Self.writer.sync(execute: job) } else { Self.writer.async(execute: job) }
     }

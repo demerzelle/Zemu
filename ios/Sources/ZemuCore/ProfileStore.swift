@@ -63,7 +63,7 @@ public final class ProfileStore {
 
     public init() {
         _ = ProfileStore.dir
-        if let d = try? Data(contentsOf: ProfileStore.file), let f = try? JSONDecoder().decode(ProfilesFile.self, from: d) {
+        if let d = TVBackup.read(ProfileStore.file), let f = try? JSONDecoder().decode(ProfilesFile.self, from: d) {
             state = f
         } else {
             state = ProfilesFile()
@@ -107,6 +107,7 @@ public final class ProfileStore {
         guard id != ProfileStore.defaultId else { return }
         state.profiles.removeAll { $0.id == id }
         try? FileManager.default.removeItem(at: ProfileStore.dataFile(for: id))
+        TVBackup.remove(for: ProfileStore.dataFile(for: id))
         try? FileManager.default.removeItem(at: ProfileStore.avatarDir.appendingPathComponent("\(id).jpg"))
     }
 
@@ -129,6 +130,6 @@ public final class ProfileStore {
     }
 
     private func save() {
-        if let d = try? JSONEncoder().encode(state) { try? d.write(to: ProfileStore.file, options: .atomic) }
+        if let d = try? JSONEncoder().encode(state) { TVBackup.save(d, for: ProfileStore.file); try? d.write(to: ProfileStore.file, options: .atomic) }
     }
 }

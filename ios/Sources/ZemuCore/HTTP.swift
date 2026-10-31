@@ -86,9 +86,16 @@ public func withTimeout<T: Sendable>(_ seconds: Double, _ op: @escaping @Sendabl
 
 public enum AppPaths {
     public static let support: URL = {
+        #if os(tvOS)
+        // tvOS apps can only write to Caches, which the system may clear; see TVBackup.
+        let u = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("ZemuData", isDirectory: true)
+        try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+        return u
+        #else
         let u = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Zemu", isDirectory: true)
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
+        #endif
     }()
 
     public static let caches: URL = {

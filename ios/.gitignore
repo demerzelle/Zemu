@@ -1,5 +1,6 @@
 Zemu.xcodeproj/
 build/
 Zemu.ipa
+ZemuTV.ipa
 .DS_Store
 *.log

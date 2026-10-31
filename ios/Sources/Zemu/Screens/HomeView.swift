@@ -6,7 +6,7 @@ enum RowStyle { case poster, landscape }
 struct HomeRow: Identifiable {
     let key: String
     let title: String
-    let items: [Meta]
+    var items: [Meta]
     var priority = 50
     var style = RowStyle.poster
     var subtitles: [String: String] = [:]
@@ -62,11 +62,28 @@ final class HomeModel {
     var noStreamAddons: Bool { s.addons.ready && !s.addons.hasStreamAddons }
 
     var rows: [HomeRow] {
+        let hidden = s.store.hiddenRows(page: "home")
+        let kids = s.kids
+        return allRows.filter { !hidden.contains($0.key) }.compactMap { r in
+            guard kids.active else { return r }
+            var r = r
+            r.items = kids.safe(r.items)
+            return r.items.isEmpty ? nil : r
+        }
+    }
+
+    /** Every row in its arranged order, removed ones included (for Settings → Home rows). */
+    var allRows: [HomeRow] {
         var out: [HomeRow] = []
         let fresh = s.newEpisodes.items
         if !fresh.isEmpty {
             out.append(HomeRow(key: "new-episodes", title: "New Episodes", items: fresh.map(\.meta), priority: -1,
                                badges: Dictionary(fresh.map { ($0.meta.id, $0.badge) }, uniquingKeysWith: { a, _ in a })))
+        }
+        let soon = s.newEpisodes.upcoming
+        if !soon.isEmpty {
+            out.append(HomeRow(key: "coming-up", title: "Coming Up", items: soon.map(\.meta), priority: -1,
+                               badges: Dictionary(soon.map { ($0.meta.id, $0.badge) }, uniquingKeysWith: { a, _ in a })))
         }
         let inProgress = s.inProgress
         if !inProgress.isEmpty {
@@ -79,6 +96,13 @@ final class HomeModel {
         }
         let myList = s.store.myList
         if !myList.isEmpty { out.append(HomeRow(key: "mylist", title: "My List", items: myList, priority: 7)) }
+        let later = s.store.watchLater
+        let recs = s.trakt.friendRecs
+        if !recs.isEmpty {
+            out.append(HomeRow(key: "friends", title: "From Friends", items: recs.map(\.meta), priority: 3,
+                               badges: Dictionary(recs.map { r in (r.meta.id, r.from.count > 2 ? "\(r.from[0]) +\(r.from.count - 1)" : r.from.joined(separator: " & ")) }, uniquingKeysWith: { a, _ in a })))
+        }
+        if !later.isEmpty { out.append(HomeRow(key: "watchlater", title: "Watch Later", items: later, priority: 7)) }
         let recent = s.store.history.sorted { $0.updatedAt > $1.updatedAt }.distinct(by: \.meta.id)
         let movies = recent.filter { $0.meta.type == "movie" }.map(\.meta).prefix(30)
         if !movies.isEmpty { out.append(HomeRow(key: "recent-movies", title: "Recently Watched Movies", items: Array(movies), priority: 6)) }
@@ -90,7 +114,29 @@ final class HomeModel {
         out += dailyRows
         out += catalogRows
         out += top10Rows
-        return out.stableSortedByPriority()
+        let sorted = out.stableSortedByPriority()
+        // Saved order first; rows not listed keep their default place after these.
+        let order = s.store.rowOrder(page: "home")
+        let saved = order.compactMap { k in sorted.first { $0.key == k } }
+        return saved + sorted.filter { !order.contains($0.key) }
+    }
+
+    /** Swaps a row with its neighbor among all rows and saves the whole order. */
+    func moveRow(_ key: String, by delta: Int) {
+        var keys = allRows.map(\.key)
+        guard let i = keys.firstIndex(of: key), keys.indices.contains(i + delta) else { return }
+        keys.swapAt(i, i + delta)
+        s.store.setRowOrder(keys, page: "home")
+    }
+
+    /** "Surprise me": a random unwatched title from your best-matching suggestions. */
+    func surprisePool() -> [Meta] {
+        let seen = Set(s.store.history.map(\.meta.id))
+        let pool = (dailyRows + catalogRows).flatMap(\.items)
+            .filter { !s.store.watched.contains($0.id) && !seen.contains($0.id) && ($0.type == "movie" || $0.type == "series") }
+            .distinct(by: \.id)
+            .sorted { s.matchPercent($0) > s.matchPercent($1) }
+        return Array(pool.prefix(30))
     }
 
     func retry() {
@@ -118,6 +164,8 @@ final class HomeModel {
 
     private func loadDaily() async {
         await s.addons.waitReady()
+        // shortcut: reminders fire when Home's daily rows reload, not on a timer; add one if a show appears late.
+        s.store.fireDueReminders()
         let rows = await s.recommender.dailyRows(s.tasteProfile(), history: s.store.history, myList: s.store.myList)
         dailyRows = rows.map { r in
             HomeRow(key: r.key, title: r.title, items: r.items, priority: r.priority, style: r.landscape ? .landscape : .poster,

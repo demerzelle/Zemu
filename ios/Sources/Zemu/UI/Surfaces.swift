@@ -26,7 +26,7 @@ private struct SurfaceModifier<S: InsettableShape>: ViewModifier {
             content.background(shape.fill(fill))
         case .glass:
             let refraction = settings.glassRefraction
-            if #available(iOS 26, *) {
+            if #available(iOS 26, tvOS 26, *) {
                 // Apple's glass comes in two strengths: frosted (.regular) and the more see-through,
                 // more strongly lensing .clear. Past half way the slider switches to clear.
                 let base: Glass = refraction >= 0.5 ? .clear : .regular

@@ -142,9 +142,10 @@ struct PersonView: View {
                 if let y = m.releaseInfo { Text(y).font(.system(size: 11)).foregroundStyle(Palette.textMuted) }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .zFocus(activate: {
             Task { if let r = await vm.resolve(m) { app.open(r) } else { app.toast("\"\(m.title)\" isn't in the catalog yet") } }
         }, cornerRadius: 8)
+        .modifier(KidsGated(meta: m))
     }
 }

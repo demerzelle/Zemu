@@ -64,7 +64,9 @@ struct MyListView: View {
         let list = q.isEmpty ? all : all.filter { m in
             m.title.lowercased().contains(q) || m.genres.contains { $0.lowercased().contains(q) } || (m.releaseInfo ?? "").contains(q)
         }
+        let later = store.watchLater.filter { q.isEmpty || $0.title.lowercased().contains(q) }
         let sections = Self.sections(list, group: group, sort: sort, store: store, session: app.session)
+            + (later.isEmpty ? [] : [ListSection(id: "watch-later", title: "Watch Later", items: later)])
 
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -92,7 +94,7 @@ struct MyListView: View {
                                 .focused($filterFocused)
                                 .zFocusText($filter, title: "Filter My List", focus: { filterFocused = true })
                             if !filter.isEmpty {
-                                Button { filter = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.textMuted) }.buttonStyle(.plain)
+                                Button { filter = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.textMuted) }.buttonStyle(.zemu)
                             }
                         }
                         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -102,7 +104,7 @@ struct MyListView: View {
                 }
             }
 
-            if all.isEmpty {
+            if all.isEmpty && store.watchLater.isEmpty {
                 CenteredMessage("Your list is empty", "Use “My List” on any title (or right-click a poster) to save it here.")
             } else if sections.isEmpty {
                 CenteredMessage("Nothing matches", "No titles in your list match “\(filter)”.")

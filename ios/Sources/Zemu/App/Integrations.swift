@@ -92,7 +92,7 @@ final class Integrations: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: Notifications
 
-    private var canNotify: Bool { true }
+    private var canNotify: Bool { !tvOS }
 
     func requestNotificationPermission() {
         guard canNotify else { return }
@@ -102,6 +102,7 @@ final class Integrations: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func notifyNewEpisodes(_ items: [NewEpisodesItem]) {
+        #if !os(tvOS) // tvOS notifications can only badge the icon.
         guard canNotify else { return }
         for item in items.prefix(5) {
             let content = UNMutableNotificationContent()
@@ -112,8 +113,10 @@ final class Integrations: NSObject, UNUserNotificationCenterDelegate {
             let req = UNNotificationRequest(identifier: "\(item.meta.id)|\(item.latest.id)", content: content, trigger: nil)
             UNUserNotificationCenter.current().add(req)
         }
+        #endif
     }
 
+    #if !os(tvOS)
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
         guard let type = info["type"] as? String, let id = info["id"] as? String else { return }
@@ -125,4 +128,5 @@ final class Integrations: NSObject, UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
     }
+    #endif
 }

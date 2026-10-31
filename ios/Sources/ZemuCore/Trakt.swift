@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 
 /** What Trakt shows to link this Mac: go to [url] and enter [userCode]. */
@@ -7,6 +8,12 @@ public struct TraktLink: Sendable, Equatable {
     public let url: String
     public let intervalSec: Int
     public let expiresAt: Int64
+}
+
+/** A title your Trakt friends recommend. */
+public struct FriendRec: Sendable, Equatable {
+    public var meta: Meta
+    public var from: [String]
 }
 
 public struct TraktError: LocalizedError {
@@ -19,10 +26,14 @@ public struct TraktError: LocalizedError {
  * and what you play is scrobbled (Trakt marks it watched once you're past 80%). Uses your own
  * Trakt API app (free): its Client ID and secret go in Settings.
  */
-@MainActor
+@MainActor @Observable
 public final class Trakt {
-    private let base = "https://api.trakt.tv"
-    private let store: UserStore
+    @ObservationIgnored private let base = "https://api.trakt.tv"
+    @ObservationIgnored private let store: UserStore
+    @ObservationIgnored private let recsSlug = "zemu-recommendations"
+    public private(set) var hasFriends = false
+    public private(set) var friendRecs: [FriendRec] = []
+    public private(set) var myRecs: Set<String> = []
     private var settings: AppSettings { store.settings }
 
     public init(store: UserStore) { self.store = store }
@@ -77,6 +88,7 @@ public final class Trakt {
     }
 
     public func disconnect() {
+        hasFriends = false; friendRecs = []; myRecs = []
         store.updateSettings { $0.traktAccessToken = ""; $0.traktRefreshToken = ""; $0.traktExpiresAt = 0 }
     }
 
@@ -116,6 +128,58 @@ public final class Trakt {
         let watched = (try await get("/sync/watched/movies").array ?? []).compactMap { $0["movie"]?["ids"]?["imdb"]?.string }
         let fresh = store.addWatched(watched)
         return "Added \(wanted.count) from your watchlist and \(fresh) watched movies."
+    }
+
+    // MARK: Friends
+    // Friends are mutual follows on Trakt. Each person's recommendations are a friends-only Trakt
+    // list named "Zemu Recommendations"; Home shows what your friends put on theirs.
+
+    public func refreshFriends() async throws {
+        guard connected else { return }
+        try await refreshIfNeeded()
+        let friends = (try await get("/users/me/friends").array ?? []).compactMap { $0["user"] }
+        hasFriends = !friends.isEmpty
+        myRecs = Set(try await listItems("me").map(\.id))
+        var seen: [FriendRec] = []
+        for u in friends.prefix(50) {
+            guard let slug = u["ids"]?["slug"]?.string else { continue }
+            let full = u["name"]?.string ?? ""
+            let name = (full.isEmpty ? u["username"]?.string ?? "" : full).split(separator: " ").first.map(String.init) ?? ""
+            for m in (try? await listItems(slug)) ?? [] {
+                if let i = seen.firstIndex(where: { $0.meta.id == m.id }) { seen[i].from.append(name) }
+                else { seen.append(FriendRec(meta: m, from: [name])) }
+            }
+        }
+        friendRecs = seen.filter { !myRecs.contains($0.meta.id) }
+    }
+
+    /** Adds [meta] to (or takes it off) your recommendations list, creating the list the first time. */
+    public func recommend(_ meta: Meta, on: Bool) async throws {
+        try await refreshIfNeeded()
+        let ids = idsBody(["\(meta.imdbId)|\(meta.type)"])
+        if on {
+            if try await raw("GET", "/users/me/lists/\(recsSlug)", nil).0 == 404 {
+                _ = try await post("/users/me/lists", ["name": "Zemu Recommendations", "privacy": "friends",
+                                                       "description": "Titles I recommend. Friends who use Zemu see them on Home."])
+            }
+            _ = try await post("/users/me/lists/\(recsSlug)/items", ids)
+            myRecs.insert(meta.imdbId)
+        } else {
+            _ = try await post("/users/me/lists/\(recsSlug)/items/remove", ids)
+            myRecs.remove(meta.imdbId)
+        }
+    }
+
+    /** A user's recommendations list, newest first; empty when they haven't made one. */
+    private func listItems(_ user: String) async throws -> [Meta] {
+        let r = try await raw("GET", "/users/\(user)/lists/\(recsSlug)/items?sort_by=added&sort_how=desc", nil)
+        if r.0 == 404 { return [] }
+        return (JSONValue.parse(try check(r))?.array ?? []).compactMap { e in
+            let type = e["type"]?.string == "show" ? "series" : "movie"
+            let item = e[type == "movie" ? "movie" : "show"]
+            guard let imdb = item?["ids"]?["imdb"]?.string else { return nil }
+            return Meta(id: imdb, type: type, name: item?["title"]?.string, releaseInfo: item?["year"]?.text)
+        }
     }
 
     // MARK: Scrobbling

@@ -11,39 +11,56 @@ struct RootView: View {
         ZStack {
             PageBackground().ignoresSafeArea()
             if app.picking {
-                ProfilePicker()
-            } else if sizeClass == .compact {
+                ProfilePicker().disabled(app.parentPrompt != nil)
+            } else if !tvOS, sizeClass == .compact {
                 VStack(spacing: 0) {
                     content
                     TabBar()
                 }
             } else {
                 HStack(spacing: 0) {
-                    Sidebar()
-                    content
+                    Sidebar().zFocusScope("sidebar").zIndex(5)
+                    content.zFocusScope("content")
                 }
                 .ignoresSafeArea()
+                .disabled(tvOverlayOpen)
             }
 
             if let p = app.player {
-                PlayerView(p: p).transition(.opacity).zIndex(10)
+                PlayerView(p: p).disabled(app.actionMenu != nil && tvOS).transition(.opacity).zIndex(10)
             }
+            #if !os(tvOS)
             if let t = app.trailer {
                 TrailerOverlay(request: t).ignoresSafeArea().transition(.opacity).zIndex(11)
             }
+            #endif
             if let m = app.actionMenu {
                 ActionMenuOverlay(request: m).zIndex(14).transition(.opacity)
             }
-            DynamicThemeLayer(theme: DynamicTheme.of(app.settings.dynamicTheme)).ignoresSafeArea().allowsHitTesting(false).zIndex(12)
+            if let prompt = app.parentPrompt {
+                ParentCodePad(title: prompt.title, message: "Enter the parent code", onDismiss: { app.parentPrompt = nil }) { code in
+                    guard app.profiles.checkParentCode(code) else { return false }
+                    app.parentPrompt = nil
+                    prompt.unlocked()
+                    return true
+                }
+                .zIndex(15)
+            }
+            DynamicThemeLayer(theme: DeviceCaps.isLowEnd ? .NONE : DynamicTheme.of(app.settings.dynamicTheme)).ignoresSafeArea().allowsHitTesting(false).zIndex(12)
             VStack { Spacer(); ToastStack() }.zIndex(13)
         }
         .animation(.easeInOut(duration: 0.2), value: app.player != nil)
         .animation(.easeInOut(duration: 0.15), value: app.actionMenu?.id)
         .animation(.easeInOut(duration: 0.2), value: app.trailer)
+        .tvScaled()
+        #if os(tvOS)
+        // Menu goes back; on the top page it's left to the system, which returns to the Home screen.
+        .onExitCommand(perform: app.stack.isEmpty ? nil : { app.back() })
+        #endif
         .preferredColorScheme(.dark)
         .tint(P.accent)
         .foregroundStyle(.white)
-        .sheet(item: Binding(get: { app.configure }, set: { app.configure = $0 })) { ConfigureSheet(request: $0) }
+        .sheet(item: Binding(get: { app.configure }, set: { app.configure = $0 })) { ConfigureSheet(request: $0).tvScaled() }
         // Drop an addon link anywhere (iPad) to install it.
         .onDrop(of: [.url, .plainText], isTargeted: nil) { providers in
             guard app.player == nil, let item = providers.first else { return false }
@@ -66,17 +83,23 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        #if !os(tvOS)
         // Swipe right from the left edge goes back, like a navigation stack.
         .gesture(DragGesture(minimumDistance: 30).onEnded { v in
             if v.startLocation.x < 40, v.translation.width > 80, abs(v.translation.height) < 60 { app.back() }
         }, including: app.stack.isEmpty ? .subviews : .all)
+        #endif
     }
+
+    /** Focus can't leave an overlay on tvOS unless what's under it is disabled. */
+    private var tvOverlayOpen: Bool { tvOS && (app.player != nil || app.actionMenu != nil || app.parentPrompt != nil) }
 
     @ViewBuilder
     private var page: some View {
         if let r = app.route {
             switch r {
-            case let .details(type, id, section, play, seed): DetailsView(type: type, id: id, section: section, play: play, seed: seed)
+            case let .details(type, id, section, play, seed):
+                KidsTitleGate(type: type, id: id) { DetailsView(type: type, id: id, section: section, play: play, seed: seed) }
             case let .person(key): PersonView(key: key)
             }
         } else {
@@ -87,8 +110,8 @@ struct RootView: View {
             case .anime: BrowseView(type: "anime")
             case .search: SearchView()
             case .mylist: MyListView()
-            case .addons: AddonsView()
-            case .settings: SettingsView()
+            case .addons: ParentLock { AddonsView() }
+            case .settings: ParentLock { SettingsView() }
             }
         }
     }
@@ -116,7 +139,7 @@ private struct TabBar: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.zemu)
                 .accessibilityLabel(s.label)
                 .accessibilityAddTraits(current == s ? .isSelected : [])
             }
@@ -138,7 +161,7 @@ private struct TabBar: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.zemu)
                 .accessibilityLabel(s.label)
                 .accessibilityAddTraits(current == s ? .isSelected : [])
             }
@@ -154,29 +177,43 @@ private struct Sidebar: View {
     var app = AppModel.shared
     @State private var hovering = false
 
-    private var expanded: Bool { hovering }
+    /** Which item has remote focus; the sidebar opens over the page while one does. */
+    @State private var focused: String?
+    private var expanded: Bool { hovering || focused != nil }
+
+    private func focusChanged(_ label: String, _ on: Bool) {
+        // No animation: focus aims at frames mid-flight otherwise, and quick presses land on the page.
+        if on { focused = label } else if focused == label { focused = nil }
+    }
 
     var body: some View {
         let current = app.stack.isEmpty ? app.section : nil
         VStack(alignment: .leading, spacing: 4) {
-            Logo(expanded: expanded)
+            Logo(expanded: expanded && !tvOS)
                 .frame(height: 30)
                 .padding(.leading, 20).padding(.top, 44).padding(.bottom, 26)
             ForEach(Section.allCases) { s in
-                SidebarItem(section: s, selected: current == s, expanded: expanded)
+                SidebarItem(icon: s.icon, label: s.label, selected: current == s, expanded: expanded, onFocus: { focusChanged(s.label, $0) }) { app.go(s) }
             }
+            SidebarItem(icon: "dice.fill", label: "Surprise me", selected: false, expanded: expanded, onFocus: { focusChanged("Surprise me", $0) }) { app.surprise() }
             Spacer()
-            ProfileButton(expanded: expanded)
+            ProfileButton(expanded: expanded && !tvOS)
                 .padding(.bottom, 20)
         }
         .padding(.horizontal, 12)
-        .frame(width: expanded ? 220 : 76, alignment: .leading)
+        // On TV the focusable part never widens (wide buttons overlap the page's posters and
+        // pull focus onto them), so only the panel and labels behind it grow.
+        .frame(width: expanded && !tvOS ? 220 : 76, alignment: .leading)
         .frame(maxHeight: .infinity)
-        .background(P.style == .solid ? AnyShapeStyle(P.background.opacity(0.97)) : AnyShapeStyle(.ultraThinMaterial))
-        .overlay(alignment: .trailing) { Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1) }
+        .background(alignment: .leading) {
+            (P.style == .solid ? AnyShapeStyle(P.background.opacity(0.97)) : AnyShapeStyle(.ultraThinMaterial))
+                .asRectangle()
+                .frame(width: expanded ? 220 : 76)
+                .overlay(alignment: .trailing) { Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1) }
+                .allowsHitTesting(false)
+        }
         .onHover { h in withAnimation(.easeOut(duration: 0.18)) { hovering = h } }
-        .animation(.easeOut(duration: 0.18), value: expanded)
-        .zIndex(5)
+        .animation(tvOS ? nil : .easeOut(duration: 0.18), value: expanded)
     }
 }
 
@@ -185,19 +222,42 @@ private struct Sidebar: View {
  * (or keyboard/controller focus) is on only gets a highlight until it's clicked.
  */
 private struct SidebarItem: View {
-    let section: Section
+    let icon: String
+    let label: String
     let selected: Bool
     let expanded: Bool
-    var app = AppModel.shared
+    var onFocus: (Bool) -> Void = { _ in }
+    let action: () -> Void
     @State private var hover = false
 
+    /** The icon sets the button's size; the highlight and label are drawn past it without affecting focus. */
+    private var tvLabel: some View {
+        Image(systemName: icon).font(.system(size: 17, weight: .semibold)).frame(width: 24, height: 24)
+            .foregroundStyle(selected ? P.accent : hover ? .white : Palette.textSecondary)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(hover ? 0.12 : selected && expanded ? 0.05 : 0))
+                    .frame(width: expanded ? 196 : 52)
+            }
+            .overlay(alignment: .leading) {
+                ZStack(alignment: .leading) {
+                    if selected { RoundedRectangle(cornerRadius: 2).fill(P.accent).frame(width: 3, height: 18).offset(x: -9) }
+                    if expanded {
+                        Text(label).font(.system(size: 14.5, weight: selected ? .bold : .medium))
+                            .foregroundStyle(selected || hover ? .white : Palette.textSecondary)
+                            .lineLimit(1).fixedSize().offset(x: 52)
+                    }
+                }
+            }
+    }
+
     var body: some View {
-        Button { app.go(section) } label: {
-            HStack(spacing: 14) {
-                Image(systemName: section.icon).font(.system(size: 17, weight: .semibold)).frame(width: 24)
+        Button(action: action) {
+            if tvOS { tvLabel } else { HStack(spacing: 14) {
+                Image(systemName: icon).font(.system(size: 17, weight: .semibold)).frame(width: 24)
                     .foregroundStyle(selected ? P.accent : hover ? .white : Palette.textSecondary)
                 if expanded {
-                    Text(section.label)
+                    Text(label)
                         .font(.system(size: 14.5, weight: selected ? .bold : .medium))
                         .foregroundStyle(selected ? .white : hover ? .white : Palette.textSecondary)
                         .lineLimit(1)
@@ -213,14 +273,15 @@ private struct SidebarItem: View {
                 }
             }
             .contentShape(Rectangle())
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } }
-        .zFocus(activate: { app.go(section) }, onFocusChange: { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } },
+        .zFocus(activate: action, onFocusChange: { h in withAnimation(.easeOut(duration: 0.12)) { hover = h }; onFocus(h) },
                 group: "sidebar", ring: false)
-        .accessibilityLabel(section.label)
+        .accessibilityLabel(label)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help(section.label)
+        .help(label)
     }
 }
 
@@ -241,6 +302,10 @@ private struct ProfileButton: View {
         }
         .help("Profile: \(p.name)")
     }
+}
+
+extension AnyShapeStyle {
+    func asRectangle() -> some View { Rectangle().fill(self) }
 }
 
 /** The Zemu logo from the app bundle, or a text version when running unbundled. */

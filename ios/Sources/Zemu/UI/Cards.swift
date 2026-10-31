@@ -63,7 +63,7 @@ struct PosterCard: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in
             withAnimation(.easeOut(duration: 0.15)) { hover = h }
             if h { onHover?(meta) }
@@ -74,6 +74,7 @@ struct PosterCard: View {
         }, ring: false)
         .contextMenu { CardMenu(meta: meta) }
         .help(meta.title)
+        .modifier(KidsGated(meta: meta))
     }
 }
 
@@ -127,7 +128,7 @@ struct LandscapeCard: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in
             withAnimation(.easeOut(duration: 0.15)) { hover = h }
             if h { onHover?(meta) }
@@ -142,6 +143,7 @@ struct LandscapeCard: View {
             if resume != nil { Button("Resume") { app.resume(resume!) } }
             CardMenu(meta: meta)
         }
+        .modifier(KidsGated(meta: meta))
     }
 }
 
@@ -207,7 +209,7 @@ struct MediaRow<Item: Hashable, Content: View>: View {
                 .frame(width: 36, height: 64)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.65)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
     }
 }
 

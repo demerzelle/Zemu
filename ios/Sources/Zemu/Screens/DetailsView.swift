@@ -100,6 +100,7 @@ private struct DetailsContent: View {
         VStack(alignment: .leading, spacing: 10) {
             TitleLogo(meta: m, maxHeight: 120)
             MetaLine(meta: m, matchPercent: vm.matchPercent(m))
+            CriticScores(meta: m)
             if !m.genres.isEmpty { Text(m.genres.joined(separator: "  •  ")).font(.system(size: 13)).foregroundStyle(Palette.textSecondary) }
             if let label = vm.episodeLabel() { Text(label).font(.system(size: 15, weight: .bold)) }
             ScrollingText(text: m.description ?? "", maxHeight: 96)
@@ -125,7 +126,7 @@ private struct DetailsContent: View {
                         if showCast { Task { try? await Task.sleep(nanoseconds: 150_000_000); withAnimation { proxy.scrollTo("cast", anchor: .center) } } }
                     }
                 }
-                if let t = m.trailerId {
+                if let t = m.offeredTrailerId {
                     let playing = HeroTrailerState.shared.playingId == t
                     ZButton(title: playing ? "Trailer Full Screen" : "Trailer", icon: "film") { app.playTrailer(t, start: playing ? Int(HeroTrailerState.shared.seconds) : 0) }
                 }
@@ -350,7 +351,7 @@ private struct EpisodeCard: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h }; onHover(h) }
         .zFocus(activate: action, secondary: secondary, onFocusChange: { h in withAnimation(.easeOut(duration: 0.12)) { hover = h }; onHover(h) }, ring: false)
     }
@@ -442,7 +443,7 @@ struct StreamRow: View {
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(hover ? 0.85 : 0), lineWidth: 1.5))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in withAnimation(.easeOut(duration: 0.1)) { hover = h } }
         .zFocus(activate: action, secondary: { AppModel.shared.showMenu(s.title) { streamItems(s) } }, onFocusChange: { h in withAnimation(.easeOut(duration: 0.1)) { hover = h } }, ring: false)
         .contextMenu {
@@ -486,7 +487,7 @@ struct CastRow: View {
                                 Text("View more").font(.system(size: 12.5, weight: .semibold))
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.zemu)
                         .zFocus(activate: { expanded = true }, cornerRadius: 48)
                     }
                 }
@@ -521,7 +522,7 @@ private struct CastTile: View {
             .frame(width: 108)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } }
         .zFocus(activate: action, onFocusChange: { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } }, ring: false)
         .task {

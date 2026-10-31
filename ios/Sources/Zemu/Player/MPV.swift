@@ -82,7 +82,15 @@ final class MPV: PlaybackEngine {
             ("video-rotate", "no"),
             ("tone-mapping", "auto"),
             ("target-colorspace-hint", "yes"),
-        ]
+        ] + (DeviceCaps.isLowEnd ? [
+            // Less memory held for buffering, and the cheapest scaling so the A8 keeps up.
+            ("demuxer-max-bytes", "150MiB"),
+            ("demuxer-max-back-bytes", "30MiB"),
+            ("scale", "bilinear"),
+            ("dscale", "bilinear"),
+            ("cscale", "bilinear"),
+            ("deband", "no"),
+        ] : [])
         for (k, v) in opts { mpv_set_option_string(h, k, v) }
         mpv_request_log_messages(h, "error")
         guard mpv_initialize(h) >= 0 else { mpv_terminate_destroy(h); handle = nil; return }
@@ -376,7 +384,7 @@ final class MPVVideoView: UIView {
         backgroundColor = .black
         isUserInteractionEnabled = false // touches go to the SwiftUI controls on top
         let l = layer as! MPVMetalLayer
-        l.contentsScale = UIScreen.main.nativeScale
+        l.contentsScale = UIScreen.main.nativeScale * tvScale
         l.framebufferOnly = true
     }
 
@@ -391,6 +399,7 @@ final class MPVMetalLayer: CAMetalLayer {
         set { if Int(newValue.width) > 1 && Int(newValue.height) > 1 { super.drawableSize = newValue } }
     }
 
+    #if !os(tvOS)
     // mpv sets this from its render thread; EDR only turns on when it's set on the main thread.
     override var wantsExtendedDynamicRangeContent: Bool {
         get { super.wantsExtendedDynamicRangeContent }
@@ -399,4 +408,5 @@ final class MPVMetalLayer: CAMetalLayer {
             else { DispatchQueue.main.sync { super.wantsExtendedDynamicRangeContent = newValue } }
         }
     }
+    #endif
 }

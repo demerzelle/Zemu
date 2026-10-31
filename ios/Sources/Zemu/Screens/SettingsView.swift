@@ -62,7 +62,7 @@ struct SettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 8).fill(c == category ? P.surfaceHigh : .clear))
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.zemu)
                     // Moving onto a category shows it, like the TV's settings.
                     .zFocus(activate: { category = c }, onFocusChange: { if $0 { category = c } }, preferred: c == category)
                     .help(c.label)
@@ -71,14 +71,21 @@ struct SettingsView: View {
             .frame(width: narrow ? 52 : 250)
             .padding(.top, 40)
             .padding(.leading, narrow ? 10 : 32)
+            .zFocusScope("settings-categories")
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(category.label).font(.system(size: 22, weight: .bold))
                     Text(category.blurb).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).padding(.bottom, 8)
                     switch category {
-                    case .ADDONS: AddonsSettings()
-                    case .PROFILES: ProfilesSection().padding(.top, 8)
+                    case .ADDONS:
+                        #if os(tvOS)
+                        RemoteInputBanner()
+                        #endif
+                        AddonsSettings()
+                    case .PROFILES:
+                        ProfilesSection().padding(.top, 8)
+                        KidsSettingsSection()
                     case .PLAYBACK: PlaybackSettings()
                     case .SUBTITLES: SubtitleSettings()
                     case .APPEARANCE: AppearanceSettings()
@@ -91,6 +98,7 @@ struct SettingsView: View {
                 .padding(.horizontal, narrow ? 16 : 32)
                 .padding(.vertical, 44)
             }
+            .zFocusScope("settings-content")
         }
         }
         .background(PageBackground())
@@ -174,7 +182,7 @@ struct ActionRow: View {
             .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .zFocus(activate: action, cornerRadius: 10)
     }
 }
@@ -218,6 +226,8 @@ private struct AddonsSettings: View {
             Choices(title: "Provider", options: [("", "Automatic")] + providers.map { ($0.manifest.id, $0.manifest.name) },
                     current: providers.contains { $0.manifest.id == s.metaProvider } ? s.metaProvider : "") { id in update { $0.metaProvider = id } }
         }
+        OmdbSection()
+        TraktSection()
         SettingsGroup(title: "Cast & studio info (TMDB)", note: "A free TMDB API key adds cast photos, studios and each actor's other titles: themoviedb.org → Settings → API. Without one, cast comes from TVmaze, Wikidata and IMDb.") {
             HStack(spacing: 10) {
                 SecureField(s.tmdbApiKey.isEmpty ? "TMDB API key or read access token" : "Key saved (••••\(s.tmdbApiKey.suffix(4)))", text: $tmdbKey)
@@ -258,7 +268,7 @@ private struct DebridSection: View {
             if let status { Text(status).font(.system(size: 12.5)).foregroundStyle(Palette.cached) }
         }
         .sheet(item: $linking) { s in
-            LinkDebridSheet(service: s) { msg in status = msg; linking = nil }
+            LinkDebridSheet(service: s) { msg in status = msg; linking = nil }.tvScaled()
         }
     }
 }
@@ -295,7 +305,7 @@ private struct LinkDebridSheet: View {
                                         Text(l.userCode).font(.system(size: 30, weight: .black, design: .monospaced)).foregroundStyle(P.accent).textSelection(.enabled)
                                         Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(l.userCode, forType: .string) } label: {
                                             Image(systemName: "doc.on.doc")
-                                        }.buttonStyle(.plain).help("Copy code")
+                                        }.buttonStyle(.zemu).help("Copy code")
                                     }
                                 }
                             }
@@ -313,7 +323,7 @@ private struct LinkDebridSheet: View {
                     Text(service.codeLogin ? "Or use your API key" : "Paste your API key").font(.system(size: 15, weight: .bold))
                     HStack(spacing: 4) {
                         Text("Copy it from").foregroundStyle(Palette.textSecondary)
-                        Button(service.keyPage) { NSWorkspace.shared.open(URL(string: "https://\(service.keyPage)")!) }.buttonStyle(.plain).foregroundStyle(P.accent)
+                        Button(service.keyPage) { NSWorkspace.shared.open(URL(string: "https://\(service.keyPage)")!) }.buttonStyle(.zemu).foregroundStyle(P.accent)
                             .zFocus(activate: { NSWorkspace.shared.open(URL(string: "https://\(service.keyPage)")!) }, cornerRadius: 4)
                     }
                     .font(.system(size: 13))
@@ -327,6 +337,9 @@ private struct LinkDebridSheet: View {
                 }
                 .frame(minWidth: 320)
             }
+            #if os(tvOS)
+            RemoteInputBanner(kind: "debrid.\(service.rawValue)")
+            #endif
             HStack {
                 Spacer()
                 ZButton(title: "Cancel", preferred: true) { onDone(nil) }.keyboardShortcut(.cancelAction)
@@ -335,6 +348,8 @@ private struct LinkDebridSheet: View {
         .padding(28)
         .frame(maxWidth: service.codeLogin ? 820 : 520)
         .background(P.surface)
+        // A key pasted on the phone page links the account while this is open.
+        .onChange(of: app.session.store.debrid) { _, linked in if linked?.service == service { onDone("\(service.label) linked") } }
         .task(id: service) { await codeLoop() }
         .task { while !Task.isCancelled { try? await Task.sleep(nanoseconds: 1_000_000_000); now = Date() } }
     }
@@ -536,6 +551,7 @@ private struct AppearanceSettings: View {
     var app = AppModel.shared
     var body: some View {
         let s = app.settings
+        HomeRowsSection()
         SettingsGroup(title: "Color theme") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -561,6 +577,7 @@ private struct AppearanceSettings: View {
                 RefractionSlider(title: "Chrome refraction", value: s.chromeRefraction,
                                  note: "Low: calm, polished metal. High: deep flowing folds and rainbow-split highlights.") { v in update { $0.chromeRefraction = v } }
             }
+            #if !os(tvOS) // no color picker; the presets and animated themes remain
             if s.theme == ThemePreset.custom {
                 HStack(spacing: 28) {
                     ColorPicker("Accent", selection: Binding(get: { Color(argb: s.customAccent) }, set: { c in update { $0.customAccent = c.argb | 0xFF000000 } }), supportsOpacity: false)
@@ -574,9 +591,36 @@ private struct AppearanceSettings: View {
                 .padding(.horizontal, 16).padding(.vertical, 12)
                 .zSurface(RoundedRectangle(cornerRadius: 10), fill: P.surface, interactive: false)
             }
+            #endif
         }
         SettingsGroup(title: "Animated themes", note: "Halloween, Christmas, Cyberpunk and the other effect themes bring their own colors. RGB, Snowfall and Rain keep your color theme.") {
             Choices(title: "Animated theme", options: DynamicTheme.allCases.map { ($0.rawValue, $0.label) }, current: s.dynamicTheme) { v in update { $0.dynamicTheme = v } }
+        }
+    }
+}
+
+/** Settings → Home rows: move or remove what's on Home. */
+private struct HomeRowsSection: View {
+    var app = AppModel.shared
+
+    var body: some View {
+        let model = app.session.home
+        let hidden = app.session.store.hiddenRows(page: "home")
+        SettingsGroup(title: "Home rows", note: "Move rows up or down, or remove the ones you don't want.") {
+            ForEach(model.allRows) { row in
+                HStack(spacing: 10) {
+                    Text(row.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                        .foregroundStyle(hidden.contains(row.key) ? Palette.textMuted : .white)
+                    Spacer()
+                    if hidden.contains(row.key) {
+                        ZButton(title: "Restore", small: true) { app.session.store.showRow(row.key, page: "home") }
+                    } else {
+                        IconButton(icon: "chevron.up", help: "Move up", size: 32) { model.moveRow(row.key, by: -1) }
+                        IconButton(icon: "chevron.down", help: "Move down", size: 32) { model.moveRow(row.key, by: 1) }
+                        IconButton(icon: "xmark", help: "Remove", size: 32) { app.session.store.hideRow(row.key, page: "home") }
+                    }
+                }
+            }
         }
     }
 }
@@ -595,7 +639,14 @@ private struct RefractionSlider: View {
                 Spacer()
                 Text(value < 0.34 ? "Light" : value < 0.67 ? "Medium" : "Heavy").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
             }
+            #if os(tvOS)
+            HStack(spacing: 10) {
+                ZButton(title: "Less", icon: "minus", small: true) { set(max(0, value - 0.1)) }
+                ZButton(title: "More", icon: "plus", small: true) { set(min(1, value + 0.1)) }
+            }
+            #else
             Slider(value: Binding(get: { value }, set: set), in: 0...1).tint(P.accent)
+            #endif
             Text(note).font(.system(size: 12.5)).foregroundStyle(Palette.textSecondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 ZButton(title: "Play", icon: "play.fill", primary: true) {}
@@ -633,7 +684,7 @@ private struct ThemeSwatch: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(hover ? colors.surfaceHigh : colors.background))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? colors.accent : Color.white.opacity(hover ? 0.6 : 0.12), lineWidth: 2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { hover = $0 }
         .zFocus(activate: action, onFocusChange: { hover = $0 }, cornerRadius: 12)
     }
@@ -690,6 +741,7 @@ private struct DataSettings: View {
     @State private var importing = false
 
     var body: some View {
+        #if !os(tvOS) // no files or share sheet on Apple TV
         SettingsGroup(title: "Backup", note: "Everything in this profile (addons, debrid link, history, My List, likes and settings) as one JSON file. Keep it private: it contains your debrid token and API keys.") {
             HStack(spacing: 10) {
                 ZButton(title: "Export Profile…", icon: "square.and.arrow.up", action: export)
@@ -716,6 +768,7 @@ private struct DataSettings: View {
                 app.toast("Profile imported")
             } catch { message = "Couldn't import: \(error.localizedDescription)" }
         }
+        #endif
         SettingsGroup(title: "History") {
             ActionRow(title: "Clear watch history", value: "Resets Continue Watching and recommendations", icon: "trash") { confirmClear = true }
         }
@@ -733,6 +786,9 @@ private struct DataSettings: View {
     private func importData() { importing = true }
 }
 
+#if os(tvOS)
+struct BackupFile { let data: Data }
+#else
 /** The profile backup handed to the share/save sheet. */
 struct BackupFile: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
@@ -742,3 +798,4 @@ struct BackupFile: FileDocument {
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 
 }
+#endif

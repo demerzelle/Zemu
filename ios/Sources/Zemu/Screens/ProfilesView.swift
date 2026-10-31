@@ -54,7 +54,7 @@ struct ProfilePicker: View {
                                 Text(p.name).font(.system(size: 17)).foregroundStyle(hover == p.id ? .white : Palette.textSecondary)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.zemu)
                         .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h ? p.id : (hover == p.id ? nil : hover) } }
                         .zFocus(activate: { app.switchProfile(p.id) },
                                 onFocusChange: { h in withAnimation(.easeOut(duration: 0.12)) { hover = h ? p.id : (hover == p.id ? nil : hover) } },
@@ -90,7 +90,7 @@ struct ProfilesSection: View {
                         }
                         .frame(width: 104)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.zemu)
                     .zFocus(activate: { editing = p }, secondary: {
                         app.showMenu(p.name) { [ActionItem(label: "Switch to \(p.name)", icon: "person.crop.circle") { app.switchProfile(p.id) },
                                                ActionItem(label: "Edit…", icon: "pencil") { editing = p }] }
@@ -108,7 +108,7 @@ struct ProfilesSection: View {
                     }
                     .frame(width: 104)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.zemu)
                 .zFocus(activate: { adding = true }, cornerRadius: 18)
             }
             if store.profiles.count > 1 {
@@ -122,9 +122,11 @@ struct ProfilesSection: View {
         }
         .sheet(isPresented: $adding) {
             ProfileEditor(title: "Add Profile", initial: Profile(id: "", name: "", avatar: "preset:\(store.profiles.count % AvatarPresets.all.count)"), canDelete: false)
+                .tvScaled()
         }
         .sheet(item: $editing) { p in
             ProfileEditor(title: "Edit Profile", initial: p, canDelete: p.id != ProfileStore.defaultId && p.id != current)
+                .tvScaled()
         }
     }
 }
@@ -139,6 +141,8 @@ private struct ProfileEditor: View {
     @State private var avatar = ""
     @State private var confirmDelete = false
     @State private var pickingPhoto = false
+    @State private var kid = false
+    @State private var creatingCode = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -153,6 +157,7 @@ private struct ProfileEditor: View {
                         .onChange(of: name) { _, n in if n.count > 20 { name = String(n.prefix(20)) } }
                 }
             }
+            Chip(title: "Kid profile: \(kid ? "On" : "Off")", selected: kid, icon: "figure.and.child.holdinghands") { kid.toggle() }
             Text("Choose a picture").font(.system(size: 13)).foregroundStyle(Palette.textSecondary)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(58), spacing: 10), count: 9), spacing: 10) {
                 ForEach(AvatarPresets.all.indices, id: \.self) { i in
@@ -161,13 +166,15 @@ private struct ProfileEditor: View {
                         Avatar(avatar: v, size: 58, corner: 12)
                             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(avatar == v ? P.accent : .clear, lineWidth: 3))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.zemu)
                     .zFocus(activate: { avatar = v }, cornerRadius: 12)
                 }
             }
             HStack {
+                #if !os(tvOS)
                 ZButton(title: "Choose Photo…", icon: "photo") { pickPhoto() }
                 Text("Or drop an image on the picture above.").font(.system(size: 12)).foregroundStyle(Palette.textMuted)
+                #endif
             }
             HStack(spacing: 10) {
                 ZButton(title: "Save", primary: true) { save() }.keyboardShortcut(.defaultAction)
@@ -179,7 +186,13 @@ private struct ProfileEditor: View {
         .padding(24)
         .frame(maxWidth: 640)
         .background(P.surface)
-        .onAppear { name = initial.name; avatar = initial.avatar }
+        .onAppear { name = initial.name; avatar = initial.avatar; kid = initial.kids }
+        .disabled(creatingCode)
+        .overlay {
+            if creatingCode {
+                CreateParentCode(onDismiss: { creatingCode = false }, onDone: { creatingCode = false; save() })
+            }
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             _ = providers.first?.loadObject(ofClass: URL.self) { url, _ in
                 if let url { Task { @MainActor in setPhoto(url) } }
@@ -207,12 +220,15 @@ private struct ProfileEditor: View {
     }
 
     private func save() {
+        // A kid profile without a parent code wouldn't be locked to anything.
+        if kid, app.profiles.kids.pinHash.isEmpty { creatingCode = true; return }
         if initial.id.isEmpty {
-            app.profiles.add(name: name.trimmed, avatar: avatar)
+            app.profiles.add(name: name.trimmed, avatar: avatar, kids: kid)
         } else {
             var p = initial
             p.name = name.trimmed.isEmpty ? initial.name : name.trimmed
             p.avatar = avatar
+            p.kids = kid
             app.profiles.update(p)
         }
         dismiss()

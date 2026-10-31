@@ -40,6 +40,20 @@ struct PlayerView: View {
             // Video edge to edge; the controls stay clear of the notch and home indicator.
             Color.black.ignoresSafeArea()
             EngineHost(engineView: p.engine.view).ignoresSafeArea()
+            #if os(tvOS)
+            // Nothing else is focusable while the controls are hidden; this takes the remote's clicks and swipes.
+            if !p.controlsVisible && p.failure == nil {
+                Color.clear.focusable()
+                    .onTapGesture { p.showControls() }
+                    .onMoveCommand { dir in
+                        switch dir {
+                        case .left: p.seekBy(-10_000); p.flash("−10 s")
+                        case .right: p.seekBy(10_000); p.flash("+10 s")
+                        default: p.showControls()
+                        }
+                    }
+            }
+            #else
             // Taps on the video: single shows/hides the controls, double on either side seeks 10 s.
             GeometryReader { g in
                 Color.clear.contentShape(Rectangle())
@@ -50,6 +64,7 @@ struct PlayerView: View {
                         p.controlsVisible ? p.hideControls() : p.showControls()
                     }))
             }
+            #endif
 
             if p.buffering && p.failure == nil {
                 ProgressView().controlSize(.large).tint(.white)
@@ -76,6 +91,10 @@ struct PlayerView: View {
             if p.subtitlePositionOpen { SubtitlePositionOverlay(p: p) }
         }
         .zFocusScope("player")
+        #if os(tvOS)
+        .onPlayPauseCommand { p.togglePlay() }
+        .onExitCommand { p.controlsVisible && p.failure == nil ? p.hideControls() : p.close() }
+        #endif
         .animation(.easeInOut(duration: 0.2), value: p.controlsVisible)
         .animation(.easeInOut(duration: 0.2), value: p.notice)
         .onContinuousHover { phase in
@@ -114,7 +133,9 @@ struct PlayerView: View {
                     Text("\(p.streamLabel)  ·  \(p.engineName)").font(.system(size: 12)).foregroundStyle(Palette.textMuted).marquee()
                 }
                 Spacer()
+                #if !os(tvOS)
                 AirPlayButton(p: p).frame(width: 40, height: 40)
+                #endif
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
@@ -148,7 +169,9 @@ struct PlayerView: View {
                 IconButton(icon: p.rating > 0 ? "hand.thumbsup.fill" : "hand.thumbsup", help: "Like", active: p.rating > 0) { p.rate(p.rating > 0 ? 0 : 1) }
                 IconButton(icon: p.rating < 0 ? "hand.thumbsdown.fill" : "hand.thumbsdown", help: "Dislike", active: p.rating < 0) { p.rate(p.rating < 0 ? 0 : -1) }
                 IconButton(icon: p.inMyList ? "heart.fill" : "heart", help: p.inMyList ? "In My List" : "Add to My List", active: p.inMyList) { p.toggleMyList() }
+                #if !os(tvOS)
                 IconButton(icon: "camera", help: "Save frame to Photos") { p.saveFrame() }
+                #endif
             }
             HStack(spacing: 10) {
                 leftButtons
@@ -181,16 +204,19 @@ struct PlayerView: View {
 
     private var subtitleItems: [ActionItem] {
         let tracks = p.subtitleTracks()
-        var items = [ActionItem(label: "Off", checked: !tracks.contains(where: \.selected)) { p.select(nil, kind: .sub) }]
-        items += tracks.map { t in ActionItem(label: t.label, checked: t.selected) { p.select(t, kind: .sub) } }
-        items += [
+        var items = [
             ActionItem(label: "Subtitle Position…", icon: "arrow.up.and.down") { p.openSubtitlePosition() },
             ActionItem(label: "Subtitle Style…", icon: "textformat") { p.subtitleStyleOpen = true; p.showControls() },
-            ActionItem(label: "Add Subtitle File…", icon: "doc.badge.plus") { addSubtitleFile() },
-            ActionItem(label: "Delay −0.1 s", icon: "minus", keepOpen: true) { p.adjustSubtitleDelay(-0.1) },
+            ActionItem(label: "Off", checked: !tracks.contains(where: \.selected)) { p.select(nil, kind: .sub) },
+        ]
+        items += tracks.map { t in ActionItem(label: t.label, checked: t.selected) { p.select(t, kind: .sub) } }
+        items += [            ActionItem(label: "Delay −0.1 s", icon: "minus", keepOpen: true) { p.adjustSubtitleDelay(-0.1) },
             ActionItem(label: "Delay +0.1 s", icon: "plus", keepOpen: true) { p.adjustSubtitleDelay(0.1) },
             ActionItem(label: "Reset Delay", icon: "arrow.uturn.backward") { p.adjustSubtitleDelay(-app.settings.subtitleDelay) },
         ]
+        #if !os(tvOS)
+        items.insert(ActionItem(label: "Add Subtitle File…", icon: "doc.badge.plus") { addSubtitleFile() }, at: items.count - 3)
+        #endif
         return items
     }
 
@@ -217,14 +243,20 @@ struct PlayerView: View {
 
     private var subtitleMenu: some View {
         playerMenu("captions.bubble.fill", "Subtitles", title: "Subtitles", active: p.currentSubtitleLabel != "Off") { subtitleItems }
-            .popover(isPresented: $p.subtitleStyleOpen, arrowEdge: .top) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Subtitle Style").font(.system(size: 14, weight: .bold))
-                    Text("Changes apply right away.").font(.system(size: 12)).foregroundStyle(.secondary)
-                    SubtitleStyleEditor { p.applySubtitleStyle() }
-                }
-                .padding(16)
-            }
+            #if os(tvOS)
+            .sheet(isPresented: $p.subtitleStyleOpen) { subtitleStyle.tvScaled() }
+            #else
+            .popover(isPresented: $p.subtitleStyleOpen, arrowEdge: .top) { subtitleStyle }
+            #endif
+    }
+
+    private var subtitleStyle: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Subtitle Style").font(.system(size: 14, weight: .bold))
+            Text("Changes apply right away.").font(.system(size: 12)).foregroundStyle(.secondary)
+            SubtitleStyleEditor { p.applySubtitleStyle() }
+        }
+        .padding(16)
     }
 
     private var speedMenu: some View {
@@ -361,12 +393,14 @@ private struct SeekBar: View {
                     .onContinuousHover { phase in
                         if case .active(let pt) = phase { hoverX = pt.x } else { hoverX = nil }
                     }
+                    #if !os(tvOS)
                     .gesture(DragGesture(minimumDistance: 0)
                         .onChanged { v in dragFraction = Double(max(0, min(1, v.location.x / w))) }
                         .onEnded { v in
                             p.seek(toFraction: Double(max(0, min(1, v.location.x / w))))
                             dragFraction = nil
                         })
+                    #endif
                 }
                 .frame(height: 20)
                 .modifier(SeekFocus(enabled: focusable, p: p, focused: $focused))
@@ -383,7 +417,12 @@ private struct SeekFocus: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            content.zFocus(activate: { p.togglePlay() }, onFocusChange: { focused = $0 }, onMove: { dir in
+            content
+                #if os(tvOS)
+                .focusable()
+                .onTapGesture { p.togglePlay() }
+                #endif
+                .zFocus(activate: { p.togglePlay() }, onFocusChange: { focused = $0 }, onMove: { dir in
                 switch dir {
                 case .left: p.scrub(-1, isRepeat: false); p.showControls(); return true
                 case .right: p.scrub(1, isRepeat: false); p.showControls(); return true
@@ -411,12 +450,12 @@ private struct SubtitlePositionOverlay: View {
                     HStack(spacing: 14) {
                         Text("Subtitle position").font(.system(size: 14, weight: .bold))
                         Button { p.moveSubtitles(0.01) } label: { Image(systemName: "chevron.up").frame(width: 28, height: 28) }
-                            .buttonStyle(.plain).buttonRepeatBehavior(.enabled)
+                            .buttonStyle(.zemu).buttonRepeatBehavior(.enabled)
                         Text("\(Int((app.settings.subtitleBottom * 100).rounded()))%").font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         Button { p.moveSubtitles(-0.01) } label: { Image(systemName: "chevron.down").frame(width: 28, height: 28) }
-                            .buttonStyle(.plain).buttonRepeatBehavior(.enabled)
+                            .buttonStyle(.zemu).buttonRepeatBehavior(.enabled)
                         Text("Hold to keep moving").font(.system(size: 12)).foregroundStyle(Palette.textSecondary)
-                        Button("Done") { p.subtitlePositionOpen = false }.buttonStyle(.plain).font(.system(size: 14, weight: .bold)).foregroundStyle(P.accent)
+                        Button("Done") { p.subtitlePositionOpen = false }.buttonStyle(.zemu).font(.system(size: 14, weight: .bold)).foregroundStyle(P.accent)
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 8)

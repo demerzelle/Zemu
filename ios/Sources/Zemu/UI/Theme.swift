@@ -66,7 +66,8 @@ enum ThemePreset: String, CaseIterable {
     var colors: ThemeColors { ThemeColors(accent: Color(argb: values.0), background: Color(argb: values.1)) }
 
     var style: SurfaceStyle {
-        switch self { case .LIQUID_GLASS: .glass; case .LIQUID_CHROME: .chrome; default: .solid }
+        if DeviceCaps.isLowEnd { return .solid } // live shaders and blur are too slow on the A8
+        switch self { case .LIQUID_GLASS: return .glass; case .LIQUID_CHROME: return .chrome; default: return .solid }
     }
     static let custom = "CUSTOM"
 }

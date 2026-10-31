@@ -27,7 +27,7 @@ struct ZButton: View {
                       fill: primary ? P.accent.opacity(hover ? 0.85 : 1) : Color.white.opacity(hover ? 0.24 : 0.14), prominent: primary)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { hover = $0 }
         .zFocus(activate: action, onFocusChange: { hover = $0 }, preferred: preferred, cornerRadius: 8)
         .scaleEffect(hover ? 1.03 : 1)
@@ -55,7 +55,7 @@ struct IconButton: View {
                 .zSurface(Circle(), fill: active ? P.accent.opacity(0.9) : Color.white.opacity(hover ? 0.26 : 0.14), prominent: active)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .help(help)
         .onHover { hover = $0 }
         .zFocus(activate: action, onFocusChange: { hover = $0 }, preferred: preferred, cornerRadius: size / 2)
@@ -85,7 +85,7 @@ struct Chip: View {
             .overlay(Capsule().strokeBorder(Color.white.opacity(selected || P.style != .solid ? 0 : 0.12)))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.zemu)
         .onHover { hover = $0 }
         .zFocus(activate: action, onFocusChange: { hover = $0 }, cornerRadius: 14)
     }
@@ -105,8 +105,15 @@ struct ZMenu<MenuLabel: View>: View {
     @State private var lit = false
 
     var body: some View {
+        #if os(tvOS)
+        // The remote can't reach a native menu's checkmarks the same way; use the in-app one.
+        Button { app.showMenu(title, items) } label: { label(lit) }
+            .buttonStyle(.zemu)
+            .fixedSize()
+            .zFocus(activate: { app.showMenu(title, items) }, onFocusChange: { lit = $0 }, group: group, preferred: preferred, cornerRadius: 14)
+        #else
         Menu {
-            ForEach(items()) { item in
+            ForEach(Array(items().enumerated()), id: \.offset) { _, item in
                 Button { item.action() } label: {
                     if item.checked == true { Label(item.label, systemImage: "checkmark") }
                     else if let icon = item.icon { Label(item.label, systemImage: icon) }
@@ -115,11 +122,12 @@ struct ZMenu<MenuLabel: View>: View {
             }
         } label: { label(lit) }
             .menuStyle(.button)
-            .buttonStyle(.plain)
+            .buttonStyle(.zemu)
             .menuIndicator(.hidden)
             .fixedSize()
             .onHover { lit = $0 }
             .zFocus(activate: { app.showMenu(title, items) }, onFocusChange: { lit = $0 }, group: group, preferred: preferred, cornerRadius: 14)
+        #endif
     }
 }
 
@@ -275,8 +283,27 @@ func cardMenuItems(_ meta: Meta) -> [ActionItem] {
         ActionItem(label: "Play", icon: "play.fill") { app.openDetails(meta, play: true) },
     ]
     if meta.type == "series" { items.append(ActionItem(label: "Episodes", icon: "list.number") { app.openDetails(meta, section: "episodes") }) }
-    if let t = meta.trailerId { items.append(ActionItem(label: "Watch Trailer", icon: "film") { app.playTrailer(t) }) }
+    if let t = meta.offeredTrailerId { items.append(ActionItem(label: "Watch Trailer", icon: "film") { app.playTrailer(t) }) }
     items.append(ActionItem(label: s.isInMyList(meta.id) ? "Remove from My List" : "Add to My List", icon: s.isInMyList(meta.id) ? "heart.slash" : "heart") { app.toggleMyList(meta) })
+    let later = s.isInWatchLater(meta.id)
+    items.append(ActionItem(label: later ? "Remove from Watch Later" : "Watch Later", icon: later ? "clock.badge.xmark" : "clock.badge") { s.toggleWatchLater(meta) })
+    if let next = app.session.newEpisodes.upcoming.first(where: { $0.meta.id == meta.id }) {
+        let reminded = s.isReminded(meta.id)
+        items.append(ActionItem(label: reminded ? "Cancel Reminder" : "Remind Me When It Airs", icon: reminded ? "bell.slash" : "bell") {
+            s.toggleReminder(meta, at: next.at)
+            app.toast(reminded ? "Reminder canceled" : "It'll be in Watch Later once it's out")
+        })
+    }
+    let trakt = app.session.trakt
+    if trakt.connected, trakt.hasFriends, meta.isImdb {
+        let on = trakt.myRecs.contains(meta.imdbId)
+        items.append(ActionItem(label: on ? "Stop Recommending" : "Recommend to Friends", icon: "person.2") {
+            Task {
+                do { try await trakt.recommend(meta, on: !on); app.toast(on ? "Recommendation removed" : "Recommended to your friends") }
+                catch { app.toast("Trakt: \(error.localizedDescription)") }
+            }
+        })
+    }
     let watched = s.watched.contains(meta.id)
     items.append(ActionItem(label: watched ? "Mark as Unwatched" : "Mark as Watched", icon: watched ? "eye.slash" : "checkmark.circle") { app.setWatched(meta, !watched) })
     if s.history.contains(where: { $0.meta.id == meta.id }) {
@@ -296,7 +323,7 @@ func cardMenuItems(_ meta: Meta) -> [ActionItem] {
 struct CardMenu: View {
     let meta: Meta
     var body: some View {
-        ForEach(cardMenuItems(meta)) { item in Button(item.label, action: item.action) }
+        ForEach(Array(cardMenuItems(meta).enumerated()), id: \.offset) { _, item in Button(item.label, action: item.action) }
     }
 }
 
@@ -369,26 +396,38 @@ struct Choices<T: Hashable>: View {
                 ForEach(options, id: \.0) { o in Chip(title: o.1, selected: o.0 == current) { pick(o.0) } }
             }
             .fixedSize()
+            #if os(tvOS)
+            // The in-app menu: a native one is rebuilt on every redraw, which RGB's accent makes flicker.
+            Button {
+                AppModel.shared.showMenu(title) {
+                    options.map { o in ActionItem(label: o.1, checked: o.0 == current) { pick(o.0) } }
+                }
+            } label: { dropdownLabel }
+            .buttonStyle(.zemu)
+            #else
             Menu {
                 ForEach(options, id: \.0) { o in
                     Button { pick(o.0) } label: {
                         if o.0 == current { Label(o.1, systemImage: "checkmark") } else { Text(o.1) }
                     }
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Text(label ?? title).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).lineLimit(1)
-                    Spacer(minLength: 8)
-                    Text(options.first { $0.0 == current }?.1 ?? "Choose").font(.system(size: 14, weight: .semibold)).marquee()
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.textMuted)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14).padding(.vertical, 11)
-                .zSurface(RoundedRectangle(cornerRadius: P.style == .solid ? 10 : 100, style: .continuous), fill: P.surface)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            } label: { dropdownLabel }
+            .buttonStyle(.zemu)
+            #endif
         }
+    }
+
+    private var dropdownLabel: some View {
+        HStack(spacing: 8) {
+            Text(label ?? title).font(.system(size: 13)).foregroundStyle(Palette.textSecondary).lineLimit(1)
+            Spacer(minLength: 8)
+            Text(options.first { $0.0 == current }?.1 ?? "Choose").font(.system(size: 14, weight: .semibold)).marquee()
+            Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.textMuted)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .zSurface(RoundedRectangle(cornerRadius: P.style == .solid ? 10 : 100, style: .continuous), fill: P.surface)
+        .contentShape(Rectangle())
     }
 }
 

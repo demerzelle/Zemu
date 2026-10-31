@@ -13,7 +13,7 @@ const TRI = 'M521 236.48L521 349.52L619.35 293Z';
 const MARK = Z + TRI;
 const BOX = { x: 0, y: 50.87, w: 619.35, h: 508 }; // the mark's bounds
 
-const out = (p) => new URL(`../${p}`, import.meta.url).pathname;
+const out = (p) => decodeURIComponent(new URL(`../${p}`, import.meta.url).pathname);
 const png = (svg, w) => new Resvg(svg, { fitTo: { mode: 'width', value: w } }).render().asPng();
 const write = (p, data) => { mkdirSync(out(p).replace(/\/[^/]+$/, ''), { recursive: true }); writeFileSync(out(p), data); };
 
@@ -87,6 +87,42 @@ rmSync(tmp, { recursive: true });
 // ---- Mac (build-app.sh pads it into the macOS icon grid), iPhone/iPad (opaque, iOS rounds it) ----
 write('macos/Resources/AppIcon-1024.png', png(appIcon(1024, 'rounded'), 1024));
 write('ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png', png(appIcon(1024, 'bleed'), 1024));
+
+// ---- Apple TV (layered app icon and Top Shelf: purple back, green mark in front) ----
+const TV = 'ios/ResourcesTV/Assets.xcassets/App Icon & Top Shelf Image.brandassets';
+const json = (o) => JSON.stringify(o, null, 2) + '\n';
+const INFO = { info: { author: 'xcode', version: 1 } };
+const tvBack = (w, h) => png(svg(w, h, `<rect width="${w}" height="${h}" fill="${PURPLE}"/>`), w);
+const tvMark = (w, h, frac) => {
+  const s = (h * frac) / BOX.h, tx = (w - BOX.w * s) / 2 - BOX.x * s, ty = (h - BOX.h * s) / 2 - BOX.y * s;
+  return png(svg(w, h, `<g transform="translate(${tx} ${ty}) scale(${s})"><path fill="${GREEN}" d="${MARK}"/></g>`), w);
+};
+const universal = (file, scale) => ({ filename: file, idiom: 'tv', ...(scale ? { scale } : {}) });
+for (const [name, w, h, scales] of [['App Icon', 400, 240, [1, 2]], ['App Icon - App Store', 1280, 768, [1]]]) {
+  const dir = `${TV}/${name}.imagestack`;
+  write(`${dir}/Contents.json`, json({ ...INFO, layers: [{ filename: 'Front.imagestacklayer' }, { filename: 'Back.imagestacklayer' }] }));
+  for (const [layer, draw] of [['Front', (a, b) => tvMark(a, b, 0.5)], ['Back', tvBack]]) {
+    write(`${dir}/${layer}.imagestacklayer/Contents.json`, json(INFO));
+    const set = `${dir}/${layer}.imagestacklayer/Content.imageset`;
+    write(`${set}/Contents.json`, json({ ...INFO, images: scales.map((k) => universal(`${layer}@${k}x.png`, `${k}x`)) }));
+    for (const k of scales) write(`${set}/${layer}@${k}x.png`, draw(w * k, h * k));
+  }
+}
+for (const [name, w, h] of [['Top Shelf Image', 1920, 720], ['Top Shelf Image Wide', 2320, 720]]) {
+  const set = `${TV}/${name}.imageset`;
+  write(`${set}/Contents.json`, json({ ...INFO, images: [1, 2].map((k) => universal(`top@${k}x.png`, `${k}x`)) }));
+  for (const k of [1, 2]) {
+    const s = (h * k * 0.4) / BOX.h, tx = (w * k - BOX.w * s) / 2 - BOX.x * s, ty = (h * k - BOX.h * s) / 2 - BOX.y * s;
+    write(`${set}/top@${k}x.png`, png(svg(w * k, h * k, `<rect width="${w * k}" height="${h * k}" fill="${PURPLE}"/><g transform="translate(${tx} ${ty}) scale(${s})"><path fill="${GREEN}" d="${MARK}"/></g>`), w * k));
+  }
+}
+const asset = (_, role, size, filename) => ({ filename, idiom: 'tv', role, size });
+write(`${TV}/Contents.json`, json({ ...INFO, assets: [
+  asset('', 'primary-app-icon', '1280x768', 'App Icon - App Store.imagestack'),
+  asset('', 'primary-app-icon', '400x240', 'App Icon.imagestack'),
+  asset('', 'top-shelf-image-wide', '2320x720', 'Top Shelf Image Wide.imageset'),
+  asset('', 'top-shelf-image', '1920x720', 'Top Shelf Image.imageset'),
+] }));
 
 // ---- Roku channel icons (purple tile, mark centred) ----
 for (const [name, w, h] of [['icon_hd', 290, 218], ['icon_fhd', 540, 405]]) {

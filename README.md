@@ -1,7 +1,7 @@
 <p align="center"><img src="branding/zemu-wordmark.png" alt="Zemu" width="320"></p>
 
 <p align="center"><b>A TV app that looks and feels like a streaming service, for people who use Stremio addons and a debrid service.</b><br>
-Android TV · Google TV · Roku · Linux</p>
+Android TV · Google TV · Roku · Linux · Apple TV</p>
 
 <p align="center"><a href="https://github.com/demerzelle/Zemu/releases/latest"><b>Download the latest version</b></a></p>
 
@@ -59,6 +59,8 @@ tar -xzf Zemu-Linux-*.tar.gz && sh zemu/install.sh
 It installs Java and mpv if needed (asks for your password), adds Zemu to your apps menu and the `zemu` command. Videos play in mpv. See [linux/README.md](linux/README.md).
 
 **Updates:** Android TV checks for a new release when it starts and offers **Update now** (allow Zemu to install apps the first time). Roku tells you a new version is out; install its zip the same way as above. To publish one: `./release.sh 1.0.2 "What changed"`.
+
+**Apple TV** (new, tvOS 18+): download `ZemuTV.ipa`. It's unsigned, so sign and install it with Sideloadly or Xcode. With a free Apple ID, it stops opening after 7 days until it's reinstalled. See [ios/README.md](ios/README.md#apple-tv).
 
 **Mac:** a Mac app is in `macos/`. The last packaged Mac build is in [release 1.0.0](https://github.com/demerzelle/Zemu/releases/tag/v1.0.0); newer versions have to be built from source.
 

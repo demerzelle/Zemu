@@ -55,7 +55,7 @@ struct Backdrop: View {
         .allowsHitTesting(false)
         .task(id: "\(meta?.id ?? "")|\(trailerAfter ?? -1)|\(covered)") {
             showTrailer = false
-            guard let after = trailerAfter, !covered, meta?.trailerId != nil else { return }
+            guard !tvOS, let after = trailerAfter, !covered, meta?.trailerId != nil else { return }
             try? await Task.sleep(nanoseconds: UInt64(after * 1e9))
             if !Task.isCancelled { showTrailer = true }
         }
@@ -86,7 +86,7 @@ struct HeroInfo: View {
                     FlowLayout(spacing: 10) {
                         ZButton(title: "Play", icon: "play.fill", primary: true) { app.openDetails(m, play: true) }
                         ZButton(title: "More Info", icon: "info.circle") { app.openDetails(m) }
-                        if let t = m.trailerId {
+                        if let t = m.offeredTrailerId {
                             let playing = HeroTrailerState.shared.playingId == t
                             ZButton(title: playing ? "Watch Full Screen" : "Trailer", icon: "film") {
                                 app.playTrailer(t, start: playing ? Int(HeroTrailerState.shared.seconds) : 0)

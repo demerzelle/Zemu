@@ -87,7 +87,7 @@ struct SearchView: View {
                     .onSubmit { vm.submit() }
                     .zFocusText($vm.query, title: "Search movies, series and anime", focus: { focused = true }, onSubmit: { vm.submit() }, preferred: true)
                 if !vm.query.isEmpty {
-                    Button { vm.query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.textMuted) }.buttonStyle(.plain)
+                    Button { vm.query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.textMuted) }.buttonStyle(.zemu)
                 }
             }
             .padding(.horizontal, 18).padding(.vertical, 14)

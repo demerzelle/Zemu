@@ -204,7 +204,7 @@ struct BrowseView: View {
 
     var body: some View {
         let vm = app.session.browseModel(type)
-        let items = vm.items
+        let items = app.session.kids.safe(vm.items)
         let f = vm.filters
         let settings = app.settings
         let title = type == "series" ? "Series" : type == "anime" ? "Anime" : "Movies"

@@ -42,6 +42,9 @@ final class Session {
     let streams: StreamRepository
     let recommender: Recommender
     let tmdb: Tmdb
+    let scores: Scores
+    let kids: KidsGate
+    let trakt: Trakt
     let freeCast = FreeCast()
     let skipSegments = SkipSegments()
     let newEpisodes: NewEpisodes
@@ -64,6 +67,7 @@ final class Session {
 
     @ObservationIgnored private var tasks: [Task<Void, Never>] = []
     @ObservationIgnored private var alive = true
+    @ObservationIgnored private var syncedList: Set<String> = []
     @ObservationIgnored private var trackers: [Tracker<[String]>] = []
 
     init(profileId: String) {
@@ -76,6 +80,12 @@ final class Session {
         recommender = Recommender(addons: addons)
         tmdb = Tmdb(key: { store.settings.tmdbApiKey })
         newEpisodes = NewEpisodes(addons: addons, store: store)
+        let scores = Scores(key: { store.settings.omdbApiKey })
+        self.scores = scores
+        kids = KidsGate(tmdb: tmdb, scores: scores, settings: { AppModel.shared.profiles.kids }, on: { AppModel.shared.profiles.kidsOn })
+        let trakt = Trakt(store: store)
+        self.trakt = trakt
+        syncedList = Set(store.myList.map { "\($0.id)|\($0.type)" })
         capabilities = DeviceCaps.detect()
 
         newEpisodes.onFresh = { [weak self] items in self?.announce(items) }
@@ -83,7 +93,19 @@ final class Session {
             guard let self, self.alive else { return }
             self.newEpisodes.historyChanged()
         })
+        trackers.append(Tracker({ store.myList.map { "\($0.id)|\($0.type)" } }) { [weak self] _ in
+            guard let self, self.alive else { return }
+            let now = Set(self.store.myList.map { "\($0.id)|\($0.type)" })
+            self.trakt.myListChanged(from: self.syncedList, to: now)
+            self.syncedList = now
+        })
         tasks.append(Task { [weak self] in await self?.keepDebridFresh() })
+        if trakt.connected {
+            tasks.append(Task {
+                _ = try? await trakt.sync()
+                try? await trakt.refreshFriends()
+            })
+        }
         Integrations.shared.sessionStarted(self)
     }
 

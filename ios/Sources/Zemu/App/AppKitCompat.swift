@@ -49,8 +49,15 @@ final class NSPasteboard {
     enum PasteboardType { case string }
     static let general = NSPasteboard()
     func clearContents() {}
+    #if os(tvOS)
+    // tvOS has no clipboard; this only carries text around inside the app.
+    private var text: String?
+    func setString(_ s: String, forType: PasteboardType) { text = s }
+    func string(forType: PasteboardType) -> String? { text }
+    #else
     func setString(_ s: String, forType: PasteboardType) { UIPasteboard.general.string = s }
     func string(forType: PasteboardType) -> String? { UIPasteboard.general.string }
+    #endif
 }
 
 @MainActor

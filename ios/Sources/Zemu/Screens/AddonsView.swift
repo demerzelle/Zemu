@@ -141,6 +141,9 @@ struct AddonsView: View {
                     Text("Install, remove and configure Stremio addons. Configure opens the addon's own setup page; its Install button installs here. Install links (stremio://) on any website open in Zemu too, and you can drop or paste a manifest URL anywhere in this window.")
                         .font(.system(size: 13)).foregroundStyle(Palette.textSecondary).frame(maxWidth: 820, alignment: .leading)
                 }
+                #if os(tvOS)
+                RemoteInputBanner()
+                #endif
                 DebridQuickLink()
                 Choices(title: "Show", options: vm.tabs.map { ($0.0, $0.1) }, current: vm.tab) { vm.selectTab($0) }
                 Choices(title: "Type", options: AddonTypeFilter.allCases.map { ($0, $0.label) }, current: vm.type) { vm.type = $0 }
@@ -156,9 +159,11 @@ struct AddonsView: View {
                         .onSubmit { if !url.trimmed.isEmpty { vm.installUrl(url); url = "" } }
                         .zFocusText($url, title: "Addon manifest URL", focus: { field = 2 }, onSubmit: { if !url.trimmed.isEmpty { vm.installUrl(url); url = "" } })
                     ZButton(title: "Install", primary: true) { if !url.trimmed.isEmpty { vm.installUrl(url); url = "" } }
+                    #if !os(tvOS) // no clipboard; the phone page above does the pasting
                     ZButton(title: "Paste", icon: "doc.on.clipboard") {
                         if let s = NSPasteboard.general.string(forType: .string) { vm.installUrl(s) }
                     }
+                    #endif
                 }
                 .frame(maxWidth: 900)
                 if let m = vm.message { Text(m).font(.system(size: 13)).foregroundStyle(Palette.cached) }
@@ -234,9 +239,9 @@ private struct AddonCard: View {
         HStack(spacing: 16) {
             if reorderable {
                 VStack(spacing: 2) {
-                    Button { onMove(-1) } label: { Image(systemName: "chevron.up").frame(width: 22, height: 18) }.buttonStyle(.plain).help("Move up")
+                    Button { onMove(-1) } label: { Image(systemName: "chevron.up").frame(width: 22, height: 18) }.buttonStyle(.zemu).help("Move up")
                         .zFocus(activate: { onMove(-1) }, cornerRadius: 4)
-                    Button { onMove(1) } label: { Image(systemName: "chevron.down").frame(width: 22, height: 18) }.buttonStyle(.plain).help("Move down")
+                    Button { onMove(1) } label: { Image(systemName: "chevron.down").frame(width: 22, height: 18) }.buttonStyle(.zemu).help("Move down")
                         .zFocus(activate: { onMove(1) }, cornerRadius: 4)
                 }
                 .foregroundStyle(Palette.textMuted)

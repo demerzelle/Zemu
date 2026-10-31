@@ -8,7 +8,7 @@ actor ImageLoader {
 
     private let cache: NSCache<NSString, NSImage> = {
         let c = NSCache<NSString, NSImage>()
-        c.totalCostLimit = 400 << 20
+        c.totalCostLimit = (DeviceCaps.isLowEnd ? 120 : 400) << 20
         return c
     }()
     private var inFlight: [String: Task<NSImage?, Never>] = [:]

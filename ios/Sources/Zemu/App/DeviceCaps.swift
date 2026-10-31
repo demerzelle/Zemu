@@ -1,9 +1,24 @@
+import Darwin
 import UIKit
 import VideoToolbox
 import ZemuCore
 
 /** What this iPhone or iPad decodes and shows, for "Best for this device". */
 enum DeviceCaps {
+    /** Apple TV HD (A8, 2 GB, 1080p): keeps effects off and memory low so browsing and video stay smooth. */
+    static let isLowEnd: Bool = {
+        #if os(tvOS)
+        if let sim = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return sim.hasPrefix("AppleTV5") }
+        var size = 0
+        sysctlbyname("hw.machine", nil, &size, nil, 0)
+        var name = [CChar](repeating: 0, count: size)
+        sysctlbyname("hw.machine", &name, &size, nil, 0)
+        return String(cString: name).hasPrefix("AppleTV5")
+        #else
+        return false
+        #endif
+    }()
+
     @MainActor
     static func detect() -> DeviceCapabilities {
         let hwHevc = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
@@ -14,9 +29,10 @@ enum DeviceCaps {
         // mpv (MPVKit's ffmpeg) decodes every audio format in software.
         return DeviceCapabilities(
             // 4K is worth it on iPads and AirPlay; phones top out at 1440p-ish panels.
-            maxResolution: widest >= 2400 ? 2160 : widest >= 1800 ? 1440 : 1080,
-            hevc: true,
-            av1: true,
+            maxResolution: isLowEnd ? 1080 : widest >= 2400 ? 2160 : widest >= 1800 ? 1440 : 1080,
+            // Software decoding these can't keep up on the A8, so "Best for this device" should rank them lower.
+            hevc: !isLowEnd || hwHevc,
+            av1: !isLowEnd || hwAv1,
             // mpv's Vulkan output can't apply Dolby Vision's reshaping (profile 5 shows green/purple).
             dolbyVision: false,
             hdr10: hdr,

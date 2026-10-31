@@ -188,9 +188,11 @@ final class PlayerModel {
                 buffering = false
                 rememberWorkingMode()
                 loadSegments()
+                scrobble("start")
             }
         case .paused(let p):
             isPlaying = !p
+            if reachedReady { scrobble(p ? "pause" : "start") }
             if p { showControls() }
             Integrations.shared.updateNowPlaying(self)
         case .buffering(let b):
@@ -372,8 +374,12 @@ final class PlayerModel {
     func saveFrame() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("zemu-frame.png")
         guard engine.screenshot(to: url), let img = UIImage(contentsOfFile: url.path) else { flash("Couldn't save the frame"); return }
+        #if os(tvOS)
+        flash("Apple TV has no Photos library")
+        #else
         UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
         flash("Saved to Photos")
+        #endif
     }
 
     // MARK: Notices
@@ -499,7 +505,7 @@ final class PlayerModel {
 
     /** Near the end of a movie or a series' last episode, pick a similar unwatched title. */
     private func requestRecommendation() {
-        guard !recommendationRequested, nextUp == nil, session.settings.autoplaySimilar, !isAdHoc else { return }
+        guard !recommendationRequested, nextUp == nil, session.settings.autoplaySimilar, !isAdHoc, !session.kids.active else { return }
         guard durationMs > 0, durationMs - positionMs <= 4 * 60_000 else { return }
         if meta.type == "series" && episodes.isEmpty { return } // still loading, or a next episode may exist
         recommendationRequested = true
@@ -713,9 +719,15 @@ final class PlayerModel {
         session.store.recordProgress(WatchEntry(meta: meta, videoId: videoId, label: label, positionMs: positionMs, durationMs: durationMs, updatedAt: nowMs()))
     }
 
+    private func scrobble(_ action: String) {
+        guard !isAdHoc, durationMs > 0 else { return }
+        session.trakt.scrobble(action, meta: meta, videoId: videoId, progress: Double(positionMs) / Double(durationMs))
+    }
+
     func close() {
         guard !closed else { return }
         saveProgress()
+        scrobble("stop")
         closed = true
         tickTask?.cancel(); countdownTask?.cancel(); scrubTask?.cancel(); loadTimer?.cancel()
         hideTask?.cancel()

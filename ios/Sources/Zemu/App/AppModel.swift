@@ -2,6 +2,12 @@ import SwiftUI
 import Observation
 import ZemuCore
 
+struct ParentPrompt: Identifiable {
+    let id = UUID()
+    let title: String
+    let unlocked: () -> Void
+}
+
 enum Section: String, CaseIterable, Identifiable {
     case search, home, movies, series, anime, mylist, addons, settings
     var id: String { rawValue }
@@ -94,7 +100,19 @@ final class AppModel {
     // MARK: Profiles
 
     /** Swaps every per-profile object (settings, addons, history, ...) for the given profile's. */
+    /** Set when something needs the parent code; RootView shows the pad. */
+    var parentPrompt: ParentPrompt?
+
     func switchProfile(_ id: String) {
+        // Leaving a kid profile for a grown-up's needs the parent code.
+        if id != session.profileId, profiles.kidsOn, !profiles.kids.pinHash.isEmpty, profiles.profile(id)?.kids != true {
+            parentPrompt = ParentPrompt(title: "Leave this kid profile?") { [weak self] in self?.performSwitch(id) }
+            return
+        }
+        performSwitch(id)
+    }
+
+    private func performSwitch(_ id: String) {
         picking = false
         guard id != session.profileId else { return }
         player?.close()
@@ -147,6 +165,11 @@ final class AppModel {
 
     func openPerson(_ key: String) { push(.person(key: key)) }
 
+    func surprise() {
+        if let m = session.kids.safe(session.home.surprisePool()).randomElement() { openDetails(m, play: true) }
+        else { toast("Still loading suggestions…") }
+    }
+
     // MARK: Messages
 
     func toast(_ text: String) {
@@ -173,7 +196,14 @@ final class AppModel {
     func removeFromHistory(_ m: Meta) { session.store.removeFromHistory(m.id) }
 
     func playTrailer(_ youtubeId: String, start: Int = 0) {
+        #if os(tvOS)
+        guard let url = URL(string: "youtube://www.youtube.com/watch?v=\(youtubeId)") else { return }
+        UIApplication.shared.open(url) { [weak self] ok in
+            if !ok { self?.toast("Couldn't open YouTube") }
+        }
+        #else
         trailer = TrailerRequest(youtubeId: youtubeId, start: start)
+        #endif
     }
 
     func openConfigure(_ url: String, name: String) {
@@ -213,6 +243,7 @@ final class AppModel {
 
     /** Plays any direct video link (File → Open Stream URL…). */
     func playURL(_ raw: String) {
+        guard !profiles.kidsOn else { return toast("Not available on a kid profile") }
         let url = raw.trimmed
         guard url.hasPrefix("http://") || url.hasPrefix("https://") || url.hasPrefix("file://") else {
             toast("That isn't a video link")
@@ -266,6 +297,7 @@ final class AppModel {
             return
         }
         if url.scheme == "stremio" || s.contains("manifest.json") {
+            guard !profiles.kidsOn else { return toast("Not available on a kid profile") }
             Task {
                 let msg = await session.handlePastedText(s)
                 toast(msg)
