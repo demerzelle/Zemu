@@ -60,7 +60,7 @@ It installs Java and mpv if needed (asks for your password), adds Zemu to your a
 
 **Updates:** Android TV checks for a new release when it starts and offers **Update now** (allow Zemu to install apps the first time). Roku tells you a new version is out; install its zip the same way as above. To publish one: `./release.sh 1.0.2 "What changed"`.
 
-**Apple TV** (new, tvOS 18+): download `ZemuTV.ipa`. It's unsigned, so sign and install it with Sideloadly or Xcode. With a free Apple ID, it stops opening after 7 days until it's reinstalled. See [ios/README.md](ios/README.md#apple-tv).
+**Apple TV** (new, tvOS 18+): download `Zemu-AppleTV-<version>.ipa`. It's only for Apple TV, not iPhone or iPad. It's unsigned, so sign and install it with Sideloadly or Xcode. With a free Apple ID, it stops opening after 7 days until it's reinstalled. See [ios/README.md](ios/README.md#apple-tv).
 
 **Mac:** a Mac app is in `macos/`. The last packaged Mac build is in [release 1.0.0](https://github.com/demerzelle/Zemu/releases/tag/v1.0.0); newer versions have to be built from source.
 
