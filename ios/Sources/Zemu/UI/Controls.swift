@@ -439,7 +439,10 @@ extension View {
      * One line of text that scrolls sideways when it doesn't fit: waits, glides to the end, waits,
      * jumps back. Text that fits stays still (and its timeline is paused).
      */
-    func marquee() -> some View { modifier(Marquee()) }
+    /** The A8 can't redraw every long title 30 times a second, so it truncates them instead. */
+    @ViewBuilder func marquee() -> some View {
+        if DeviceCaps.isLowEnd { lineLimit(1) } else { modifier(Marquee()) }
+    }
 }
 
 private struct Marquee: ViewModifier {

@@ -36,10 +36,18 @@ final class MPV: PlaybackEngine {
     private var position: Double = 0
     private var duration: Double = 0
     private var cacheTime: Double = 0
+    private var waitingForCache = false
+    private var ended = false
+    private var videoWidth = 0.0
+    private var videoHeight = 0.0
+    private var lastPositionTick = -1
+    /** Read on the event queue, so the menus never wait on mpv. */
+    private var trackCache: [TrackInfo] = []
+    nonisolated(unsafe) private var trackRefreshQueued = false
     nonisolated(unsafe) private var destroyed = false
 
     private enum Prop: UInt64 {
-        case timePos = 1, duration, pause, pausedForCache, cacheTime, eofReached, trackCount, dwidth, dheight, seeking
+        case timePos = 1, duration, pause, pausedForCache, cacheTime, eofReached, trackCount, dwidth, dheight, seeking, aid, sid
     }
 
     init() {
@@ -84,12 +92,23 @@ final class MPV: PlaybackEngine {
             ("target-colorspace-hint", "yes"),
         ] + (DeviceCaps.isLowEnd ? [
             // Less memory held for buffering, and the cheapest scaling so the A8 keeps up.
-            ("demuxer-max-bytes", "150MiB"),
-            ("demuxer-max-back-bytes", "30MiB"),
+            ("demuxer-max-bytes", "64MiB"),
+            ("demuxer-max-back-bytes", "16MiB"),
             ("scale", "bilinear"),
             ("dscale", "bilinear"),
             ("cscale", "bilinear"),
             ("deband", "no"),
+            ("interpolation", "no"),
+            ("correct-downscaling", "no"),
+            ("linear-downscaling", "no"),
+            ("sigmoid-upscaling", "no"),
+            ("dither-depth", "no"),
+            ("hdr-compute-peak", "no"),
+            ("framedrop", "decoder+vo"),
+            ("vd-lavc-fast", "yes"),
+            ("vd-lavc-skiploopfilter", "all"),
+            ("hr-seek", "no"),
+            ("demuxer-readahead-secs", "20"),
         ] : [])
         for (k, v) in opts { mpv_set_option_string(h, k, v) }
         mpv_request_log_messages(h, "error")
@@ -105,6 +124,8 @@ final class MPV: PlaybackEngine {
         observe("dwidth", .dwidth, MPV_FORMAT_INT64)
         observe("dheight", .dheight, MPV_FORMAT_INT64)
         observe("seeking", .seeking, MPV_FORMAT_FLAG)
+        observe("aid", .aid, MPV_FORMAT_STRING)
+        observe("sid", .sid, MPV_FORMAT_STRING)
 
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         mpv_set_wakeup_callback(h, { ctx in
@@ -129,22 +150,26 @@ final class MPV: PlaybackEngine {
         return mpv_command(h, &cargs)
     }
 
-    func set(_ name: String, _ value: String) {
+    /** Doesn't wait for mpv: its core can be busy for seconds, which would freeze the UI. */
+    private func commandAsync(_ args: [String]) {
         guard let h = handle else { return }
-        mpv_set_property_string(h, name, value)
+        var cargs = args.map { UnsafePointer(strdup($0)) } + [nil]
+        defer { cargs.forEach { free(UnsafeMutablePointer(mutating: $0)) } }
+        mpv_command_async(h, 0, &cargs)
     }
 
-    func get(_ name: String) -> String? {
+    func set(_ name: String, _ value: String) {
+        guard let h = handle else { return }
+        value.withCString { c in
+            var p: UnsafePointer<CChar>? = c
+            mpv_set_property_async(h, 0, name, MPV_FORMAT_STRING, &p)
+        }
+    }
+
+    nonisolated func get(_ name: String) -> String? {
         guard let h = handle, let v = mpv_get_property_string(h, name) else { return nil }
         defer { mpv_free(v) }
         return String(cString: v)
-    }
-
-    func getFlag(_ name: String) -> Bool {
-        guard let h = handle else { return false }
-        var v: Int32 = 0
-        mpv_get_property(h, name, MPV_FORMAT_FLAG, &v)
-        return v != 0
     }
 
     // MARK: PlaybackEngine
@@ -157,7 +182,8 @@ final class MPV: PlaybackEngine {
         pendingSubs = subtitles
         autoSubs = options.autoSubtitles
         subLangs = options.subtitleLanguages
-        position = 0; duration = 0; cacheTime = 0
+        position = 0; duration = 0; cacheTime = 0; ended = false; waitingForCache = false; lastPositionTick = -1
+        trackCache = []
         set("hwdec", options.softwareDecoding ? "no" : "videotoolbox")
         set("alang", options.audioLanguages.joined(separator: ","))
         set("slang", options.subtitleLanguages.joined(separator: ","))
@@ -167,23 +193,27 @@ final class MPV: PlaybackEngine {
         set("volume", String(options.volume))
         set("speed", String(options.speed))
         set("pause", "no")
-        command(["loadfile", url, "replace"])
+        // Queued like the settings above, so the file can't start before they apply.
+        commandAsync(["loadfile", url, "replace"])
     }
 
     func setPaused(_ paused: Bool) {
-        if !paused && getFlag("eof-reached") { command(["seek", "0", "absolute"]) }
+        if !paused && ended { commandAsync(["seek", "0", "absolute"]) }
         set("pause", paused ? "yes" : "no")
     }
 
     func seek(toMs: Int64, exact: Bool) {
-        command(["seek", String(format: "%.3f", Double(max(0, toMs)) / 1000), exact ? "absolute+exact" : "absolute+keyframes"])
+        commandAsync(["seek", String(format: "%.3f", Double(max(0, toMs)) / 1000), exact ? "absolute+exact" : "absolute+keyframes"])
     }
 
     func setSpeed(_ speed: Double) { set("speed", String(speed)) }
     func setVolume(_ volume: Double) { set("volume", String(volume)) }
     func setMuted(_ muted: Bool) { set("mute", muted ? "yes" : "no") }
 
-    func tracks() -> [TrackInfo] {
+    func tracks() -> [TrackInfo] { trackCache }
+
+    /** Runs on the event queue. Many reads, and each waits for mpv's core. */
+    nonisolated private func readTracks() -> [TrackInfo] {
         let count = Int(get("track-list/count") ?? "0") ?? 0
         var out: [TrackInfo] = []
         for i in 0..<count {
@@ -210,6 +240,7 @@ final class MPV: PlaybackEngine {
     }
 
     func select(_ track: TrackInfo?, kind: TrackKind) {
+        if kind == .sub { autoSubs = false }
         let prop = kind == .audio ? "aid" : "sid"
         set(prop, track.map { String($0.id) } ?? "no")
     }
@@ -251,7 +282,7 @@ final class MPV: PlaybackEngine {
         guard !destroyed, let h = handle else { return }
         destroyed = true
         onEvent = nil
-        command(["stop"])
+        commandAsync(["stop"])
         mpv_set_wakeup_callback(h, nil, nil)
         handle = nil
         let me = self
@@ -300,6 +331,9 @@ final class MPV: PlaybackEngine {
                 return
             default: break
             }
+            if let id = prop?.0, id == Prop.trackCount.rawValue || id == Prop.aid.rawValue || id == Prop.sid.rawValue {
+                scheduleTrackRefresh()
+            }
             let event = out, property = prop
             DispatchQueue.main.async { [weak self] in
                 guard let self, !self.destroyed else { return }
@@ -309,16 +343,37 @@ final class MPV: PlaybackEngine {
         }
     }
 
+    /** Coalesced: adding external subtitles changes the track list once per file. */
+    nonisolated private func scheduleTrackRefresh() {
+        guard !trackRefreshQueued else { return }
+        trackRefreshQueued = true
+        events.asyncAfter(deadline: .now() + 0.15) { [self] in
+            trackRefreshQueued = false
+            guard !destroyed else { return }
+            let list = readTracks()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.destroyed else { return }
+                self.trackCache = list
+                self.pickSubtitle()
+                self.onEvent?(.tracksChanged)
+            }
+        }
+    }
+
+    /** External subtitles arrive after mpv's own pick; choose one if asked to and nothing is on. */
+    private func pickSubtitle() {
+        guard autoSubs else { return }
+        let subs = trackCache.filter { $0.kind == .sub }
+        if subs.contains(where: \.selected) { autoSubs = false; return }
+        if let pick = subLangs.lazy.compactMap({ l in subs.first { $0.lang == l } }).first { select(pick, kind: .sub) }
+    }
+
     private func handleEvent(_ e: EngineEvent) {
         if case .loaded = e {
             for s in pendingSubs {
                 let lang = Languages.normalize(s.lang) ?? s.lang
-                command(["sub-add", s.url, "auto", "\(Languages.displayName(lang)) (external)", lang])
-            }
-            // External subtitles arrive after mpv's own pick; choose one if asked to and nothing is on.
-            if autoSubs && (get("sid") == "no" || get("sid") == nil) {
-                let subs = tracks().filter { $0.kind == .sub }
-                if let pick = subLangs.lazy.compactMap({ l in subs.first { $0.lang == l } }).first { select(pick, kind: .sub) }
+                // Downloads the file, so it must not hold up the UI.
+                commandAsync(["sub-add", s.url, "auto", "\(Languages.displayName(lang)) (external)", lang])
             }
         }
         onEvent?(e)
@@ -329,7 +384,9 @@ final class MPV: PlaybackEngine {
         switch p {
         case .timePos:
             position = v ?? 0
-            emitPosition()
+            // mpv reports every frame; the UI only needs a few updates a second.
+            let tick = Int(position * 4)
+            if tick != lastPositionTick { lastPositionTick = tick; emitPosition() }
         case .duration:
             duration = v ?? 0
             emitPosition()
@@ -338,16 +395,19 @@ final class MPV: PlaybackEngine {
         case .pause:
             onEvent?(.paused((v ?? 0) != 0))
         case .pausedForCache:
-            onEvent?(.buffering((v ?? 0) != 0))
+            waitingForCache = (v ?? 0) != 0
+            onEvent?(.buffering(waitingForCache))
         case .seeking:
-            if (v ?? 0) != 0 { onEvent?(.buffering(true)) } else { onEvent?(.buffering(getFlag("paused-for-cache"))) }
+            if (v ?? 0) != 0 { onEvent?(.buffering(true)) } else { onEvent?(.buffering(waitingForCache)) }
         case .eofReached:
-            if (v ?? 0) != 0 { onEvent?(.ended) }
-        case .trackCount:
-            onEvent?(.tracksChanged)
+            ended = (v ?? 0) != 0
+            if ended { onEvent?(.ended) }
+        case .trackCount, .aid, .sid:
+            break // handled on the event queue
         case .dwidth, .dheight:
-            if let w = Double(get("dwidth") ?? ""), let h = Double(get("dheight") ?? ""), w > 0, h > 0 {
-                onEvent?(.videoSize(CGSize(width: w, height: h)))
+            if p == .dwidth { videoWidth = v ?? 0 } else { videoHeight = v ?? 0 }
+            if videoWidth > 0, videoHeight > 0 {
+                onEvent?(.videoSize(CGSize(width: videoWidth, height: videoHeight)))
             }
         }
     }
@@ -360,7 +420,7 @@ final class MPV: PlaybackEngine {
 
     static func hex(_ argb: UInt32) -> String { String(format: "#%08X", argb) }
 
-    static func codecName(_ c: String) -> String {
+    nonisolated static func codecName(_ c: String) -> String {
         switch c.lowercased() {
         case "ac3": "Dolby Digital"; case "eac3": "Dolby Digital+"; case "truehd": "TrueHD"; case "dts": "DTS"
         case "aac": "AAC"; case "opus": "Opus"; case "flac": "FLAC"; case "mp3": "MP3"; case "vorbis": "Vorbis"
@@ -368,7 +428,7 @@ final class MPV: PlaybackEngine {
         }
     }
 
-    static func channelLabel(_ n: Int) -> String {
+    nonisolated static func channelLabel(_ n: Int) -> String {
         switch n { case 1: "Mono"; case 2: "Stereo"; case 6: "5.1"; case 8: "7.1"; default: "\(n) ch" }
     }
 }

@@ -94,6 +94,10 @@ struct PlayerView: View {
         #if os(tvOS)
         .onPlayPauseCommand { p.togglePlay() }
         .onExitCommand { p.controlsVisible && p.failure == nil ? p.hideControls() : p.close() }
+        // Moving around the controls counts as using them, or they'd vanish mid-swipe.
+        .onReceive(NotificationCenter.default.publisher(for: UIFocusSystem.didUpdateNotification)) { _ in
+            if p.controlsVisible { p.showControls() }
+        }
         #endif
         .animation(.easeInOut(duration: 0.2), value: p.controlsVisible)
         .animation(.easeInOut(duration: 0.2), value: p.notice)
@@ -126,7 +130,9 @@ struct PlayerView: View {
     private var controls: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
+                #if !os(tvOS) // the remote has Back; on a TV this would take focus from the timeline
                 IconButton(icon: "chevron.left", help: "Back", size: 40) { p.close() }
+                #endif
                 VStack(alignment: .leading, spacing: 2) {
                     Text(p.title).font(.system(size: 22, weight: .black)).marquee()
                     if let l = p.label { Text(l).font(.system(size: 14)).foregroundStyle(Palette.textSecondary).marquee() }
@@ -145,8 +151,9 @@ struct PlayerView: View {
             Spacer()
 
             VStack(spacing: 14) {
-                SeekBar(p: p, focusable: true)
-                buttons
+                // A section, so swiping up reaches the bar from buttons that aren't directly below it.
+                SeekBar(p: p, focusable: true).zFocusScope("timeline")
+                buttons.zFocusScope("buttons")
             }
             .padding(.horizontal, 20)
             .padding(.top, 50)
@@ -158,21 +165,11 @@ struct PlayerView: View {
 
     /** The full button row, or a compact one with the extras in a "More" menu when the window is narrow. */
     private var buttons: some View {
+        #if os(tvOS)
+        fullButtons // a TV is always wide; measuring three layouts is wasted work
+        #else
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                leftButtons
-                Spacer(minLength: 12)
-                audioMenu
-                subtitleMenu
-                speedMenu
-                pictureMenu
-                IconButton(icon: p.rating > 0 ? "hand.thumbsup.fill" : "hand.thumbsup", help: "Like", active: p.rating > 0) { p.rate(p.rating > 0 ? 0 : 1) }
-                IconButton(icon: p.rating < 0 ? "hand.thumbsdown.fill" : "hand.thumbsdown", help: "Dislike", active: p.rating < 0) { p.rate(p.rating < 0 ? 0 : -1) }
-                IconButton(icon: p.inMyList ? "heart.fill" : "heart", help: p.inMyList ? "In My List" : "Add to My List", active: p.inMyList) { p.toggleMyList() }
-                #if !os(tvOS)
-                IconButton(icon: "camera", help: "Save frame to Photos") { p.saveFrame() }
-                #endif
-            }
+            fullButtons
             HStack(spacing: 10) {
                 leftButtons
                 Spacer(minLength: 8)
@@ -184,6 +181,26 @@ struct PlayerView: View {
                 Spacer(minLength: 4)
                 playerMenu("ellipsis", "More", title: "More") { moreItems }
             }
+        }
+        #endif
+    }
+
+    private var fullButtons: some View {
+        HStack(spacing: 12) {
+            leftButtons
+            Spacer(minLength: 12)
+            audioMenu
+            subtitleMenu
+            if !DeviceCaps.isLowEnd {
+                speedMenu
+                pictureMenu
+                IconButton(icon: p.rating > 0 ? "hand.thumbsup.fill" : "hand.thumbsup", help: "Like", active: p.rating > 0) { p.rate(p.rating > 0 ? 0 : 1) }
+                IconButton(icon: p.rating < 0 ? "hand.thumbsdown.fill" : "hand.thumbsdown", help: "Dislike", active: p.rating < 0) { p.rate(p.rating < 0 ? 0 : -1) }
+                IconButton(icon: p.inMyList ? "heart.fill" : "heart", help: p.inMyList ? "In My List" : "Add to My List", active: p.inMyList) { p.toggleMyList() }
+            }
+            #if !os(tvOS)
+            IconButton(icon: "camera", help: "Save frame to Photos") { p.saveFrame() }
+            #endif
         }
     }
 
@@ -362,7 +379,7 @@ private struct SeekBar: View {
     var body: some View {
         let duration = max(p.durationMs, 1)
         let shown = p.scrubTargetMs ?? dragFraction.map { Int64(Double(duration) * $0) } ?? p.positionMs
-        let thick = hoverX != nil || focused
+        let thick = (hoverX != nil && !tvOS) || focused
         VStack(alignment: .leading, spacing: 6) {
             if let t = p.scrubTargetMs {
                 let delta = t - p.positionMs
@@ -380,7 +397,7 @@ private struct SeekBar: View {
                         Circle().fill(p.scrubTargetMs != nil || focused ? .white : P.accent).overlay(Circle().strokeBorder(.white, lineWidth: 2))
                             .frame(width: thick || p.scrubTargetMs != nil ? 18 : 12)
                             .offset(x: w * frac(shown) - 8)
-                        if let x = hoverX, p.durationMs > 0 {
+                        if !tvOS, let x = hoverX, p.durationMs > 0 {
                             Text(PlayerModel.formatTime(Int64(Double(duration) * Double(x / w))))
                                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                 .padding(.horizontal, 6).padding(.vertical, 3)
@@ -426,6 +443,7 @@ private struct SeekFocus: ViewModifier {
                 switch dir {
                 case .left: p.scrub(-1, isRepeat: false); p.showControls(); return true
                 case .right: p.scrub(1, isRepeat: false); p.showControls(); return true
+                case .up where tvOS: p.hideControls(); return true
                 default: return false
                 }
             }, ring: false)

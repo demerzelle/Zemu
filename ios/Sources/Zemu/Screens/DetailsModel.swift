@@ -17,7 +17,10 @@ final class DetailsModel {
     var selectedSeason: Int?
     private(set) var selectedVideo: Video?
 
-    private(set) var streamResult: StreamLoadResult?
+    private(set) var streamResult: StreamLoadResult? { didSet { resultRevision += 1 } }
+    @ObservationIgnored private var resultRevision = 0
+    @ObservationIgnored private var rankedMemo: (key: RankKey, value: [RankedStream])?
+    @ObservationIgnored private var facetsMemo: (key: RankKey, value: [FacetKind: [FacetOption]])?
     private(set) var streamsLoading = false
     private(set) var externalSubs: [SubtitleTrack] = []
     @ObservationIgnored private var streamJob: Task<Void, Never>?
@@ -42,12 +45,33 @@ final class DetailsModel {
 
     var externalSubLangs: Set<String> { Set(externalSubs.compactMap { Languages.normalize($0.lang) }) }
 
+    /** What the ranking depends on: re-ranking every stream on each redraw stalls the remote. */
+    private struct RankKey: Equatable {
+        let revision: Int
+        let filter: FilterState
+        let settings: AppSettings
+        let subs: Set<String>
+    }
+
+    private var rankKey: RankKey {
+        _ = streamResult // redraw when it changes; resultRevision isn't observed
+        return RankKey(revision: resultRevision, filter: s.streamFilter, settings: s.settings, subs: externalSubLangs)
+    }
+
     var streams: [RankedStream] {
-        StreamFilter.apply(streamResult?.cached ?? [], s.streamFilter, s.capabilities, s.settings, externalSubLangs)
+        let key = rankKey
+        if let m = rankedMemo, m.key == key { return m.value }
+        let value = StreamFilter.apply(streamResult?.cached ?? [], s.streamFilter, s.capabilities, s.settings, externalSubLangs)
+        rankedMemo = (key, value)
+        return value
     }
 
     var facets: [FacetKind: [FacetOption]] {
-        StreamFilter.facets(streamResult?.cached ?? [], s.streamFilter, s.capabilities, s.settings, externalSubLangs)
+        let key = rankKey
+        if let m = facetsMemo, m.key == key { return m.value }
+        let value = StreamFilter.facets(streamResult?.cached ?? [], s.streamFilter, s.capabilities, s.settings, externalSubLangs)
+        facetsMemo = (key, value)
+        return value
     }
 
     /**

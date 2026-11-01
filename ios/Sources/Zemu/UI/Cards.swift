@@ -55,7 +55,7 @@ struct PosterCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(hover ? 0.9 : 0), lineWidth: 2))
                 .scaleEffect(hover ? 1.06 : 1)
-                .shadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
+                .zShadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
 
                 Text(meta.title).font(.system(size: 12.5, weight: .medium)).marquee()
                     .foregroundStyle(hover ? .white : Palette.textSecondary)
@@ -124,7 +124,7 @@ struct LandscapeCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(hover ? 0.9 : 0), lineWidth: 2))
                 .scaleEffect(hover ? 1.04 : 1)
-                .shadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
+                .zShadow(color: .black.opacity(hover ? 0.5 : 0), radius: 12, y: 6)
             }
             .contentShape(Rectangle())
         }

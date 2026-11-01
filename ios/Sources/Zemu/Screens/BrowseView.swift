@@ -200,7 +200,7 @@ struct BrowseView: View {
     let type: String
     var app = AppModel.shared
     @State private var hero: Meta?
-    @State private var hovered: Meta?
+    @State private var heroDelay = HeroDelay()
 
     var body: some View {
         let vm = app.session.browseModel(type)
@@ -272,10 +272,10 @@ struct BrowseView: View {
                 } else if items.isEmpty {
                     CenteredMessage("Loading…")
                 } else {
-                    PosterGrid(items: items, onNearEnd: { vm.loadMore() }, onHover: { hovered = $0 }, onLead: { hovered = $0 }) {
+                    PosterGrid(items: items, onNearEnd: { vm.loadMore() }, onHover: hover, onLead: hover) {
                         if !newEpisodes.isEmpty {
                             MediaRow(title: "New Episodes", items: newEpisodes.map(\.meta)) { m in
-                                PosterCard(meta: m, badge: newEpisodes.first { $0.meta.id == m.id }?.badge, onHover: { hovered = $0 })
+                                PosterCard(meta: m, badge: newEpisodes.first { $0.meta.id == m.id }?.badge, onHover: hover)
                             }
                             .padding(.horizontal, -48)
                             .padding(.horizontal, pagePad)
@@ -285,12 +285,9 @@ struct BrowseView: View {
             }
         }
         }
-        .onChange(of: items.first?.id) { _, _ in if hovered == nil { hero = items.first } }
+        .onChange(of: items.first?.id) { _, _ in if !heroDelay.used { hero = items.first } }
         .onAppear { if hero == nil { hero = items.first } }
-        .task(id: hovered?.id) {
-            guard let h = hovered else { return }
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            if !Task.isCancelled { hero = h }
-        }
     }
+
+    private func hover(_ m: Meta) { heroDelay.run { hero = m } }
 }

@@ -416,7 +416,7 @@ struct StreamRow: View {
                 .frame(width: 92, alignment: .leading)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        if r.recommended { Tag(text: "★ BEST FOR THIS MAC", color: Palette.match, filled: true) }
+                        if r.recommended { Tag(text: "★ BEST FOR THIS DEVICE", color: Palette.match, filled: true) }
                         else if !r.deviceFriendly { Tag(text: "May not play well", color: Palette.cached) }
                         Text(s.title).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     }

@@ -23,7 +23,7 @@ struct Backdrop: View {
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     if let m = meta {
-                        RemoteImage(url: m.backdropUrl, maxPixel: 1920, alignment: .top)
+                        RemoteImage(url: m.backdropUrl, maxPixel: DeviceCaps.isLowEnd ? 1280 : 1920, alignment: .top)
                             .id(m.id)
                             .transition(.opacity)
                     }

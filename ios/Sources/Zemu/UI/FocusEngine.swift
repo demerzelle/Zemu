@@ -6,6 +6,13 @@ import SwiftUI
 
 enum MoveDirection { case up, down, left, right }
 
+extension View {
+    /** Blurred shadows are redrawn off screen for every card, even when invisible: too slow on the A8. */
+    @ViewBuilder func zShadow(color: Color, radius: CGFloat, y: CGFloat = 0) -> some View {
+        if DeviceCaps.isLowEnd { self } else { shadow(color: color, radius: radius, y: y) }
+    }
+}
+
 #if os(tvOS)
 let tvOS = true
 /** The screens are laid out in iPad-sized points; a 1920×1080 TV shows them at 1280×720 × 1.5. */
@@ -21,7 +28,7 @@ struct ZemuButtonStyle: ButtonStyle {
         var body: some View {
             label
                 .brightness(focused ? 0.12 : 0)
-                .shadow(color: .white.opacity(focused ? 0.55 : 0), radius: 7)
+                .zShadow(color: .white.opacity(focused ? 0.55 : 0), radius: 7)
                 .scaleEffect(pressed ? 0.96 : focused ? 1.05 : 1)
                 .animation(.easeOut(duration: 0.12), value: focused)
         }
@@ -130,6 +137,7 @@ struct ActionMenuRequest: Identifiable {
 struct ActionMenuOverlay: View {
     let request: ActionMenuRequest
     var app = AppModel.shared
+    @FocusState private var focusedRow: Int?
 
     var body: some View {
         let items = request.items()
@@ -153,11 +161,12 @@ struct ActionMenuOverlay: View {
                     VStack(alignment: .leading, spacing: 2) {
                         // By position: items are rebuilt on every render with new ids, and id-based rows
                         // would be torn down each time (RGB's accent redraws 8 times a second).
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                             ActionMenuRow(item: item) {
                                 item.action()
                                 if !item.keepOpen { app.actionMenu = nil }
                             }
+                            .focused($focusedRow, equals: i)
                         }
                     }
                     .padding(6)
@@ -174,6 +183,8 @@ struct ActionMenuOverlay: View {
         }
         #if os(tvOS)
         .onExitCommand { app.actionMenu = nil }
+        // Focus doesn't leave a disabled button behind the menu by itself, which traps the remote.
+        .onAppear { focusedRow = items.firstIndex { $0.checked == true } ?? 0 }
         #endif
     }
 }

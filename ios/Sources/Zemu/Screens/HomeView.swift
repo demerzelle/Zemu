@@ -228,10 +228,29 @@ func concurrentMapUI<T, R>(_ items: [T], _ transform: @escaping @MainActor (T) a
     }
 }
 
+/**
+ * Debounces the hero so a fast swipe across a row doesn't thrash the backdrop. A reference, so
+ * starting a wait doesn't redraw every row on each swipe.
+ */
+final class HeroDelay {
+    private var task: Task<Void, Never>?
+    private(set) var used = false
+
+    @MainActor func run(_ show: @escaping @MainActor () -> Void) {
+        if DeviceCaps.isLowEnd { return } // the A8 keeps one backdrop instead of swapping it on every swipe
+        used = true
+        task?.cancel()
+        task = Task {
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            if !Task.isCancelled { show() }
+        }
+    }
+}
+
 struct HomeView: View {
     var app = AppModel.shared
     @State private var hero: Meta?
-    @State private var hovered: Meta?
+    @State private var heroDelay = HeroDelay()
     /** Each row's leftmost title (as scrolled), and the row at the top of the list. */
     @State private var leads: [String: Meta] = [:]
     @State private var topRow: String?
@@ -271,13 +290,7 @@ struct HomeView: View {
         .onAppear { if hero == nil { hero = rows.first?.items.first } }
         // Scrolling down: the hero shows the title at the left of the row now on top.
         .onChange(of: topRow) { _, id in
-            if let id, let row = rows.first(where: { $0.id == id }) { hovered = leads[id] ?? row.items.first }
-        }
-        .task(id: hovered?.id) {
-            // Debounce so a fast swipe across a row doesn't thrash the backdrop.
-            guard let h = hovered else { return }
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            if !Task.isCancelled { hero = h }
+            if let id, let row = rows.first(where: { $0.id == id }), let m = leads[id] ?? row.items.first { hover(m) }
         }
     }
 
@@ -287,7 +300,7 @@ struct HomeView: View {
     }
 
     private func rowList(_ model: HomeModel, _ rows: [HomeRow]) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        LazyVStack(alignment: .leading, spacing: 18) {
             if model.noStreamAddons {
                 HStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.cached)
@@ -305,7 +318,7 @@ struct HomeView: View {
             ForEach(rows) { row in
                 MediaRow(title: row.title, items: row.items, spacing: row.style == .landscape ? 16 : 14, onLead: { m in
                     leads[row.id] = m
-                    hovered = m
+                    hover(m)
                 }) { m in
                     switch row.style {
                     case .landscape:
@@ -324,5 +337,5 @@ struct HomeView: View {
         .padding(.bottom, 48)
     }
 
-    private func hover(_ m: Meta) { hovered = m }
+    private func hover(_ m: Meta) { heroDelay.run { hero = m } }
 }

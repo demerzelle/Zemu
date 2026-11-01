@@ -17,7 +17,8 @@ struct RootView: View {
                     content
                     TabBar()
                 }
-            } else {
+            } else if !(DeviceCaps.isLowEnd && app.player != nil) {
+                // The A8 can't keep the whole app live behind the video, and focus can get left on it.
                 HStack(spacing: 0) {
                     Sidebar().zFocusScope("sidebar").zIndex(5)
                     content.zFocusScope("content")

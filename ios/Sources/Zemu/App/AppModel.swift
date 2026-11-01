@@ -257,13 +257,20 @@ final class AppModel {
     }
 
     /** Resumes a Continue Watching entry: loads streams and plays the best (or last used) one. */
+    @ObservationIgnored private var resumeTask: Task<Void, Never>?
+
     func resume(_ entry: WatchEntry) {
-        Task {
+        guard player == nil else { return }
+        // Finding a stream takes seconds; another press restarts the search instead of adding one.
+        resumeTask?.cancel()
+        toast("Starting…")
+        resumeTask = Task {
             let s = session
             let meta = await s.addons.meta(type: entry.meta.type, id: entry.meta.id) ?? entry.meta
             let r = await s.streams.load(type: meta.type, videoId: entry.videoId)
             let ranked = StreamFilter.apply(r.cached, s.streamFilter, s.capabilities, s.settings, [])
             let last = s.store.lastStreams[meta.id]
+            if Task.isCancelled { return }
             guard let pick = ranked.first(where: { $0.stream.key == last?.key })
                 ?? ranked.first(where: { last?.bingeGroup != nil && $0.stream.raw.behaviorHints?.bingeGroup == last?.bingeGroup })
                 ?? ranked.first else {
@@ -272,6 +279,7 @@ final class AppModel {
                 return
             }
             let subs = await s.streams.subtitles(type: meta.type, videoId: entry.videoId)
+            if Task.isCancelled || player != nil { return }
             play(meta: meta, videoId: entry.videoId, episodeLabel: entry.label, stream: pick.stream, externalSubs: subs,
                  alternatives: ranked.map(\.stream))
         }

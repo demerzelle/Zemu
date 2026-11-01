@@ -87,6 +87,7 @@ final class PlayerModel {
     @ObservationIgnored private var scrubTask: Task<Void, Never>?
     @ObservationIgnored private var loadTimer: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
+    @ObservationIgnored private var lastToggle = Date.distantPast
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var autoAdvances = 0
     @ObservationIgnored private var scrubStreak = 0
@@ -191,6 +192,7 @@ final class PlayerModel {
                 scrobble("start")
             }
         case .paused(let p):
+            if tvOS && !p && !isPlaying { hideControls() }
             isPlaying = !p
             if reachedReady { scrobble(p ? "pause" : "start") }
             if p { showControls() }
@@ -210,8 +212,15 @@ final class PlayerModel {
 
     func togglePlay() {
         if failure != nil { return }
-        engine.setPaused(isPlaying)
+        // One press of the remote can arrive twice: as a press and as a system media command.
+        let now = Date()
+        if now.timeIntervalSince(lastToggle) < 0.35 { return }
+        lastToggle = now
+        let pause = isPlaying
+        isPlaying = !pause // shown right away; the engine confirms
+        engine.setPaused(pause)
         noteInteraction()
+        if tvOS && !pause { hideControls() } // on a TV the pause menu stays until Play
     }
 
     func setPaused(_ p: Bool) { engine.setPaused(p) }
@@ -425,7 +434,7 @@ final class PlayerModel {
         guard !closed else { return }
         updateActiveSegment()
         maybeShowNextUp()
-        if Date().timeIntervalSince(lastSave) > 15 && isPlaying {
+        if Date().timeIntervalSince(lastSave) > (DeviceCaps.isLowEnd ? 30 : 15) && isPlaying {
             lastSave = Date()
             saveProgress()
             Integrations.shared.updateNowPlaying(self)
@@ -505,7 +514,7 @@ final class PlayerModel {
 
     /** Near the end of a movie or a series' last episode, pick a similar unwatched title. */
     private func requestRecommendation() {
-        guard !recommendationRequested, nextUp == nil, session.settings.autoplaySimilar, !isAdHoc, !session.kids.active else { return }
+        guard !DeviceCaps.isLowEnd, !recommendationRequested, nextUp == nil, session.settings.autoplaySimilar, !isAdHoc, !session.kids.active else { return }
         guard durationMs > 0, durationMs - positionMs <= 4 * 60_000 else { return }
         if meta.type == "series" && episodes.isEmpty { return } // still loading, or a next episode may exist
         recommendationRequested = true
@@ -745,7 +754,8 @@ final class PlayerModel {
      */
     static func pickSubtitles(_ all: [SubtitleTrack], preferred: [String]) -> [SubtitleTrack] {
         let langs = preferred.isEmpty ? ["en"] : preferred
-        let picked = langs.flatMap { lang in all.filter { Languages.normalize($0.lang) == lang }.prefix(2) }.prefix(8)
+        // mpv downloads each one when the video starts.
+        let picked = langs.flatMap { lang in all.filter { Languages.normalize($0.lang) == lang }.prefix(DeviceCaps.isLowEnd ? 1 : 2) }.prefix(DeviceCaps.isLowEnd ? 2 : 8)
         if !picked.isEmpty { return Array(picked) }
         // Nothing in a preferred language: offer English plus a few others rather than nothing.
         let byLang = Dictionary(grouping: all) { Languages.normalize($0.lang) ?? $0.lang }
