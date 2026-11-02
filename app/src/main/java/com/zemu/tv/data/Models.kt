@@ -21,6 +21,8 @@ data class Meta(
     @Serializable(with = LenientStringSerializer::class) val releaseInfo: String? = null,
     @Serializable(with = LenientStringSerializer::class) val imdbRating: String? = null,
     @Serializable(with = LenientStringListSerializer::class) val genres: List<String> = emptyList(),
+    /** Countries of origin, as Cinemeta gives them ("Japan, South Korea"). */
+    @Serializable(with = LenientStringSerializer::class) val country: String? = null,
     @Serializable(with = LenientStringSerializer::class) val runtime: String? = null,
     @Serializable(with = LenientStringListSerializer::class) val cast: List<String> = emptyList(),
     @Serializable(with = LenientStringListSerializer::class) val director: List<String> = emptyList(),

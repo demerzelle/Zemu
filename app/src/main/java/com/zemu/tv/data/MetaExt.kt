@@ -60,11 +60,15 @@ val Meta.releasedDate: String? get() = released?.take(10)?.takeIf { it.length ==
 /** Video id to probe when checking whether a title has cached streams. */
 val Meta.probeVideoId: String get() = if (type == "series" && isImdb && !id.contains(':')) "$id:1:1" else id
 
+private val animeCountries = Regex("japan|china|korea|taiwan|hong kong", RegexOption.IGNORE_CASE)
+
 /**
- * Anime gets its own languages. shortcut: only Kitsu titles (the Anime page) and an "Anime" genre count;
- * anime opened from Cinemeta (IMDb ids) is treated as a regular title until there's a country of origin to go by.
+ * Anime gets its own languages: Kitsu titles (the Anime page), an "Anime" genre, or animation from Japan,
+ * China, Korea, Taiwan or Hong Kong, wherever it was opened from. Titles saved before 1.1 have no country
+ * until their details are loaded again (the player does that).
  */
-val Meta.isAnime: Boolean get() = id.startsWith("kitsu:") || type == "anime" || genres.any { it.equals("anime", ignoreCase = true) }
+val Meta.isAnime: Boolean get() = id.startsWith("kitsu:") || type == "anime" || genres.any { it.equals("anime", ignoreCase = true) } ||
+    (genres.any { it.equals("animation", ignoreCase = true) } && country?.let { animeCountries.containsMatchIn(it) } == true)
 
 /** Subtitle modes ([AppSettings.subtitleMode]) and how they read. */
 val SUB_MODES = listOf("off" to "Off", "auto" to "Only when the audio isn't my language", "always" to "Always")

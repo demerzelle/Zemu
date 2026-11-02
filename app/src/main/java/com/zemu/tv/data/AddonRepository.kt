@@ -134,9 +134,24 @@ class AddonRepository(
         val preferred = store.settings.value.metaProvider
         for (addon in addonsFor("meta", type, id).sortedByDescending { it.manifest.id == preferred }) {
             val m = runCatching { client.meta(addon.baseUrl, type, id) }.getOrNull()
-            if (m != null && m.id.isNotBlank()) return m
+            if (m != null && m.id.isNotBlank()) return if (addon.manifest.id == CINEMETA_ID) m else withOrigin(m)
         }
         return null
+    }
+
+    /** Cinemeta's country and genres by IMDb id, so each title is asked about once per run. */
+    private val origins = java.util.concurrent.ConcurrentHashMap<String, Pair<String?, List<String>>>()
+
+    /**
+     * Other metadata addons often leave out, or word differently ("JP"), the country of origin and the Animation
+     * genre that tell anime ([isAnime]) from other titles. Cinemeta has both for IMDb titles, so its are used.
+     */
+    private suspend fun withOrigin(m: Meta): Meta {
+        if (!m.id.startsWith("tt") || m.isAnime) return m
+        val id = m.id.substringBefore(':')
+        val (country, genres) = origins[id] ?: runCatching { client.meta(CINEMETA_BASE, m.type, id) }.getOrNull()
+            ?.let { (it.country to it.genres).also { o -> origins[id] = o } } ?: return m
+        return m.copy(country = country ?: m.country, genres = (m.genres + genres.filter { it.equals("animation", ignoreCase = true) }).distinct())
     }
 
     companion object {

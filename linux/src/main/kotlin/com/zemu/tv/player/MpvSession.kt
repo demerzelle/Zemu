@@ -249,6 +249,7 @@ class MpvSession private constructor(
         // Subtitle style changes in Settings / the player apply right away.
         scope.launch { c.userStore.settings.collect { s -> subtitleStyle(s).forEach { send("set_property", it.substringBefore('=').removePrefix("--"), it.substringAfter('=')) } } }
         loadEpisodes()
+        refreshOrigin()
         c.trakt.scrobble("start", meta, videoId, 0f)
     }
 
@@ -374,6 +375,7 @@ class MpvSession private constructor(
                 isPlaying = !paused
                 send("set_property", "start", "none")
                 pickUntil = System.currentTimeMillis() + 10_000
+                viewerPicked = false
                 pickLanguages()
                 subs.forEach { s -> send("sub-add", s.url, "auto", s.lang, Languages.normalize(s.lang) ?: s.lang) }
                 rememberPlayingFile()
@@ -530,7 +532,15 @@ class MpvSession private constructor(
                 if (t["forced"]?.jsonPrimitive?.booleanOrNull == true) add("Forced")
                 if (type == "sub" && title?.contains("SDH", ignoreCase = true) == true) add("SDH")
             }
-            val name = (listOf(title ?: lang?.let { Languages.displayName(it) } ?: "Track $id") + extra).distinct().joinToString(" · ")
+            // The language first: many files title tracks "TrueHD 5.1" and leave the language to the tag.
+            val langName = lang?.let { Languages.displayName(it) }
+            // A title that names the language already ("English (Foreign)") is shown as it is.
+            val shown = when {
+                title == null -> listOfNotNull(langName)
+                langName == null || title.contains(langName, ignoreCase = true) -> listOf(title)
+                else -> listOf(langName, title)
+            }.ifEmpty { listOf("Track $id") }
+            val name = (shown + extra).distinct().joinToString(" · ")
             TrackOption("$type:$id", name, t["selected"]?.jsonPrimitive?.booleanOrNull == true, id, id, lang ?: "und:$id")
         }
         // "English" twice is ambiguous; number repeats.
@@ -543,6 +553,23 @@ class MpvSession private constructor(
 
     /** Until when track-list updates redo [pickLanguages] (0 once the viewer picks). */
     private var pickUntil = 0L
+    private var viewerPicked = false
+
+    /**
+     * The title as saved (In Progress, My List) may lack what tells anime apart: no country, or one worded by
+     * another metadata addon. The details come with Cinemeta's ([AddonRepository.meta]); if they make it anime,
+     * the languages are picked again, unless the viewer has switched tracks since.
+     */
+    private fun refreshOrigin() {
+        val m = meta
+        if (m.isAnime || !m.id.startsWith("tt")) return
+        scope.launch {
+            val full = runCatching { c.addons.meta(m.type, m.id) }.getOrNull() ?: return@launch
+            if (meta.id != m.id) return@launch
+            meta = meta.copy(country = full.country ?: meta.country, genres = (meta.genres + full.genres).distinct())
+            if (loaded && !viewerPicked && meta.isAnime) pickLanguages()
+        }
+    }
 
     /**
      * Plays the viewer's languages ([TrackPicker]): the audio, then subtitles to suit it. A switch the
@@ -605,6 +632,7 @@ class MpvSession private constructor(
 
     fun selectTrack(option: TrackOption, type: Int) = on {
         pickUntil = 0
+        viewerPicked = true
         rememberShowChoice(option, type)
         setTrack(option, type)
     }

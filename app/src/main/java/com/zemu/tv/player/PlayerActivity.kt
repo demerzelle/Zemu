@@ -108,8 +108,9 @@ class PlayerActivity : ComponentActivity() {
     private var startMode = DecoderMode()
     private var reachedReady = false
     private var resumeMs = 0L
-    /** The languages were picked for the stream playing (see [pickLanguages]). */
+    /** The languages were picked for the stream playing (see [pickLanguages]), and the viewer then switched tracks. */
     private var autoPicked = false
+    private var viewerPicked = false
 
     // ---- Compose state ----
     var label by mutableStateOf<String?>(null)
@@ -187,6 +188,7 @@ class PlayerActivity : ComponentActivity() {
         }
         start(resumeMs)
         loadEpisodes()
+        refreshOrigin()
 
         lifecycleScope.launch {
             var ticks = 0
@@ -269,6 +271,7 @@ class PlayerActivity : ComponentActivity() {
         streamLabel = candidate.label
         val settings = c.userStore.settings.value.forTitle(meta)
         autoPicked = false
+        viewerPicked = false
 
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent("Zemu/1.0 (Android TV)")
@@ -599,8 +602,15 @@ class PlayerActivity : ComponentActivity() {
                     if ((f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) add("Forced")
                     if (type == C.TRACK_TYPE_TEXT && isSdh(f)) add("SDH")
                 }
-                val name = listOfNotNull(f.label?.takeIf { it.isNotBlank() } ?: lang ?: "Track ${out.size + 1}")
-                    .plus(extra).joinToString(" · ")
+                // The language first: many files title tracks "TrueHD 5.1" and leave the language to the tag.
+                // A title that names the language already ("English (Foreign)") is shown as it is.
+                val title = f.label?.takeIf { it.isNotBlank() }
+                val shown = when {
+                    title == null -> listOfNotNull(lang)
+                    lang == null || title.contains(lang, ignoreCase = true) -> listOf(title)
+                    else -> listOf(lang, title)
+                }
+                val name = shown.ifEmpty { listOf("Track ${out.size + 1}") }.plus(extra).distinct().joinToString(" · ")
                 out += TrackOption("$gi:$i", name, g.isTrackSelected(i), g, i, f.language?.let { Languages.normalize(it) } ?: "und:$gi")
             }
         }
@@ -648,7 +658,7 @@ class PlayerActivity : ComponentActivity() {
 
     fun selectTrack(option: TrackOption, type: Int, remember: Boolean = true) {
         val p = player ?: return
-        if (remember) rememberShowChoice(option, type)
+        if (remember) { viewerPicked = true; rememberShowChoice(option, type) }
         val builder = p.trackSelectionParameters.buildUpon()
         if (option.group == null) {
             builder.setTrackTypeDisabled(type, true)
@@ -683,6 +693,22 @@ class PlayerActivity : ComponentActivity() {
         when {
             sub >= 0 -> if (!subs[sub].selected) selectTrack(subs[sub], C.TRACK_TYPE_TEXT, remember = false)
             subs.any { it.selected } -> selectTrack(TrackOption("off", "Off", false, null, -1), C.TRACK_TYPE_TEXT, remember = false)
+        }
+    }
+
+    /**
+     * The title as saved (In Progress, My List) may lack what tells anime apart: no country, or one worded by
+     * another metadata addon. The details come with Cinemeta's ([AddonRepository.meta]); if they make it anime,
+     * the languages are picked again, unless the viewer has switched tracks since.
+     */
+    private fun refreshOrigin() {
+        val m = meta ?: return
+        if (m.isAnime || !m.id.startsWith("tt")) return
+        lifecycleScope.launch {
+            val full = runCatching { c.addons.meta(m.type, m.id) }.getOrNull() ?: return@launch
+            val now = meta?.takeIf { it.id == m.id } ?: return@launch
+            meta = now.copy(country = full.country ?: now.country, genres = (now.genres + full.genres).distinct())
+            if (autoPicked && !viewerPicked && meta?.isAnime == true) pickLanguages()
         }
     }
 
