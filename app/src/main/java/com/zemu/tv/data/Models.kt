@@ -182,6 +182,8 @@ data class AppSettings(
     /** Clicks and blips when moving, selecting, holding and going back (themed). */
     val soundEffects: Boolean = true,
     val soundPack: String = "lofi",
+    /** Sound effects volume, 0–100 (the menu's speaker). */
+    val soundVolume: Int = 100,
     /** Mouse-only row scrolling: "arrows" (buttons at the ends) or "edges" (hover near an end). */
     val mouseRowScroll: String = "arrows",
     /** Hover-scroll speed, 1–5 (com.zemu.tv.desktop.EDGE_SPEEDS). */

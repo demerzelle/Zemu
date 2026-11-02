@@ -18,6 +18,8 @@ object SoundFx {
     private val clips = HashMap<Event, Clip>()
     private var lastMove = 0L
     var enabled = true
+    /** 0–1, from the menu's volume slider. */
+    var volume = 1f
     private val player = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "sound").apply { isDaemon = true } }
 
     /** Desktop sound packs (resources sounds/pack-<key>), by setting key; "lofi" is the theme's own set, softened. */
@@ -115,7 +117,11 @@ object SoundFx {
             lastMove = now
         }
         // Off the UI thread: a stalled sound device would otherwise freeze the arrow keys with it.
+        val v = volume
+        if (v <= 0f) return
         player.execute {
+            // Gain in dB; some sound devices have no gain control, and play at full volume.
+            runCatching { (clip.getControl(javax.sound.sampled.FloatControl.Type.MASTER_GAIN) as javax.sound.sampled.FloatControl).let { it.value = (20f * kotlin.math.log10(v)).coerceIn(it.minimum, it.maximum) } }
             clip.stop()
             clip.framePosition = 0
             clip.start()

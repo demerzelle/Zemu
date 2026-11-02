@@ -18,6 +18,8 @@ object SoundFx {
     private val ids = HashMap<Event, Int>()
     private var lastMove = 0L
     var enabled = true
+    /** 0–1, from the menu's volume slider. */
+    var volume = 1f
 
     /** Sound packs (assets sounds/pack-<key>), by setting key; "lofi" is the theme's own set. */
     val PACKS = listOf("lofi" to "Theme sounds", "wood" to "Wood", "bubbles" to "Bubbles", "keys" to "Soft keys", "cosmic" to "Cosmic", "retro" to "Retro")
@@ -74,7 +76,7 @@ object SoundFx {
             if (now - lastMove < 70) return
             lastMove = now
         }
-        val vol = if (e == Event.MOVE) 0.45f else 0.7f
+        val vol = (if (e == Event.MOVE) 0.45f else 0.7f) * volume
         p.play(id, vol, vol, 1, 0, 1f)
     }
 }

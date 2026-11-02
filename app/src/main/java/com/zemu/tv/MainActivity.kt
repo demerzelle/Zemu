@@ -188,6 +188,7 @@ class MainActivity : ComponentActivity() {
                 appColors = colors
                 // Sound effects follow the theme (each restyling theme has its own set).
                 com.zemu.tv.ui.SoundFx.enabled = settings.soundEffects
+                com.zemu.tv.ui.SoundFx.volume = settings.soundVolume / 100f
                 com.zemu.tv.ui.theme.PointerPrefs.color = settings.pointerColor.takeIf { it != 0L }?.let { Color(it.toInt()) }
                 com.zemu.tv.ui.theme.PointerPrefs.scale = settings.pointerSize / 100f
                 com.zemu.tv.ui.theme.PointerPrefs.position = settings.pointerPosition

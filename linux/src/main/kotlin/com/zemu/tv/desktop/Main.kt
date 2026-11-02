@@ -220,6 +220,7 @@ private fun App(onToggleFullscreen: () -> Unit) {
                 val settings = if (kids.on) savedSettings.copy(screensaver = false) else savedSettings
                 val colors = settings.resolvedColors()
                 SoundFx.enabled = settings.soundEffects
+                SoundFx.volume = settings.soundVolume / 100f
                 SideEffect { SoundFx.use(app, SoundFx.setFor(colors.style, settings.soundPack)) }
                 ZemuTheme(colors, settings.uiZoom, settings.font, settings.fontSize) {
                     Box(Modifier.fillMaxSize()) {

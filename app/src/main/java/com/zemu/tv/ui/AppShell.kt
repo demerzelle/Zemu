@@ -45,8 +45,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -92,6 +90,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -374,7 +380,10 @@ private fun NavHostController.navigateTop(route: String) = navigate(route) {
 private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTouchOpen: (Boolean) -> Unit, onSelect: (Dest) -> Unit) {
     var hasFocus by remember { mutableStateOf(false) }
     val usingRemote = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    val expanded = (hasFocus && usingRemote) || touchOpen
+    // The volume slider needs the open menu's width, touch or remote.
+    var soundOpen by remember { mutableStateOf(false) }
+    var soundBounds by remember { mutableStateOf<Rect?>(null) }
+    val expanded = (hasFocus && usingRemote) || touchOpen || soundOpen
     val width by animateDpAsState(if (expanded) RAIL_OPEN_WIDTH else RAIL_WIDTH, label = "rail")
     // Labels fade in as the menu widens, so nothing pokes out past its edge mid-animation.
     val progress = ((width - RAIL_WIDTH) / (RAIL_OPEN_WIDTH - RAIL_WIDTH)).coerceIn(0f, 1f)
@@ -459,6 +468,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                         when {
                             // Taps on the logo count toward the secret instead of opening the menu.
                             start.y < 64.dp.toPx() -> onLogo()
+                            // The speaker and its slider handle their own taps.
+                            soundBounds?.contains(start + railOrigin) == true -> {}
                             tapped != null -> { setOpen(false); select(tapped) }
                             else -> setOpen(!latestOpen)
                         }
@@ -515,11 +526,16 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                 .graphicsLayer { if (logoFocused) { scaleX = 1.15f; scaleY = 1.15f } }
                 .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onLogo),
         )
-        // Main pages centered as before; Profiles and Kids Mode in the bottom left. Item heights are fixed
-        // (40dp + 2dp gap), so the gaps are worked out here and the whole menu still scrolls on short screens.
-        val itemH = 42.dp
-        val top = maxOf(64.dp, (maxHeight - itemH * main.size) / 2)
-        val gap = maxOf(16.dp, maxHeight - top - itemH * (main.size + bottom.size) - 16.dp)
+        // Main pages centered; Sounds, Profiles and Kids Mode in the bottom left. The menu never scrolls:
+        // items are 40dp + 2dp apart where they fit, and closer and smaller on short screens.
+        val count = main.size + bottom.size + 1
+        val itemH = minOf(42.dp, (maxHeight - 64.dp - 32.dp) / count)
+        val rowH = itemH - 2.dp
+        val iconSize = minOf(22.dp, rowH - 6.dp)
+        // Centered unless that would push the bottom items off the screen.
+        val top = maxOf(64.dp, minOf((maxHeight - itemH * main.size) / 2, maxHeight - itemH * count - 32.dp))
+        val soundDrop by animateDpAsState(if (soundOpen) minOf(SOUND_DROP, (rowH - iconSize) / 2) else 0.dp, label = "soundDrop")
+        val gap = maxOf(16.dp, maxHeight - top - itemH * count - 16.dp)
         Column(
             Modifier
                 .fillMaxSize()
@@ -527,12 +543,18 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                 // Entering the menu lands on the current page, not whichever item is nearest; down from the logo, on the top item.
                 .focusProperties { enter = { if (logoFocused) requesters.getValue(main.first()) else selected?.let { requesters.getValue(it) } ?: FocusRequester.Default } }
                 .focusGroup()
-                .verticalScroll(rememberScrollState())
                 .padding(start = 12.dp, end = 12.dp, top = top, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             (main + bottom).forEach { d ->
-                if (d == bottom.first()) Spacer(Modifier.height(gap - 2.dp))
+                if (d == bottom.first()) {
+                    Spacer(Modifier.height(gap - 2.dp))
+                    SoundControl(
+                        open = soundOpen, drop = soundDrop, labels = expanded, progress = progress, rowH = rowH, iconSize = iconSize,
+                        onOpen = { soundOpen = it },
+                        modifier = Modifier.onGloballyPositioned { soundBounds = it.boundsInWindow() },
+                    )
+                }
                 val isCurrent = current == d.route
                 // A kid profile's way out is locked.
                 val label = d.label
@@ -554,13 +576,13 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                         focusedContentColor = Palette.OnFocus,
                     ),
                 ) {
-                    Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.height(rowH).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         // Vintage PC and console themes: pixel icons, like their era's.
-                        if (com.zemu.tv.ui.theme.usePixelIcons) com.zemu.tv.ui.theme.PixelIcon(if (d == Dest.PROFILES && kidsOn) "LOCK" else d.name)
+                        if (com.zemu.tv.ui.theme.usePixelIcons) com.zemu.tv.ui.theme.PixelIcon(if (d == Dest.PROFILES && kidsOn) "LOCK" else d.name, iconSize)
                         else Icon(
                             icon,
                             contentDescription = label,
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(iconSize),
                             tint = if (isCurrent && !expanded) Palette.Accent else androidx.tv.material3.LocalContentColor.current,
                         )
                         if (expanded) {
@@ -575,6 +597,141 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
             }
         }
     }
+}
+
+/** How far the open speaker drops: into the item padding below, so nothing else moves. */
+private val SOUND_DROP = 7.dp
+
+/**
+ * The menu's speaker for the UI sound effects. OK opens it: the speaker drops a little and ⋯ (sound
+ * pack) and a volume slider slide out beside it, with focus staying on the speaker. While open, OK on
+ * the speaker mutes or unmutes. Picking a pack, Back, or moving off it closes it again.
+ */
+@Composable
+private fun SoundControl(
+    open: Boolean, drop: androidx.compose.ui.unit.Dp, labels: Boolean, progress: Float,
+    rowH: androidx.compose.ui.unit.Dp, iconSize: androidx.compose.ui.unit.Dp,
+    onOpen: (Boolean) -> Unit, modifier: Modifier,
+) {
+    val c = LocalContext.current.container
+    val settings by c.userStore.settings.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val muted = !settings.soundEffects
+    var picking by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val speaker = remember { FocusRequester() }
+    // Saving is async; key presses step from this so quick presses all count.
+    var volume by remember { mutableStateOf(settings.soundVolume) }
+    LaunchedEffect(settings.soundVolume) { volume = settings.soundVolume }
+    fun setVolume(v: Int) {
+        volume = v.coerceIn(0, 100)
+        // Now, so the move sound for this very press plays at the new level.
+        com.zemu.tv.ui.SoundFx.volume = volume / 100f
+        com.zemu.tv.ui.SoundFx.enabled = true
+        scope.launch { c.userStore.updateSettings { it.copy(soundVolume = volume, soundEffects = true) } }
+    }
+    var refocus by remember { mutableStateOf(0) }
+    fun close() { onOpen(false); refocus++ }
+    LaunchedEffect(refocus) { if (refocus > 0) { androidx.compose.runtime.withFrameNanos {}; runCatching { speaker.requestFocus() } } }
+    // Moving off it (or to another page) closes it.
+    LaunchedEffect(hasFocus, picking) { if (open && !hasFocus && !picking) onOpen(false) }
+    androidx.activity.compose.BackHandler(enabled = open && !picking) { close() }
+
+    val shape = com.zemu.tv.ui.theme.styledShape(com.zemu.tv.ui.theme.boxy(RoundedCornerShape(10.dp)))
+    val colors = ClickableSurfaceDefaults.colors(
+        containerColor = Color.Transparent,
+        contentColor = Palette.Text,
+        focusedContainerColor = Palette.Focus,
+        focusedContentColor = Palette.OnFocus,
+    )
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+    // Closed, the speaker is a full-width menu item; open, it narrows to its icon to make room.
+    val speakerWidth by animateDpAsState(if (open) 50.dp else maxWidth, label = "speaker")
+    Row(
+        Modifier.fillMaxWidth().height(rowH).offset(y = drop).onFocusChanged { hasFocus = it.hasFocus }.focusGroup(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            // Unmuting at 0 would still be silent, so it comes back at half.
+            onClick = { if (open) scope.launch { c.userStore.updateSettings { it.copy(soundEffects = !it.soundEffects, soundVolume = if (!it.soundEffects && it.soundVolume == 0) 50 else it.soundVolume) } } else onOpen(true) },
+            modifier = Modifier.width(speakerWidth).focusRequester(speaker),
+            shape = ClickableSurfaceDefaults.shape(shape = shape),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+            colors = colors,
+        ) {
+            Row(Modifier.height(rowH).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (muted) AppIcons.VolumeOff else AppIcons.Volume, contentDescription = if (muted) "Sounds off" else "Sounds", modifier = Modifier.size(iconSize))
+                if (labels && !open) {
+                    Spacer(Modifier.width(16.dp))
+                    Text(if (muted) "Sounds off" else "Sounds", fontSize = 16.sp, maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer { alpha = progress })
+                }
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            open,
+            modifier = Modifier.weight(1f, fill = false),
+            enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start) + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.Start) + androidx.compose.animation.fadeOut(),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    onClick = { picking = true },
+                    shape = ClickableSurfaceDefaults.shape(shape = shape),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+                    colors = colors,
+                ) {
+                    Icon(AppIcons.More, contentDescription = "Sound pack", modifier = Modifier.padding(horizontal = 9.dp, vertical = (rowH - iconSize) / 2).size(iconSize))
+                }
+                var focused by remember { mutableStateOf(false) }
+                androidx.compose.foundation.layout.BoxWithConstraints(
+                    Modifier
+                        .weight(1f)
+                        .height(rowH)
+                        .onFocusChanged { focused = it.isFocused }
+                        // Left/Right change the volume; Left at 0 goes back to ⋯, Right at full stays put.
+                        // OK closes it, on release so the speaker it hands focus to doesn't get the click.
+                        .onPreviewKeyEvent { e ->
+                            if (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter) {
+                                if (e.type == KeyEventType.KeyUp) close()
+                                return@onPreviewKeyEvent true
+                            }
+                            if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (e.key) {
+                                Key.DirectionLeft -> (volume > 0).also { if (it) setVolume(volume - 10) }
+                                Key.DirectionRight -> true.also { if (volume < 100) setVolume(volume + 10) }
+                                else -> false
+                            }
+                        }
+                        .focusable()
+                        .pointerInput(Unit) { detectTapGestures { o -> setVolume(((o.x / size.width) * 10).roundToInt() * 10) } }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    val level = if (muted) 0f else volume / 100f
+                    val track = com.zemu.tv.ui.theme.boxy(RoundedCornerShape(2.dp))
+                    Box(Modifier.fillMaxWidth().height(4.dp).background(Palette.TextSecondary.copy(alpha = 0.35f), track))
+                    Box(Modifier.fillMaxWidth(level).height(4.dp).background(Palette.Accent, track))
+                    val knob = if (focused) 16.dp else 12.dp
+                    Box(
+                        Modifier
+                            .offset(x = maxWidth * level - knob / 2)
+                            .size(knob)
+                            .background(if (focused) Palette.Accent else Palette.Text, com.zemu.tv.ui.theme.boxy(androidx.compose.foundation.shape.CircleShape))
+                            .then(if (focused) Modifier.border(2.dp, Color.White, com.zemu.tv.ui.theme.boxy(androidx.compose.foundation.shape.CircleShape)) else Modifier),
+                    )
+                }
+            }
+        }
+    }
+    }
+    if (picking) com.zemu.tv.ui.components.ChoiceDialog(
+        title = "Sound pack",
+        options = com.zemu.tv.ui.SoundFx.PACKS.map { (k, label) -> com.zemu.tv.ui.components.ChoiceOption(k, label) },
+        selected = setOf(settings.soundPack),
+        onToggle = { k -> scope.launch { c.userStore.updateSettings { it.copy(soundPack = k, soundEffects = true) } } },
+        onDismiss = { picking = false; close() },
+        multiSelect = false,
+    )
 }
 
 /**
