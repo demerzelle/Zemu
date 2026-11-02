@@ -163,8 +163,8 @@ class ConfigureActivity : ComponentActivity() {
                 if (down && event.repeatCount == 0) click()
                 return true
             }
-            KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> { if (down) swipe(-web.height * 0.7f); return true }
-            KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> { if (down) swipe(web.height * 0.7f); return true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> { if (down) scroll(web.height * 0.7f); return true }
+            KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> { if (down) scroll(-web.height * 0.7f); return true }
             KeyEvent.KEYCODE_BACK -> {
                 if (down) return true
                 if (web.canGoBack()) web.goBack() else finish()
@@ -179,14 +179,14 @@ class ConfigureActivity : ComponentActivity() {
         val nx = (cursor.x0 + dx).coerceIn(0f, cursor.width.toFloat())
         val ny = cursor.y0 + dy
         when {
-            ny > cursor.height - edge -> { cursor.set(nx, cursor.height - edge); swipe(-dy * 4) }
-            ny < edge -> { cursor.set(nx, edge); swipe(-dy * 4) }
+            ny > cursor.height - edge -> { cursor.set(nx, cursor.height - edge); scroll(dy * 4) }
+            ny < edge -> { cursor.set(nx, edge); scroll(dy * 4) }
             else -> cursor.set(nx, ny)
         }
     }
 
-    private fun touch(action: Int, x: Float, y: Float, downTime: Long) {
-        val ev = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, x, y, 0)
+    private fun touch(action: Int, x: Float, y: Float, downTime: Long, eventTime: Long = SystemClock.uptimeMillis()) {
+        val ev = MotionEvent.obtain(downTime, eventTime, action, x, y, 0)
         ev.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
         web.dispatchTouchEvent(ev)
         ev.recycle()
@@ -198,14 +198,36 @@ class ConfigureActivity : ComponentActivity() {
         touch(MotionEvent.ACTION_UP, cursor.x0, cursor.y0, t)
     }
 
-    /** Scrolls whatever is under the cursor (works for inner scroll containers too). */
+    /**
+     * Smoothly scrolls the innermost scrollable element under the cursor (else the page) by [dy] view px.
+     * A synthetic swipe is only the fallback (e.g. cross-origin iframes): its instant timestamps read as a
+     * huge fling that threw pages to the bottom.
+     */
+    private fun scroll(dy: Float) {
+        if (web.width == 0 || web.height == 0) return
+        val fx = cursor.x0 / web.width
+        web.evaluateJavascript(
+            // Each press adds to the running animation's target; a new smooth scroll restarts from where the last got to.
+            """(function(fx,fy,f){var dy=f*innerHeight;
+            var ok=function(e){return dy>0?e.scrollTop+e.clientHeight<e.scrollHeight-1:e.scrollTop>0};
+            var go=function(e){var n=Date.now(),t=(e.__zt!=null&&n-e.__zn<700?e.__zt:e.scrollTop)+dy;
+              t=Math.max(0,Math.min(t,e.scrollHeight-e.clientHeight));e.__zt=t;e.__zn=n;e.scrollTo({top:t,behavior:'smooth'});return true};
+            for(var e=document.elementFromPoint(fx*innerWidth,fy*innerHeight);e&&e!==document.documentElement;e=e.parentElement){
+              if(/(auto|scroll|overlay)/.test(getComputedStyle(e).overflowY)&&ok(e))return go(e)}
+            var s=document.scrollingElement||document.documentElement;
+            return ok(s)?go(s):false})($fx,0.5,${dy / web.height})""",
+        ) { if (it != "true") swipe(-dy) }
+    }
+
+    /** Finger drag with real timing and a pause before lifting, so it moves exactly [dy] with no fling. */
     private fun swipe(dy: Float) {
         val x = cursor.x0
-        val y = (web.height / 2f)
+        val y = web.height / 2f
         val t = SystemClock.uptimeMillis()
-        touch(MotionEvent.ACTION_DOWN, x, y, t)
-        for (i in 1..5) touch(MotionEvent.ACTION_MOVE, x, y + dy * i / 5f, t)
-        touch(MotionEvent.ACTION_UP, x, y + dy, t)
+        touch(MotionEvent.ACTION_DOWN, x, y, t, t)
+        for (i in 1..5) touch(MotionEvent.ACTION_MOVE, x, y + dy * i / 5f, t, t + i * 16L)
+        touch(MotionEvent.ACTION_MOVE, x, y + dy, t, t + 300)
+        touch(MotionEvent.ACTION_UP, x, y + dy, t, t + 300)
     }
 
     override fun onDestroy() {
