@@ -49,10 +49,10 @@ object SubtitleStyleOptions {
  * line per setting. OK or Right picks the next choice, Left the previous; changes apply live.
  */
 @Composable
-fun SubtitleStyleEditor(settings: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+fun SubtitleStyleEditor(settings: AppSettings, showModeSwitch: Boolean = true, update: ((AppSettings) -> AppSettings) -> Unit) {
     val custom = !settings.subtitleOriginalStyle
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        CycleRow("Custom style", if (custom) "On" else "Off · using the file's original style", listOf(true, false), custom) { v ->
+        if (showModeSwitch) CycleRow("Custom style", if (custom) "On" else "Off · using the file's original style", listOf(true, false), custom) { v ->
             update { it.copy(subtitleOriginalStyle = !v) }
         }
         if (custom) {

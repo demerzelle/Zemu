@@ -27,6 +27,10 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import com.zemu.tv.data.forTitle
+import com.zemu.tv.data.isAnime
+import com.zemu.tv.data.subMode
+import com.zemu.tv.streams.TrackPicker
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -104,6 +108,8 @@ class PlayerActivity : ComponentActivity() {
     private var startMode = DecoderMode()
     private var reachedReady = false
     private var resumeMs = 0L
+    /** The languages were picked for the stream playing (see [pickLanguages]). */
+    private var autoPicked = false
 
     // ---- Compose state ----
     var label by mutableStateOf<String?>(null)
@@ -261,7 +267,8 @@ class PlayerActivity : ComponentActivity() {
         countdown = null
         val candidate = candidates[index]
         streamLabel = candidate.label
-        val settings = c.userStore.settings.value
+        val settings = c.userStore.settings.value.forTitle(meta)
+        autoPicked = false
 
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent("Zemu/1.0 (Android TV)")
@@ -293,7 +300,7 @@ class PlayerActivity : ComponentActivity() {
             .build()
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
             .setPreferredAudioLanguages(*settings.audioLanguages.toTypedArray())
-            .apply { if (settings.autoSubtitles) setPreferredTextLanguages(*settings.subtitleLanguages.toTypedArray()) }
+            .apply { if (settings.subMode == "always") setPreferredTextLanguages(*settings.subtitleLanguages.toTypedArray()) }
             .apply { if (settings.preferSdh) setPreferredTextRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) }
             .setSelectUndeterminedTextLanguage(false)
             .build()
@@ -337,6 +344,11 @@ class PlayerActivity : ComponentActivity() {
 
             override fun onTracksChanged(tracks: Tracks) {
                 tracksVersion++
+                // Once per stream, as soon as its tracks are known.
+                if (!autoPicked && tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO }) {
+                    autoPicked = true
+                    pickLanguages()
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) = handleError(error)
@@ -634,8 +646,9 @@ class PlayerActivity : ComponentActivity() {
     fun currentSubtitleLabel(): String =
         subtitleOptions().firstOrNull { it.selected && it.group != null }?.label?.replace(Regex(" \\d+$"), "") ?: "Off"
 
-    fun selectTrack(option: TrackOption, type: Int) {
+    fun selectTrack(option: TrackOption, type: Int, remember: Boolean = true) {
         val p = player ?: return
+        if (remember) rememberShowChoice(option, type)
         val builder = p.trackSelectionParameters.buildUpon()
         if (option.group == null) {
             builder.setTrackTypeDisabled(type, true)
@@ -647,6 +660,57 @@ class PlayerActivity : ComponentActivity() {
         // Side-loaded subtitle files only deliver lines after a seek once switched on mid-playback.
         if (type == C.TRACK_TYPE_TEXT && option.group != null) p.seekTo(p.currentPosition)
         tracksVersion++
+    }
+
+    /**
+     * Plays the viewer's languages ([TrackPicker]): the audio, then subtitles to suit it. A switch the
+     * viewer made earlier in this show comes first.
+     */
+    private fun pickLanguages() {
+        val m = meta
+        val s = c.userStore.settings.value.forTitle(m)
+        val (audioPrefs, subPrefs, mode) = TrackPicker.withShowChoice(
+            s.audioLanguages, s.subtitleLanguages, s.subMode, m?.takeIf { it.type == "series" }?.let { s.showLanguages[it.id] },
+        )
+        val audio = audioOptions()
+        val current = audio.indexOfFirst { it.selected }.takeIf { it >= 0 }
+        val chosen = TrackPicker.audio(audio.map { it.toPickerTrack() }, audioPrefs, current)
+        if (chosen != null && chosen != current) selectTrack(audio[chosen], C.TRACK_TYPE_AUDIO, remember = false)
+        // The tracks the player reports only change on its next update, so go by the pick.
+        val playing = (chosen ?: current)?.let { TrackPicker.languageOf(audio[it].toPickerTrack()) }
+        val subs = trackOptions(C.TRACK_TYPE_TEXT)
+        val sub = TrackPicker.subtitle(subs.map { it.toPickerTrack() }, subPrefs, mode, playing, m?.isAnime == true, s.preferSdh)
+        when {
+            sub >= 0 -> if (!subs[sub].selected) selectTrack(subs[sub], C.TRACK_TYPE_TEXT, remember = false)
+            subs.any { it.selected } -> selectTrack(TrackOption("off", "Off", false, null, -1), C.TRACK_TYPE_TEXT, remember = false)
+        }
+    }
+
+    /** The viewer switched audio or subtitles: the show's next episodes start the same way. */
+    private fun rememberShowChoice(option: TrackOption, type: Int) {
+        val m = meta?.takeIf { it.type == "series" } ?: return
+        val lang = if (option.group == null) "off" else TrackPicker.languageOf(option.toPickerTrack()) ?: return
+        lifecycleScope.launch {
+            c.userStore.updateSettings { s ->
+                val old = s.showLanguages[m.id]?.split('|')
+                val v = if (type == C.TRACK_TYPE_AUDIO) "$lang|${old?.getOrNull(1).orEmpty()}" else "${old?.getOrNull(0).orEmpty()}|$lang"
+                // Kept for the 200 most recently changed shows.
+                s.copy(showLanguages = (s.showLanguages - m.id + (m.id to v)).entries.toList().takeLast(200).associate { it.key to it.value })
+            }
+        }
+    }
+
+    private fun TrackOption.toPickerTrack(): TrackPicker.Track {
+        val f = group?.getTrackFormat(index)
+        return TrackPicker.Track(
+            lang = f?.language,
+            label = f?.label,
+            forced = f != null && (f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0,
+            isDefault = f != null && (f.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0,
+            sdh = f != null && isSdh(f),
+            external = f?.label?.endsWith("(external)") == true,
+            describesVideo = f != null && (f.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO) != 0,
+        )
     }
 
     private fun isSdh(f: androidx.media3.common.Format): Boolean =
@@ -827,7 +891,7 @@ class PlayerActivity : ComponentActivity() {
             Toast.makeText(this@PlayerActivity, "Loading ${episodeLabel(next)}…", Toast.LENGTH_SHORT).show()
             com.zemu.tv.ui.components.Haptics.buzz(this@PlayerActivity, com.zemu.tv.ui.components.Haptics.Kind.START)
             val result = c.streams.load(m.type, next.id)
-            val settings = c.userStore.settings.value
+            val settings = c.userStore.settings.value.forTitle(m)
             val filtered = StreamFilter.apply(result.cached, c.streamFilter.value, c.capabilities, settings, emptySet())
                 .ifEmpty { StreamFilter.apply(result.cached, FilterState(), c.capabilities, settings, emptySet()) }
                 .map { it.stream }
@@ -900,7 +964,7 @@ class PlayerActivity : ComponentActivity() {
         Toast.makeText(this, "That file isn't available anymore. Finding it again…", Toast.LENGTH_LONG).show()
         lifecycleScope.launch {
             val result = runCatching { c.streams.load(m.type, videoId, force = true) }.getOrNull()
-            val settings = c.userStore.settings.value
+            val settings = c.userStore.settings.value.forTitle(m)
             val fresh = result?.cached.orEmpty().let { all ->
                 StreamFilter.apply(all, c.streamFilter.value, c.capabilities, settings, emptySet())
                     .ifEmpty { StreamFilter.apply(all, FilterState(), c.capabilities, settings, emptySet()) }

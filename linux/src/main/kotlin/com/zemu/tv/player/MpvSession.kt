@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.IntSize
 import com.zemu.tv.AppContainer
 import com.zemu.tv.data.Meta
+import com.zemu.tv.data.forTitle
 import com.zemu.tv.data.Segment
 import com.zemu.tv.data.SegmentType
 import com.zemu.tv.data.SubtitleTrack
@@ -22,6 +23,9 @@ import com.zemu.tv.player.Playback.toCandidate
 import com.zemu.tv.streams.FilterState
 import com.zemu.tv.streams.Languages
 import com.zemu.tv.streams.StreamFilter
+import com.zemu.tv.streams.TrackPicker
+import com.zemu.tv.data.isAnime
+import com.zemu.tv.data.subMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -183,7 +187,7 @@ class MpvSession private constructor(
     fun launch(wid: Long?) {
         if (launched) return
         launched = true
-        val settings = c.userStore.settings.value
+        val settings = c.userStore.settings.value.forTitle(meta)
         socketFile.delete()
         val langs = settings.subtitleLanguages.ifEmpty { listOf("en") }.flatMap(::langCodes)
         val audio = settings.audioLanguages.flatMap(::langCodes)
@@ -221,7 +225,7 @@ class MpvSession private constructor(
         // OpenGL: old Intel GPUs (Ivy Bridge and earlier) only have incomplete Vulkan drivers.
         // (Linux mpv always has OpenGL; macOS builds don't, and mpv refuses to start then.)
         if (System.getProperty("os.name").startsWith("Linux")) cmd += "--gpu-api=opengl"
-        if (settings.autoSubtitles) cmd += "--sid=auto" else cmd += "--sid=no"
+        if (settings.subMode == "always") cmd += "--sid=auto" else cmd += "--sid=no"
         cmd += subtitleStyle(settings)
         val builder = ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(File(dir, "mpv.log"))
         // Embedding needs X11: on a Wayland desktop mpv would open its own window instead, so it
@@ -350,7 +354,13 @@ class MpvSession private constructor(
                     "paused-for-cache" -> buffering = !loaded || (data as? JsonPrimitive)?.booleanOrNull == true
                     "demuxer-cache-time" -> o.num("data")?.let { bufferedMs = (it * 1000).toLong() }
                     "speed" -> o.num("data")?.let { speed = it.toFloat() }
-                    "track-list" -> { tracks = (data as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty(); tracksVersion++ }
+                    "track-list" -> {
+                        tracks = (data as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty()
+                        tracksVersion++
+                        // Side-loaded subtitles arrive one by one after the file opens, so the pick is
+                        // redone as they come in, until the viewer picks something themselves.
+                        if (loaded && System.currentTimeMillis() < pickUntil) pickLanguages()
+                    }
                     "video-params" -> (data as? JsonObject)?.let { p ->
                         val w = p["w"]?.jsonPrimitive?.intOrNull
                         val h = p["h"]?.jsonPrimitive?.intOrNull
@@ -363,6 +373,8 @@ class MpvSession private constructor(
                 buffering = false
                 isPlaying = !paused
                 send("set_property", "start", "none")
+                pickUntil = System.currentTimeMillis() + 10_000
+                pickLanguages()
                 subs.forEach { s -> send("sub-add", s.url, "auto", s.lang, Languages.normalize(s.lang) ?: s.lang) }
                 rememberPlayingFile()
             }
@@ -529,6 +541,62 @@ class MpvSession private constructor(
 
     fun audioOptions(): List<TrackOption> = trackOptions("audio")
 
+    /** Until when track-list updates redo [pickLanguages] (0 once the viewer picks). */
+    private var pickUntil = 0L
+
+    /**
+     * Plays the viewer's languages ([TrackPicker]): the audio, then subtitles to suit it. A switch the
+     * viewer made earlier in this show comes first. Same rules as the Android player.
+     */
+    private fun pickLanguages() {
+        val s = c.userStore.settings.value.forTitle(meta)
+        val (audioPrefs, subPrefs, mode) = TrackPicker.withShowChoice(
+            s.audioLanguages, s.subtitleLanguages, s.subMode, meta.takeIf { it.type == "series" }?.let { s.showLanguages[it.id] },
+        )
+        val audio = audioOptions()
+        val current = audio.indexOfFirst { it.selected }.takeIf { it >= 0 }
+        val chosen = TrackPicker.audio(pickerTracks("audio"), audioPrefs, current)
+        if (chosen != null && chosen != current) setTrack(audio[chosen], androidx.media3.common.C.TRACK_TYPE_AUDIO)
+        val playing = (chosen ?: current)?.let { TrackPicker.languageOf(pickerTracks("audio")[it]) }
+        val subs = trackOptions("sub")
+        val sub = TrackPicker.subtitle(pickerTracks("sub"), subPrefs, mode, playing, meta.isAnime, s.preferSdh)
+        when {
+            sub >= 0 -> if (!subs[sub].selected) setTrack(subs[sub], androidx.media3.common.C.TRACK_TYPE_TEXT)
+            subs.any { it.selected } -> setTrack(TrackOption("off", "Off", false, null, -1), androidx.media3.common.C.TRACK_TYPE_TEXT)
+        }
+    }
+
+    /** mpv's tracks of [type], in [trackOptions] order, for [TrackPicker]. */
+    private fun pickerTracks(type: String): List<TrackPicker.Track> = tracks.filter { it.str("type") == type }.map { t ->
+        fun flag(k: String) = t[k]?.jsonPrimitive?.booleanOrNull == true
+        val title = t.str("title").takeIf { it.isNotBlank() }
+        TrackPicker.Track(
+            lang = t.str("lang").takeIf { it.isNotBlank() },
+            label = title,
+            forced = flag("forced"),
+            isDefault = flag("default"),
+            sdh = flag("hearing-impaired") || title?.contains(Regex("\\b(SDH|CC|HI)\\b", RegexOption.IGNORE_CASE)) == true,
+            external = flag("external"),
+            describesVideo = flag("visual-impaired"),
+        )
+    }
+
+    /** The viewer switched audio or subtitles: the show's next episodes start the same way. */
+    private fun rememberShowChoice(option: TrackOption, type: Int) {
+        val m = meta.takeIf { it.type == "series" } ?: return
+        val lang = if (option.group == null) "off" else option.lang?.takeIf { !it.startsWith("und") }
+            ?: TrackPicker.fromLabel(option.label) ?: return
+        c.appScope.launch {
+            c.userStore.updateSettings { s ->
+                val old = s.showLanguages[m.id]?.split('|')
+                val audio = type == androidx.media3.common.C.TRACK_TYPE_AUDIO
+                val v = if (audio) "$lang|${old?.getOrNull(1).orEmpty()}" else "${old?.getOrNull(0).orEmpty()}|$lang"
+                // Kept for the 200 most recently changed shows.
+                s.copy(showLanguages = (s.showLanguages - m.id + (m.id to v)).entries.toList().takeLast(200).associate { it.key to it.value })
+            }
+        }
+    }
+
     fun subtitleOptions(): List<TrackOption> {
         val list = trackOptions("sub")
         val off = list.none { it.selected }
@@ -536,6 +604,12 @@ class MpvSession private constructor(
     }
 
     fun selectTrack(option: TrackOption, type: Int) = on {
+        pickUntil = 0
+        rememberShowChoice(option, type)
+        setTrack(option, type)
+    }
+
+    private fun setTrack(option: TrackOption, type: Int) {
         if (type == androidx.media3.common.C.TRACK_TYPE_AUDIO) send("set_property", "aid", option.index)
         else send("set_property", "sid", if (option.group == null) "no" else option.index)
     }
@@ -807,7 +881,7 @@ class MpvSession private constructor(
             }
             notice("Loading ${episodeLabel(next)}…")
             val result = runCatching { c.streams.load(meta.type, next.id) }.getOrNull()
-            val settings = c.userStore.settings.value
+            val settings = c.userStore.settings.value.forTitle(meta)
             val filtered = result?.cached.orEmpty().let { all ->
                 StreamFilter.apply(all, c.streamFilter.value, c.capabilities, settings, emptySet())
                     .ifEmpty { StreamFilter.apply(all, FilterState(), c.capabilities, settings, emptySet()) }
@@ -852,7 +926,7 @@ class MpvSession private constructor(
             val key = candidates.getOrNull(index)?.key
             scope.launch {
                 val result = runCatching { c.streams.load(meta.type, videoId, force = true) }.getOrNull()
-                val settings = c.userStore.settings.value
+                val settings = c.userStore.settings.value.forTitle(meta)
                 val fresh = result?.cached.orEmpty().let { all ->
                     StreamFilter.apply(all, c.streamFilter.value, c.capabilities, settings, emptySet())
                         .ifEmpty { StreamFilter.apply(all, FilterState(), c.capabilities, settings, emptySet()) }

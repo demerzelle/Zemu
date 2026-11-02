@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zemu.tv.AppContainer
 import com.zemu.tv.data.Meta
+import com.zemu.tv.data.forTitle
 import com.zemu.tv.data.StreamLoadResult
 import com.zemu.tv.data.SubtitleTrack
 import com.zemu.tv.data.Video
@@ -79,8 +80,8 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
         StreamsUi(
             loading = loading,
             result = r,
-            streams = StreamFilter.apply(all, f, c.capabilities, settings, ext),
-            facets = StreamFilter.facets(all, f, c.capabilities, settings, ext),
+            streams = StreamFilter.apply(all, f, c.capabilities, settings.forTitle(meta.value), ext),
+            facets = StreamFilter.facets(all, f, c.capabilities, settings.forTitle(meta.value), ext),
             externalSubs = subs,
             externalSubLangs = ext,
         )
@@ -175,7 +176,7 @@ class DetailsViewModel(private val c: AppContainer, val type: String, val id: St
             streamsLoading.value = false
             if (autoPlayPending) {
                 autoPlayPending = false
-                val ranked = StreamFilter.apply(result.cached, c.streamFilter.value, c.capabilities, c.userStore.settings.value, emptySet())
+                val ranked = StreamFilter.apply(result.cached, c.streamFilter.value, c.capabilities, c.userStore.settings.value.forTitle(meta.value), emptySet())
                 val pick = preferred(ranked)
                 if (pick != null) autoPlay.value = pick else autoPlayFailed.value = true
             }

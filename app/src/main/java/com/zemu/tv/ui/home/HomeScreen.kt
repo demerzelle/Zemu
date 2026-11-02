@@ -200,7 +200,9 @@ fun HomeScreen(
                         requesters = requesters,
                         favorite = row.favorite,
                         onTitleLongPress = { editingRow = row.key },
-                    ) { i, m, mod ->
+                    ) { i, m, cardMod ->
+                        // The tour's "Hold OK for options" stop points at the first card.
+                        val mod = if (row === firstRow && i == 0) cardMod.then(com.zemu.tv.ui.onboarding.tourTarget("card")) else cardMod
                         when (row.style) {
                             RowStyle.LANDSCAPE -> ContinueCard(m, row.subtitles[m.id], row.progress[m.id] ?: 0f, onClick = {
                                 // In Progress replays the same file from where it stopped; a finished

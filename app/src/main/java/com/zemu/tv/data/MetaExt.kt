@@ -59,3 +59,24 @@ val Meta.releasedDate: String? get() = released?.take(10)?.takeIf { it.length ==
 
 /** Video id to probe when checking whether a title has cached streams. */
 val Meta.probeVideoId: String get() = if (type == "series" && isImdb && !id.contains(':')) "$id:1:1" else id
+
+/**
+ * Anime gets its own languages. shortcut: only Kitsu titles (the Anime page) and an "Anime" genre count;
+ * anime opened from Cinemeta (IMDb ids) is treated as a regular title until there's a country of origin to go by.
+ */
+val Meta.isAnime: Boolean get() = id.startsWith("kitsu:") || type == "anime" || genres.any { it.equals("anime", ignoreCase = true) }
+
+/** Subtitle modes ([AppSettings.subtitleMode]) and how they read. */
+val SUB_MODES = listOf("off" to "Off", "auto" to "Only when the audio isn't my language", "always" to "Always")
+
+fun subModeLabel(mode: String): String = SUB_MODES.firstOrNull { it.first == mode }?.second ?: "Off"
+
+/** When subtitles show ("off", "auto" or "always"), reading the pre-1.1 on/off switch when it's never been set. */
+val AppSettings.subMode: String get() = subtitleMode.ifEmpty { if (autoSubtitles) "always" else "off" }
+
+/** The language settings that apply to [m]: anime has its own. Pass the result wherever languages are used. */
+fun AppSettings.forTitle(m: Meta?): AppSettings = if (m?.isAnime != true) this else copy(
+    audioLanguages = animeAudioLanguages.ifEmpty { audioLanguages },
+    subtitleLanguages = animeSubtitleLanguages.ifEmpty { subtitleLanguages },
+    subtitleMode = animeSubtitleMode,
+)

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.widget.Toast
 import com.zemu.tv.container
 import com.zemu.tv.data.Meta
+import com.zemu.tv.data.forTitle
 import com.zemu.tv.data.SubtitleTrack
 import com.zemu.tv.data.WatchEntry
 import com.zemu.tv.data.slim
@@ -90,7 +91,7 @@ object Playback {
             .putExtra(EXTRA_VIDEO_ID, videoId)
             .putExtra(EXTRA_LABEL, label)
             .putExtra(EXTRA_CANDIDATES, json.encodeToString(ListSerializer(PlayCandidate.serializer()), candidates))
-            .putExtra(EXTRA_SUBS, json.encodeToString(ListSerializer(SubtitleTrack.serializer()), pickSubtitles(subs, c.userStore.settings.value.subtitleLanguages)))
+            .putExtra(EXTRA_SUBS, json.encodeToString(ListSerializer(SubtitleTrack.serializer()), pickSubtitles(subs, c.userStore.settings.value.forTitle(meta).subtitleLanguages)))
             .putExtra(EXTRA_START_MS, startMs)
         if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)

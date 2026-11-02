@@ -67,6 +67,9 @@ import com.zemu.tv.AppContainer
 import com.zemu.tv.container
 import com.zemu.tv.data.Addon
 import com.zemu.tv.data.AppSettings
+import com.zemu.tv.data.SUB_MODES
+import com.zemu.tv.data.subMode
+import com.zemu.tv.data.subModeLabel
 import com.zemu.tv.streams.Languages
 import com.zemu.tv.ui.components.ChoiceDialog
 import com.zemu.tv.ui.components.SubtitleStyleEditor
@@ -142,7 +145,7 @@ class SettingsViewModel(private val c: AppContainer, private val appRef: com.zem
     }
 }
 
-private enum class SettingsDialog { AUDIO, SUBS, MAX_SIZE, COUNTDOWN, STILL_EPISODES }
+private enum class SettingsDialog { AUDIO, SUBS, SUB_MODE, ANIME_AUDIO, ANIME_SUBS, ANIME_SUB_MODE, MAX_SIZE, COUNTDOWN, STILL_EPISODES }
 
 /** The groups shown in Settings' left-hand list. */
 private enum class SettingsCategory(val label: String, val blurb: String, val icon: ImageVector) {
@@ -237,6 +240,23 @@ fun SettingsScreen(onOpenAddons: () -> Unit, onOpenServices: () -> Unit = {}, on
         SettingsDialog.SUBS -> LanguageDialog("Preferred subtitle languages", settings.subtitleLanguages, onDismiss = { dialog = null }) { code ->
             vm.update { s -> s.copy(subtitleLanguages = s.subtitleLanguages.toggle(code)) }
         }
+        SettingsDialog.ANIME_AUDIO -> LanguageDialog("Anime audio languages", settings.animeAudioLanguages, onDismiss = { dialog = null }) { code ->
+            vm.update { s -> s.copy(animeAudioLanguages = s.animeAudioLanguages.toggle(code)) }
+        }
+        SettingsDialog.ANIME_SUBS -> LanguageDialog("Anime subtitle languages", settings.animeSubtitleLanguages, onDismiss = { dialog = null }) { code ->
+            vm.update { s -> s.copy(animeSubtitleLanguages = s.animeSubtitleLanguages.toggle(code)) }
+        }
+        SettingsDialog.SUB_MODE, SettingsDialog.ANIME_SUB_MODE -> {
+            val anime = dialog == SettingsDialog.ANIME_SUB_MODE
+            ChoiceDialog(
+                title = if (anime) "Anime subtitles" else "When subtitles show",
+                options = SUB_MODES.map { (k, label) -> ChoiceOption(k, label) },
+                selected = setOf(if (anime) settings.animeSubtitleMode else settings.subMode),
+                multiSelect = false,
+                onToggle = { v -> vm.update { if (anime) it.copy(animeSubtitleMode = v) else it.copy(subtitleMode = v) } },
+                onDismiss = { dialog = null },
+            )
+        }
         SettingsDialog.COUNTDOWN -> ChoiceDialog(
             title = "Next episode countdown",
             options = listOf(5, 10, 15, 20, 30).map { ChoiceOption(it.toString(), "$it seconds") },
@@ -330,7 +350,9 @@ private val SETTINGS_INDEX: List<Pair<String, SettingsCategory>> = listOf(
     "Maximum file size" to SettingsCategory.PLAYBACK,
     "Preferred audio language" to SettingsCategory.PLAYBACK,
     "Preferred subtitle language" to SettingsCategory.SUBTITLES,
-    "Turn on subtitles automatically" to SettingsCategory.SUBTITLES,
+    "When subtitles show (off, only when needed, always)" to SettingsCategory.SUBTITLES,
+    "Replay the tour / run setup again" to SettingsCategory.SYSTEM,
+    "Anime audio and subtitle languages" to SettingsCategory.PLAYBACK,
     "Prefer SDH subtitles (deaf / hard of hearing)" to SettingsCategory.SUBTITLES,
     "Original subtitle style / custom style on or off" to SettingsCategory.SUBTITLES,
     "Subtitle size, color, background, outline, position" to SettingsCategory.SUBTITLES,
@@ -491,8 +513,13 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
         ) { vm.update { it.copy(trustDirectLinks = !it.trustDirectLinks) } }
         ValueRow("Maximum file size", if (settings.maxSizeGb == 0) "No limit" else "${settings.maxSizeGb} GB") { openDialog(SettingsDialog.MAX_SIZE) }
     }
-    group("audio-language", "Audio language") {
+    group("audio-language", "Audio language", "Zemu switches to these when a stream has them, whatever the file plays first.") {
         ValueRow("Preferred audio", settings.audioLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "Any" }) { openDialog(SettingsDialog.AUDIO) }
+    }
+    group("anime-language", "Anime", "Anime has its own languages: titles from the Anime page.") {
+        ValueRow("Anime audio", settings.animeAudioLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "Same as other titles" }) { openDialog(SettingsDialog.ANIME_AUDIO) }
+        ValueRow("Anime subtitles", settings.animeSubtitleLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "Same as other titles" }) { openDialog(SettingsDialog.ANIME_SUBS) }
+        ValueRow("When anime subtitles show", subModeLabel(settings.animeSubtitleMode)) { openDialog(SettingsDialog.ANIME_SUB_MODE) }
     }
     group("player", "Player") {
         ToggleRow("Use external player", "Open streams in VLC, Just Player, MX Player, etc. instead of the built-in player.", settings.useExternalPlayer) {
@@ -504,9 +531,7 @@ private fun LazyListScope.playbackCategory(vm: SettingsViewModel, settings: AppS
 private fun LazyListScope.subtitlesCategory(vm: SettingsViewModel, settings: AppSettings, openDialog: (SettingsDialog) -> Unit) {
     group("subtitle-prefs", "Which subtitles") {
         ValueRow("Preferred subtitles", settings.subtitleLanguages.joinToString { Languages.displayName(it) }.ifEmpty { "None" }) { openDialog(SettingsDialog.SUBS) }
-        ToggleRow("Turn on subtitles automatically", "Select a subtitle track in your preferred language when playback starts.", settings.autoSubtitles) {
-            vm.update { it.copy(autoSubtitles = !it.autoSubtitles) }
-        }
+        ValueRow("When subtitles show", subModeLabel(settings.subMode)) { openDialog(SettingsDialog.SUB_MODE) }
         ToggleRow("Prefer SDH subtitles", "Choose subtitles for the deaf and hard of hearing (with sound descriptions like [door slams]) when a language has them.", settings.preferSdh) {
             vm.update { it.copy(preferSdh = !it.preferSdh) }
         }
@@ -795,6 +820,10 @@ private fun LazyListScope.deviceCategory(vm: SettingsViewModel, settings: AppSet
 }
 
 private fun LazyListScope.systemCategory(vm: SettingsViewModel, settings: AppSettings) {
+    group("first-run", "Tour & setup", "The welcome tour and setup from the first time Zemu opened.") {
+        ValueRow("Replay the tour", "") { vm.update { it.copy(tourSeen = false) } }
+        ValueRow("Run setup again", "") { vm.update { it.copy(setupVersion = -1) } }
+    }
     group("updates", "Updates", "New versions come from the Zemu releases on GitHub.") {
         val updater = vm.container.appContext.app.updater
         var status by remember { mutableStateOf<String?>(null) }
@@ -819,10 +848,10 @@ private fun LazyListScope.systemCategory(vm: SettingsViewModel, settings: AppSet
     }
 }
 
-private fun List<String>.toggle(code: String) = if (code in this) this - code else this + code
+internal fun List<String>.toggle(code: String) = if (code in this) this - code else this + code
 
 @Composable
-private fun LanguageDialog(title: String, selected: List<String>, onDismiss: () -> Unit, onToggle: (String) -> Unit) {
+internal fun LanguageDialog(title: String, selected: List<String>, onDismiss: () -> Unit, onToggle: (String) -> Unit) {
     val codes = (selected + Languages.common).distinct()
     ChoiceDialog(
         title = title,
@@ -872,7 +901,7 @@ private fun ValueRow(title: String, value: String, modifier: Modifier = Modifier
 
 /** A sample line drawn with the chosen subtitle style. */
 @Composable
-private fun SubtitlePreview(settings: AppSettings) {
+internal fun SubtitlePreview(settings: AppSettings) {
     val color = androidx.compose.ui.graphics.Color(settings.subtitleColor.toInt())
     val bg = when (settings.subtitleBackground) {
         1 -> androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f)

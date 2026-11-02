@@ -705,7 +705,7 @@ private fun SubtitleStyleDialog(
                     .padding(horizontal = 24.dp, vertical = 14.dp),
             ) {
                 Text("Subtitle style  ·  changes apply right away, Back to close", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                SubtitleStyleEditor(settings, update)
+                SubtitleStyleEditor(settings, update = update)
             }
         }
     }

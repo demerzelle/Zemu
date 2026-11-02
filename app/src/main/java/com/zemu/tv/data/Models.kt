@@ -107,7 +107,19 @@ data class InstalledAddon(val transportUrl: String, val manifestJson: String)
 data class AppSettings(
     val audioLanguages: List<String> = listOf("en"),
     val subtitleLanguages: List<String> = listOf("en"),
+    /** Before 1.1: subtitles on at start. Read through [subMode] now. */
     val autoSubtitles: Boolean = false,
+    /** When subtitles show: "off", "auto" (only when the audio isn't one of [subtitleLanguages]) or "always"; "" = from [autoSubtitles]. */
+    val subtitleMode: String = "",
+    /** Anime has its own languages ([forTitle]); empty subtitle languages = [subtitleLanguages]. */
+    val animeAudioLanguages: List<String> = listOf("ja"),
+    val animeSubtitleLanguages: List<String> = emptyList(),
+    val animeSubtitleMode: String = "always",
+    /** Languages the viewer switched to in a show, kept for its next episodes: show id → "audio|subtitle" ("off" = none). */
+    val showLanguages: Map<String, String> = emptyMap(),
+    /** First run (1.1): the tour was shown, and the version of setup finished (0 = never). */
+    val tourSeen: Boolean = false,
+    val setupVersion: Int = 0,
     /** Count plain HTTP streams with no debrid markers as cached (off = strict). */
     val trustDirectLinks: Boolean = false,
     /** 0 = no limit. */

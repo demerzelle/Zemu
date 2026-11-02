@@ -193,7 +193,8 @@ fun AppShell() {
         nav.navigate(detailsRoute(Meta(id = id, type = type), play = play))
     }
 
-    CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched) {
+    val tourTargets = com.zemu.tv.ui.onboarding.rememberTourTargets()
+    CompositionLocalProvider(LocalCardMenu provides { m, rowOptions -> menuRowOptions = rowOptions; menuFor = m }, LocalWatched provides watched, com.zemu.tv.ui.onboarding.LocalTourTargets provides tourTargets) {
     FocusScrollMargins {
     // Desktop and console themes have a taskbar or floor along the bottom: everything else ends above it.
     val floor = com.zemu.tv.ui.theme.floorHeight()
@@ -291,6 +292,24 @@ fun AppShell() {
     }
         com.zemu.tv.ui.theme.StyleFloor(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(floor).sceneTint())
         com.zemu.tv.ui.theme.ConsoleSprites(Modifier.padding(bottom = floor).sceneTint())
+    }
+    // First run (1.1): the tour, then setup, once per profile. Kid profiles skip it.
+    val shellSettings by c.userStore.settings.collectAsStateWithLifecycle()
+    // No stream addon yet means a new user, who gets the whole setup. Decided once the saved addons have
+    // loaded (Cinemeta is always there), and kept, so installing one during setup doesn't change it.
+    val addonsNow by c.addons.addons.collectAsStateWithLifecycle()
+    val newUser = remember(addonsNow.isNotEmpty()) { addonsNow.none { it.manifest.hasResource("stream") } }
+    if (showRail && !kids.on && addonsNow.isNotEmpty()) when {
+        !shellSettings.tourSeen -> com.zemu.tv.ui.onboarding.Tour(tourTargets, newUser, setMenuOpen = { railOpen = it }) {
+            scope.launch { c.userStore.updateSettings { it.copy(tourSeen = true) } }
+            // With setup already done, Home is where focus lands next.
+            if (shellSettings.setupVersion >= com.zemu.tv.ui.onboarding.SETUP_VERSION) nav.navigateTop("home")
+        }
+        shellSettings.setupVersion < com.zemu.tv.ui.onboarding.SETUP_VERSION ->
+            com.zemu.tv.ui.onboarding.SetupFlow(c, full = newUser || shellSettings.setupVersion == -1) { openAddons ->
+                // Somewhere with focus to land on: setup held it, and the page under it may have none.
+                nav.navigateTop(if (openAddons) "addons" else "home")
+            }
     }
     if (kidsTheme) com.zemu.tv.ui.kids.KidsThemePicker { kidsTheme = false }
     if (parentCheck) com.zemu.tv.ui.kids.ParentCheck("Leave this kid profile?", onDismiss = { parentCheck = false }) {
@@ -436,6 +455,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
         Modifier
             .fillMaxHeight()
             .width(width)
+            .then(com.zemu.tv.ui.onboarding.tourTarget("menu"))
             .clipToBounds()
             .onGloballyPositioned { railOrigin = it.positionInWindow() }
             .pointerInput(Unit) {
@@ -552,7 +572,7 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                     SoundControl(
                         open = soundOpen, drop = soundDrop, labels = expanded, progress = progress, rowH = rowH, iconSize = iconSize,
                         onOpen = { soundOpen = it },
-                        modifier = Modifier.onGloballyPositioned { soundBounds = it.boundsInWindow() },
+                        modifier = Modifier.onGloballyPositioned { soundBounds = it.boundsInWindow() }.then(com.zemu.tv.ui.onboarding.tourTarget("sounds")),
                     )
                 }
                 val isCurrent = current == d.route
@@ -566,7 +586,8 @@ private fun NavRail(current: String?, touchOpen: Boolean, kidsOn: Boolean, onTou
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(requesters.getValue(d))
-                        .onGloballyPositioned { bounds[d] = it.boundsInWindow() },
+                        .onGloballyPositioned { bounds[d] = it.boundsInWindow() }
+                        .then(com.zemu.tv.ui.onboarding.tourTarget("dest:${d.name}")),
                     shape = ClickableSurfaceDefaults.shape(shape = shape),
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
                     colors = ClickableSurfaceDefaults.colors(

@@ -4,6 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import com.zemu.tv.container
 import com.zemu.tv.data.Meta
+import com.zemu.tv.data.forTitle
 import com.zemu.tv.data.SubtitleTrack
 import com.zemu.tv.data.WatchEntry
 import com.zemu.tv.data.slim
@@ -79,7 +80,7 @@ object Playback {
 
     private fun launch(context: Context, meta: Meta, videoId: String, label: String?, candidates: List<PlayCandidate>, subs: List<SubtitleTrack>, startMs: Long) {
         val c = context.container
-        MpvSession.start(c, meta, videoId, label, candidates, pickSubtitles(subs, c.userStore.settings.value.subtitleLanguages), startMs)
+        MpvSession.start(c, meta, videoId, label, candidates, pickSubtitles(subs, c.userStore.settings.value.forTitle(meta).subtitleLanguages), startMs)
     }
 
     /**
